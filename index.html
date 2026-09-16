@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Aviator - Spribe Official Simulator & Staking Protocol</title>
+  <meta name="description" content="Spribe Aviator Simulator: Real-time crash flight engine, dual round betting terminals, live stakers, Provably Fair cryptographic verification, and protocol liquidity vaults.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="aviator-app">
+
+  <!-- ==========================================================================
+       TOP APP NAVIGATION HEADER (Exact Spribe Aviator Style)
+       ========================================================================== -->
+  <header class="app-header">
+    <div class="header-left">
+      <!-- Authentic Spribe Aviator Brand Logo -->
+      <div class="brand-container" id="brand-home-link" title="Spribe Aviator">
+        <div class="brand-logo-icon">
+          <!-- Red Stylized Aviator Monoplane -->
+          <svg width="34" height="28" viewBox="0 0 40 32" fill="none">
+            <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" fill="#ff003b" />
+            <path d="M16 16 L 24 3 L 28 4 L 21 16 Z" fill="#e00030" />
+            <path d="M14 20 L 19 28 L 16 29 L 10 21 Z" fill="#b80026" />
+            <circle cx="36" cy="7.5" r="2.5" fill="#ffffff" />
+            <path d="M37 2 L 35 13" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+          </svg>
+        </div>
+        <div class="brand-title">Aviator</div>
+      </div>
+
+      <!-- Spribe "How to Play?" Button -->
+      <button class="header-btn-how-to-play" id="btn-how-to-play" title="How to play Aviator?">
+        <span class="how-icon">?</span>
+        <span class="how-text">How to play?</span>
+      </button>
+
+      <!-- Sub-Nav Mode Tabs (Aviator Game, Liquidity Vault, Rollover) -->
+      <nav class="main-nav-tabs" aria-label="Main Navigation">
+        <button class="nav-tab-btn active" data-view="terminal" id="nav-btn-terminal">
+          <span>Game</span>
+        </button>
+        <button class="nav-tab-btn" data-view="liquidity" id="nav-btn-liquidity">
+          <span>Liquidity</span>
+          <span class="badge-pill">28.4%</span>
+        </button>
+        <button class="nav-tab-btn" data-view="rollover" id="nav-btn-rollover">
+          <span>Rollover</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="header-right">
+      <!-- Live Protocol TVL Ticker (Desktop only) -->
+      <div class="header-tvl-pill desktop-only">
+        <span class="live-dot pulse"></span>
+        <span class="tvl-label">POOL:</span>
+        <span class="tvl-val">KES 148.7M</span>
+      </div>
+
+      <!-- Provably Fair Shield Button -->
+      <button class="header-btn-pf" id="btn-open-pf" title="Inspect Provably Fair SHA-256 Hash">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span class="desktop-only">Provably Fair</span>
+      </button>
+
+      <!-- Sound SFX Toggle -->
+      <button class="header-btn-icon" id="btn-toggle-sound" title="Toggle Sound SFX">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+      </button>
+
+      <!-- Background Music Toggle -->
+      <button class="header-btn-icon desktop-only" id="btn-toggle-music" title="Toggle Background Music">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+      </button>
+
+      <!-- User Demo Balance Card -->
+      <div class="header-balance-card" title="Demo Wallet Balance">
+        <span class="bal-amount user-balance-value">50,000.00 KES</span>
+      </div>
+
+      <!-- Quick Top Up Button -->
+      <button class="btn-top-up" id="btn-top-up" title="Add KES 20,000 demo funds">
+        <span>+</span>
+      </button>
+
+      <!-- Hamburger Menu Button -->
+      <div class="menu-dropdown-wrapper">
+        <button class="btn-hamburger" id="btn-hamburger" aria-label="Open Settings Menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <!-- Dropdown Popup Menu -->
+        <div class="spribe-dropdown-menu" id="spribe-dropdown-menu">
+          <div class="menu-header">
+            <span class="menu-brand">Aviator Settings</span>
+          </div>
+          <div class="menu-item-row" id="menu-item-sound">
+            <span>Sound Effects</span>
+            <label class="spribe-switch">
+              <input type="checkbox" id="menu-switch-sound" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div class="menu-item-row" id="menu-item-music">
+            <span>Music</span>
+            <label class="spribe-switch">
+              <input type="checkbox" id="menu-switch-music" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div class="menu-item-row" id="menu-item-anim">
+            <span>Animation</span>
+            <label class="spribe-switch">
+              <input type="checkbox" id="menu-switch-anim" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div class="menu-divider"></div>
+          <button class="menu-link-btn" id="menu-btn-how">
+            <span class="menu-link-icon">?</span>
+            <span>How to play?</span>
+          </button>
+          <button class="menu-link-btn" id="menu-btn-history">
+            <span class="menu-link-icon">🕒</span>
+            <span>My Bet History</span>
+          </button>
+          <button class="menu-link-btn" id="menu-btn-pf">
+            <span class="menu-link-icon">🛡️</span>
+            <span>Provably Fair Settings</span>
+          </button>
+          <button class="menu-link-btn menu-reset-btn" id="menu-btn-reset">
+            <span class="menu-link-icon">🔄</span>
+            <span>Reset Demo Balance</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       MAIN APP CONTAINER
+       ========================================================================== -->
+  <main class="app-main">
+
+    <!-- VIEW 1: AVIATOR CONSOLE (Spribe Exact Layout & Full Responsiveness) -->
+    <section class="view-section active" id="view-terminal">
+      <div class="aviator-console-layout">
+
+        <!-- LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar -->
+        <aside class="console-sidebar" id="console-sidebar">
+          <div class="sidebar-tabs-header">
+            <button class="stakers-tab-btn active" data-tab="all">All Bets</button>
+            <button class="stakers-tab-btn" data-tab="my">My Bets</button>
+            <button class="stakers-tab-btn" data-tab="top">Top Wins</button>
+          </div>
+
+          <!-- Stakers Container (Injected by live-stakers.js) -->
+          <div class="sidebar-feed-container" id="live-stakers-container"></div>
+        </aside>
+
+        <!-- RIGHT COLUMN / TOP MOBILE: Main Flight Stage & Dual Betting Terminals -->
+        <div class="console-main-stage">
+
+          <!-- Multiplier History Bar (Directly Above Canvas) -->
+          <div class="arena-history-bar">
+            <div class="history-ribbon-wrapper" id="history-ribbon">
+              <!-- Injected by history-bar.js -->
+            </div>
+
+            <!-- Detailed Round History Dropdown Button (Spribe Exact) -->
+            <button class="btn-round-history" id="btn-open-round-history" title="Round History & Provably Fair Seeds">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Flight Canvas Stage -->
+          <div class="flight-canvas-container" id="flight-canvas-container">
+            <canvas id="flight-canvas"></canvas>
+            <div class="canvas-watermark">AVIATOR</div>
+            <button id="btn-skip-countdown" class="canvas-skip-btn" title="Skip countdown and take off immediately">
+              <span>▶ Take Off</span>
+            </button>
+          </div>
+
+          <!-- Dual Staking Control Terminals (Side-by-side or Stacked/Toggleable on Mobile) -->
+          <div class="dual-betting-terminals" id="dual-terminals-wrapper">
+
+            <!-- TERMINAL 1 -->
+            <div class="betting-terminal" id="terminal-1">
+              <!-- Terminal Tab Controls -->
+              <div class="terminal-tab-bar">
+                <div class="tab-pill-switch">
+                  <button class="tab-btn tab-manual active">Bet</button>
+                  <button class="tab-btn tab-auto">Auto</button>
+                </div>
+                <!-- Button to show Terminal 2 if hidden -->
+                <button class="btn-toggle-second-terminal" id="btn-show-terminal-2" title="Add Second Bet Panel" style="display: none;">
+                  <span>+</span> Add Bet
+                </button>
+              </div>
+
+              <!-- Main Bet Panel Controls -->
+              <div class="terminal-grid-content">
+                <!-- Left: Stepper + (Quick Chips OR Auto Controls) -->
+                <div class="terminal-left-controls">
+                  <div class="stepper-row">
+                    <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
+                    <div class="input-display-box">
+                      <input type="number" class="terminal-stake-input" value="100" min="10" max="100000" step="10">
+                      <span class="currency-tag">KES</span>
+                    </div>
+                    <button class="btn-step btn-step-plus" title="Increase stake">+</button>
+                  </div>
+
+                  <!-- Quick Preset Chips Row (Default in Bet mode) -->
+                  <div class="quick-chips-grid">
+                    <button class="chip-btn" data-val="100">100</button>
+                    <button class="chip-btn" data-val="200">200</button>
+                    <button class="chip-btn" data-val="500">500</button>
+                    <button class="chip-btn" data-val="1000">1,000</button>
+                  </div>
+
+                  <!-- Auto Mode Controls (Swapped in Auto mode) -->
+                  <div class="auto-controls-panel" style="display: none;">
+                    <label class="auto-toggle-row">
+                      <input type="checkbox" class="check-auto-stake">
+                      <span class="toggle-track"></span>
+                      <span class="toggle-name">Auto Bet</span>
+                    </label>
+                    <div class="auto-cashout-box">
+                      <label class="auto-toggle-row">
+                        <input type="checkbox" class="check-auto-cashout" checked>
+                        <span class="toggle-track"></span>
+                        <span class="toggle-name">Auto Cash</span>
+                      </label>
+                      <div class="mult-input-group">
+                        <input type="number" class="input-auto-cashout" value="2.00" min="1.05" step="0.1">
+                        <span class="mult-suffix">x</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right: Giant Spribe Action Button -->
+                <div class="terminal-right-action">
+                  <button class="btn-terminal-action state-stake">
+                    <div class="action-btn-main">BET</div>
+                    <div class="action-btn-sub">100.00 KES</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TERMINAL 2 -->
+            <div class="betting-terminal" id="terminal-2">
+              <!-- Terminal Tab Controls -->
+              <div class="terminal-tab-bar">
+                <div class="tab-pill-switch">
+                  <button class="tab-btn tab-manual active">Bet</button>
+                  <button class="tab-btn tab-auto">Auto</button>
+                </div>
+                <!-- Close Button to hide Terminal 2 -->
+                <button class="btn-close-terminal" id="btn-hide-terminal-2" title="Close Second Bet Panel">
+                  ✕
+                </button>
+              </div>
+
+              <!-- Main Bet Panel Controls -->
+              <div class="terminal-grid-content">
+                <!-- Left: Stepper + (Quick Chips OR Auto Controls) -->
+                <div class="terminal-left-controls">
+                  <div class="stepper-row">
+                    <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
+                    <div class="input-display-box">
+                      <input type="number" class="terminal-stake-input" value="200" min="10" max="100000" step="10">
+                      <span class="currency-tag">KES</span>
+                    </div>
+                    <button class="btn-step btn-step-plus" title="Increase stake">+</button>
+                  </div>
+
+                  <div class="quick-chips-grid">
+                    <button class="chip-btn" data-val="100">100</button>
+                    <button class="chip-btn" data-val="200">200</button>
+                    <button class="chip-btn" data-val="500">500</button>
+                    <button class="chip-btn" data-val="1000">1,000</button>
+                  </div>
+
+                  <!-- Auto Mode Controls (Swapped in Auto mode) -->
+                  <div class="auto-controls-panel" style="display: none;">
+                    <label class="auto-toggle-row">
+                      <input type="checkbox" class="check-auto-stake">
+                      <span class="toggle-track"></span>
+                      <span class="toggle-name">Auto Bet</span>
+                    </label>
+                    <div class="auto-cashout-box">
+                      <label class="auto-toggle-row">
+                        <input type="checkbox" class="check-auto-cashout" checked>
+                        <span class="toggle-track"></span>
+                        <span class="toggle-name">Auto Cash</span>
+                      </label>
+                      <div class="mult-input-group">
+                        <input type="number" class="input-auto-cashout" value="1.50" min="1.05" step="0.1">
+                        <span class="mult-suffix">x</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right: Giant Spribe Action Button -->
+                <div class="terminal-right-action">
+                  <button class="btn-terminal-action state-stake">
+                    <div class="action-btn-main">BET</div>
+                    <div class="action-btn-sub">200.00 KES</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VIEW 2: SHIFTSTACK LIQUIDITY STAKING VAULT -->
+    <section class="view-section" id="view-liquidity">
+      <div class="vault-container">
+        <!-- Hero Header -->
+        <div class="vault-hero">
+          <div class="vault-hero-text">
+            <span class="badge-vault-tag">SHIFTSTACK PROTOCOL LIQUIDITY</span>
+            <h1>Stake into the House Bankroll & Earn 28.4% APY</h1>
+            <p>
+              ShiftStack stakers provide the capital bankroll backing the Aviator game. In return, 100% of game protocol fees (1.5% of total volume) and mathematical house-edge profits are distributed directly to stakers each round.
+            </p>
+          </div>
+          <div class="vault-hero-metrics">
+            <div class="metric-box">
+              <span class="metric-label">TOTAL POOL TVL</span>
+              <span class="metric-num font-cyan" id="vault-pool-tvl">KES 148.7M</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">ESTIMATED YIELD</span>
+              <span class="metric-num font-emerald" id="vault-pool-apy">28.4% APY</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">24H GAME VOLUME</span>
+              <span class="metric-num" id="vault-24h-volume">KES 42.89M</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Position & Actions Grid -->
+        <div class="vault-columns-grid">
+          <!-- Position Card -->
+          <div class="vault-card">
+            <div class="card-head">
+              <h2>My Liquidity Staking Position</h2>
+              <span class="live-tag">ACTIVE YIELD</span>
+            </div>
+            <div class="card-body">
+              <div class="position-overview-grid">
+                <div class="pos-item">
+                  <span class="pos-lbl">MY STAKED CAPITAL</span>
+                  <span class="pos-val" id="vault-user-staked">KES 15,000.00</span>
+                </div>
+                <div class="pos-item yield-highlight">
+                  <span class="pos-lbl">ACCRUED YIELD (CLAIMABLE)</span>
+                  <span class="pos-val font-emerald" id="vault-accrued-yield">+KES 248.60</span>
+                  <button class="btn-claim-yield" id="btn-vault-claim-yield">Claim Yield to Wallet</button>
+                </div>
+              </div>
+
+              <!-- Stake / Unstake Actions -->
+              <div class="actions-split-grid">
+                <div class="action-box">
+                  <h3>Stake Capital into Pool</h3>
+                  <div class="action-input-row">
+                    <input type="number" id="input-vault-stake" placeholder="Amount (KES)" min="100" step="100">
+                    <button class="btn-vault-submit btn-primary-stake" id="btn-vault-stake">Stake</button>
+                  </div>
+                  <span class="sub-hint">Earns 28.4% APY paid per round</span>
+                </div>
+
+                <div class="action-box">
+                  <h3>Unstake Capital</h3>
+                  <div class="action-input-row">
+                    <input type="number" id="input-vault-unstake" placeholder="Amount (KES)" min="100" step="100">
+                    <button class="btn-vault-submit btn-secondary-unstake" id="btn-vault-unstake">Unstake</button>
+                  </div>
+                  <span class="sub-hint">Instant return to wallet</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mechanics Explainer Card -->
+          <div class="vault-card">
+            <div class="card-head">
+              <h2>Protocol Staking Rules</h2>
+            </div>
+            <div class="card-body">
+              <div class="rule-step">
+                <span class="step-badge">1</span>
+                <div>
+                  <h4>Zero Lockups</h4>
+                  <p>Deposit or withdraw your staked KES at any time without locking penalties or redemption delays.</p>
+                </div>
+              </div>
+              <div class="rule-step">
+                <span class="step-badge">2</span>
+                <div>
+                  <h4>Real-Time Automated Accrual</h4>
+                  <p>Every Aviator round, 1.5% of player turnover is routed into the staking pool and credited to stakers.</p>
+                </div>
+              </div>
+              <div class="rule-step">
+                <span class="step-badge">3</span>
+                <div>
+                  <h4>Provably Auditable Math</h4>
+                  <p>Pool shares and payout formulas are 100% transparent and verified mathematically on-chain.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: COMPOUNDING ROLLOVER STAKING VAULT -->
+    <section class="view-section" id="view-rollover">
+      <div class="vault-container">
+        <div class="vault-hero">
+          <div class="vault-hero-text">
+            <span class="badge-vault-tag" style="color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.4);">SHIFTSTACK AUTOMATED STRATEGY</span>
+            <h1>Compounding Rollover Staking Challenge</h1>
+            <p>
+              The Rollover Vault automatically compounds your returns across consecutive Aviator rounds. Configure your base stake and safe cash-out target multiplier (e.g. 1.25x); on each win, the entire return is rolled over into the next stage until your challenge is won!
+            </p>
+          </div>
+          <div class="rollover-banner-alert" id="rollover-status-message">
+            Configure parameters and launch Compounding Rollover Challenge
+          </div>
+        </div>
+
+        <div class="rollover-grid">
+          <!-- Configuration -->
+          <div class="vault-card">
+            <div class="card-head">
+              <h2>Challenge Parameters</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label for="rollover-base-stake">Base Initial Stake (KES)</label>
+                <input type="number" id="rollover-base-stake" value="500" min="50" max="25000" step="50">
+              </div>
+
+              <div class="form-group">
+                <label for="rollover-target-mult">Stage Target Multiplier</label>
+                <div class="input-with-tag">
+                  <input type="number" id="rollover-target-mult" value="1.25" min="1.10" max="5.00" step="0.05">
+                  <span class="tag">x</span>
+                </div>
+                <span class="sub-hint">Recommended: 1.20x – 1.35x for optimal win probability</span>
+              </div>
+
+              <div class="form-group">
+                <label for="rollover-stages">Total Stages</label>
+                <input type="number" id="rollover-stages" value="5" min="2" max="10" step="1">
+              </div>
+
+              <div class="rollover-btn-wrap">
+                <button class="btn-start-rollover" id="btn-start-rollover">
+                  <span>▶ Launch Rollover Challenge</span>
+                </button>
+                <button class="btn-stop-rollover" id="btn-stop-rollover" style="display: none;">
+                  <span>■ Stop & Settle Challenge</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progression Ladder -->
+          <div class="vault-card">
+            <div class="card-head">
+              <h2>Projected Stage Progression</h2>
+              <span class="badge-pill font-cyan">Auto-Compounding</span>
+            </div>
+            <div class="card-body">
+              <div class="ladder-container" id="rollover-ladder-container">
+                <!-- Injected dynamically by rollover-vault.js -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================================================
+       MODAL 1: HOW TO PLAY AVIATOR (Spribe Official Guide)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="how-to-play-modal" role="dialog" aria-modal="true" aria-labelledby="how-modal-title">
+    <div class="modal-dialog how-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span class="how-title-badge">?</span>
+          <h2 id="how-modal-title">How to Play Aviator?</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-how" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body how-modal-body">
+        <p class="how-intro">
+          Aviator is an exciting, provably fair multiplayer crash game. You play the role of an aviator, and your earnings are determined by how high you can fly the plane.
+        </p>
+
+        <div class="how-steps-grid">
+          <!-- Step 1 -->
+          <div class="how-step-card">
+            <div class="step-num-badge">1</div>
+            <div class="step-card-content">
+              <h3>Place Your Bet</h3>
+              <p>Select your bet amount and click <strong>BET</strong> before the lucky plane takes off. You can place two independent bets at the same time!</p>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="how-step-card">
+            <div class="step-num-badge">2</div>
+            <div class="step-card-content">
+              <h3>Watch Multiplier Rise</h3>
+              <p>As the red plane climbs, the round payout multiplier starts at <strong>1.00x</strong> and increases continuously.</p>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="how-step-card">
+            <div class="step-num-badge">3</div>
+            <div class="step-card-content">
+              <h3>Cash Out in Time</h3>
+              <p>Hit <strong>CASH OUT</strong> before the plane flies away! Your win is your bet multiplied by the exact cash out coefficient.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="how-features-box">
+          <div class="feat-item">
+            <span class="feat-icon">⚡</span>
+            <div>
+              <strong>Auto Bet & Auto Cashout</strong>
+              <p>Set a target coefficient (e.g. 2.00x) to automatically cash out safely every single round.</p>
+            </div>
+          </div>
+          <div class="feat-item">
+            <span class="feat-icon">🛡️</span>
+            <div>
+              <strong>100% Provably Fair</strong>
+              <p>Cryptographic SHA-256 generation ensures neither the player nor the house can alter the crash point.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 2: ROUND HISTORY & PROVABLY FAIR SEEDS
+       ========================================================================== -->
+  <div class="modal-backdrop" id="round-history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+    <div class="modal-dialog history-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span class="history-title-icon">🕒</span>
+          <h2 id="history-modal-title">Game Round History</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-round-history" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">
+          Browse all recent game multipliers. Click any round to verify its cryptographic SHA-256 hash and client/server seeds.
+        </p>
+
+        <div class="round-history-table-wrapper">
+          <table class="round-history-table">
+            <thead>
+              <tr>
+                <th>Round</th>
+                <th>Multiplier</th>
+                <th>Time</th>
+                <th>Server Hash</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="round-history-tbody">
+              <!-- Injected by history-bar.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 3: PROVABLY FAIR CRYPTOGRAPHIC VERIFIER
+       ========================================================================== -->
+  <div class="modal-backdrop" id="pf-modal" role="dialog" aria-modal="true" aria-labelledby="pf-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff003b" stroke-width="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <h2 id="pf-modal-title">Provably Fair Cryptographic Verifier</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-pf" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">
+          Aviator utilizes industry-standard SHA-256 HMAC cryptographic hashing to guarantee that all round crash points are predetermined, verifiable, and cannot be manipulated by anyone.
+        </p>
+
+        <!-- Current Round Seeds Info -->
+        <div class="pf-info-card">
+          <h3>Active Round Cryptography</h3>
+          <div class="pf-key-row">
+            <span class="pf-key-name">Server Seed (SHA-256 Hashed):</span>
+            <code class="pf-key-value" id="pf-current-server-hash">...</code>
+          </div>
+          <div class="pf-key-row">
+            <span class="pf-key-name">Client Seed:</span>
+            <code class="pf-key-value" id="pf-current-client-seed">...</code>
+          </div>
+          <div class="pf-key-row">
+            <span class="pf-key-name">Round Nonce:</span>
+            <code class="pf-key-value" id="pf-current-nonce">...</code>
+          </div>
+
+          <!-- Change Client Seed Option -->
+          <div class="pf-client-seed-editor">
+            <label for="pf-input-my-client-seed">Customize My Client Seed:</label>
+            <div class="input-with-action">
+              <input type="text" id="pf-input-my-client-seed" placeholder="Custom client seed...">
+              <button class="btn-chip" id="btn-update-client-seed">Update Seed</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historical Round Verification Tool -->
+        <div class="pf-verifier-tool">
+          <h3>Verify Any Historical Round Multiplier</h3>
+          <div class="form-row">
+            <label for="pf-verify-server-seed">Revealed Server Seed (Plain Hex):</label>
+            <input type="text" id="pf-verify-server-seed" placeholder="e.g. 7f3b890a12cd...">
+          </div>
+          <div class="form-row-dual">
+            <div class="form-col">
+              <label for="pf-verify-client-seed">Client Seed:</label>
+              <input type="text" id="pf-verify-client-seed" placeholder="Client seed...">
+            </div>
+            <div class="form-col">
+              <label for="pf-verify-nonce">Nonce:</label>
+              <input type="number" id="pf-verify-nonce" placeholder="Nonce...">
+            </div>
+          </div>
+          <button class="btn-verify-action" id="btn-run-verify">Verify Cryptographic Multiplier</button>
+
+          <div class="pf-result-container" id="pf-verify-result"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript App Entry -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

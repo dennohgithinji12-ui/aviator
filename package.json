@@ -1,0 +1,13 @@
+{
+  "name": "shiftstack-aviator-simulator",
+  "version": "1.0.0",
+  "description": "ShiftStack Aviator Staking Simulator - Authentic crash mechanics, round staking, liquidity vault, and provably fair engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["aviator", "staking", "shiftstack", "crash-simulator", "provably-fair"],
+  "author": "ShiftStack Staking Protocol",
+  "license": "MIT"
+}
