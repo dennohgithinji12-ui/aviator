@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.AviatorVIP" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">#050608</item>
+        <item name="android:statusBarColor">#0c0e14</item>
+        <item name="android:navigationBarColor">#080a0f</item>
+    </style>
+</resources>
