@@ -237,6 +237,19 @@ h1, h2, h3, h4 {
   font-weight: 800;
 }
 
+.vip-link-tab {
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.vip-link-tab:hover {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.45);
+}
+
 /* Header Right Area */
 .header-right {
   display: flex;
