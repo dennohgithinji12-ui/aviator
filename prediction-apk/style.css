@@ -1,0 +1,1187 @@
+/* ==========================================================================
+   Aviator Predictor VIP - Luxury 100% Accuracy Mobile App Design System
+   Royal 24k Gold & Cyber Obsidian Visual Architecture
+   ========================================================================== */
+
+:root {
+  --bg-deep: #050608;
+  --bg-surface: #0a0c10;
+  --bg-card: #10131a;
+  --bg-card-elevated: #161a24;
+  --bg-input: #08090d;
+
+  /* Royal 24k Gold Palette */
+  --gold-pure: #ffd700;
+  --gold-light: #fff2a3;
+  --gold-sheen: #ffea75;
+  --gold-burnished: #d4af37;
+  --gold-dark: #8a6d1c;
+  --gold-glow: rgba(255, 215, 0, 0.45);
+  --gold-border: rgba(255, 215, 0, 0.35);
+
+  /* Complementary Accents */
+  --neon-red: #ff003b;
+  --neon-red-glow: rgba(255, 0, 59, 0.4);
+  --neon-cyan: #00f0ff;
+  --neon-emerald: #00e676;
+  --neon-amber: #ff9100;
+
+  --text-pure: #ffffff;
+  --text-sub: #b3bac5;
+  --text-muted: #616875;
+
+  --font-royal: 'Cinzel', serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 9999px;
+
+  --shadow-vip: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(255, 215, 0, 0.12);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body {
+  background-color: #020304;
+  color: var(--text-pure);
+  font-family: var(--font-body);
+  font-size: 13px;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  overflow-x: hidden;
+}
+
+.vip-mobile-body {
+  width: 100%;
+}
+
+/* Central Mobile Device Shell */
+.vip-app-shell {
+  width: 100%;
+  max-width: 460px;
+  min-height: 100vh;
+  background: var(--bg-deep);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.95), 0 0 25px rgba(255, 215, 0, 0.08);
+  padding-bottom: 78px;
+}
+
+/* ==========================================================================
+   VIP ROYAL TOP HEADER
+   ========================================================================== */
+.vip-header {
+  height: 62px;
+  background: linear-gradient(180deg, #131620 0%, #0c0e14 100%);
+  border-bottom: 1px solid var(--gold-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.vip-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vip-crown-badge {
+  width: 36px;
+  height: 36px;
+  background: radial-gradient(circle, #2a2210 0%, #121008 100%);
+  border: 1.5px solid var(--gold-pure);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+
+.vip-brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vip-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vip-app-name {
+  font-family: var(--font-royal);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, #fff7d6 0%, #ffd700 60%, #b8860b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.badge-vip-pill {
+  background: linear-gradient(135deg, #ffd700 0%, #b8860b 100%);
+  color: #050608;
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-weight: 900;
+  padding: 1.5px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.vip-status-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.live-dot-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neon-emerald);
+  box-shadow: 0 0 8px var(--neon-emerald);
+  animation: liveDotPulse 1.5s infinite;
+}
+
+@keyframes liveDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.3); }
+}
+
+.vip-subtext {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--neon-emerald);
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+}
+
+.vip-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vip-icon-btn {
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 215, 0, 0.06);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  border-radius: var(--radius-sm);
+  color: var(--gold-sheen);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vip-icon-btn:hover {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffffff;
+  border-color: var(--gold-pure);
+}
+
+.vip-icon-btn.muted {
+  color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   VIP MEMBER STATUS STRIP
+   ========================================================================== */
+.vip-member-strip {
+  background: linear-gradient(90deg, #181408 0%, #10131a 50%, #181408 100%);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.member-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--gold-sheen);
+}
+
+.gold-star {
+  color: var(--gold-pure);
+  font-size: 11px;
+}
+
+.member-id {
+  letter-spacing: 0.05em;
+}
+
+.member-id strong {
+  color: #ffffff;
+  font-family: var(--font-mono);
+}
+
+.accuracy-guarantee {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-sub);
+}
+
+.check-gold {
+  color: var(--gold-pure);
+  font-weight: 900;
+}
+
+.accuracy-guarantee strong {
+  color: var(--gold-pure);
+  font-family: var(--font-mono);
+}
+
+/* ==========================================================================
+   PLATFORM SELECTOR
+   ========================================================================== */
+.vip-platform-card {
+  padding: 10px 14px 4px;
+}
+
+.platform-caption {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--gold-burnished);
+  margin-bottom: 5px;
+  display: block;
+}
+
+.select-gold-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.vip-casino-select {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1.5px solid var(--gold-border);
+  border-radius: var(--radius-sm);
+  color: #ffffff;
+  padding: 9px 30px 9px 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  transition: all 0.2s;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.vip-casino-select:focus {
+  border-color: var(--gold-pure);
+  box-shadow: 0 0 12px var(--gold-glow), inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.vip-casino-select option {
+  background: #11141c;
+  color: #ffffff;
+  padding: 8px;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  font-size: 9px;
+  color: var(--gold-pure);
+}
+
+/* ==========================================================================
+   CORE HOLOGRAPHIC VIP RADAR STAGE
+   ========================================================================== */
+.vip-view-container {
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vip-radar-card {
+  background: radial-gradient(circle at 50% 20%, #1a170e 0%, #0c0e14 70%, #060709 100%);
+  border: 1.5px solid var(--gold-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 14px;
+  box-shadow: var(--shadow-vip);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.radar-hud-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.12);
+}
+
+.hud-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--gold-sheen);
+  font-family: var(--font-display);
+}
+
+.hud-badge-100 {
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid var(--gold-pure);
+  color: var(--gold-pure);
+  font-size: 8px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+}
+
+/* The Radar Disc */
+.vip-radar-disc {
+  width: 230px;
+  height: 230px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #20190a 0%, #0f1118 60%, #07080b 100%);
+  border: 2.5px solid var(--gold-pure);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.35), inset 0 0 35px rgba(255, 215, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+/* Dynamic Rotating Gold Laser Sweep */
+.vip-sweep-beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(255, 215, 0, 0.3) 345deg, #ffd700 360deg);
+  animation: radarSweep 2.4s linear infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes radarSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Crosshairs and orbits */
+.radar-line-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 215, 0, 0.2);
+  z-index: 1;
+}
+
+.radar-line-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 215, 0, 0.2);
+  z-index: 1;
+}
+
+.radar-middle-orbit {
+  position: absolute;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 215, 0, 0.25);
+  z-index: 1;
+}
+
+.radar-inner-orbit {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 0, 59, 0.3);
+  z-index: 1;
+}
+
+.radar-center-blip {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--gold-pure);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--gold-pure);
+  z-index: 2;
+  animation: blipPulse 1.2s infinite alternate;
+}
+
+@keyframes blipPulse {
+  from { transform: scale(0.8); opacity: 0.6; }
+  to { transform: scale(1.3); opacity: 1; }
+}
+
+/* Central Multiplier Readout */
+.vip-center-readout {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: rgba(5, 6, 8, 0.78);
+  backdrop-filter: blur(8px);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+.center-label {
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--gold-sheen);
+  margin-bottom: 2px;
+}
+
+.center-multiplier-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.gold-mult-display {
+  font-family: var(--font-mono);
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #fff2a3 30%, #ffd700 80%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.75));
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.vip-accuracy-badge {
+  background: linear-gradient(90deg, #1f1807 0%, #2e220a 50%, #1f1807 100%);
+  border: 1px solid var(--gold-pure);
+  color: var(--gold-pure);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+}
+
+.sparkle {
+  color: #ffffff;
+  animation: sparkleTwinkle 1.5s infinite;
+}
+
+@keyframes sparkleTwinkle {
+  0%, 100% { opacity: 0.5; transform: rotate(0deg); }
+  50% { opacity: 1; transform: rotate(45deg); }
+}
+
+/* Telemetry Triad */
+.vip-telemetry-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.telemetry-box {
+  background: rgba(10, 12, 16, 0.85);
+  border: 1px solid rgba(255, 215, 0, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.tel-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.tel-val {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.font-gold {
+  color: var(--gold-pure);
+  text-shadow: 0 0 8px var(--gold-glow);
+}
+
+.font-cyan {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+}
+
+.font-amber {
+  color: var(--neon-amber);
+  text-shadow: 0 0 8px rgba(255, 145, 0, 0.5);
+}
+
+/* Cryptographic Seed Ticker */
+.vip-seed-ticker {
+  width: 100%;
+  margin-top: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.seed-icon {
+  font-size: 10px;
+}
+
+.seed-text {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   VIP ACTION CONTROLS
+   ========================================================================== */
+.vip-actions-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-vip-predict {
+  width: 100%;
+  height: 54px;
+  background: linear-gradient(135deg, #fff2a3 0%, #ffd700 40%, #e5a900 80%, #996e00 100%);
+  border: 2px solid #ffffff;
+  border-radius: var(--radius-md);
+  color: #050608;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(255, 215, 0, 0.45), inset 0 2px 4px rgba(255, 255, 255, 0.7);
+  transition: all 0.15s ease;
+}
+
+.btn-vip-predict:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+}
+
+.btn-glimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transform: skewX(-25deg);
+  animation: btnGlimmer 3s infinite;
+}
+
+@keyframes btnGlimmer {
+  0% { left: -100%; }
+  25%, 100% { left: 160%; }
+}
+
+.btn-lightning {
+  font-size: 18px;
+}
+
+.btn-vip-predict.scanning {
+  background: linear-gradient(135deg, #2e2612 0%, #473917 100%);
+  color: var(--gold-sheen);
+  border-color: var(--gold-pure);
+  box-shadow: 0 0 20px var(--gold-glow);
+}
+
+.vip-toggles-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.vip-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.vip-switch-control input {
+  display: none;
+}
+
+.switch-slider {
+  width: 38px;
+  height: 20px;
+  background: #181b24;
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-pill);
+  position: relative;
+  transition: all 0.2s;
+}
+
+.switch-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--gold-pure);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--gold-pure);
+  transition: all 0.2s;
+}
+
+.vip-switch-control input:checked + .switch-slider {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: var(--gold-pure);
+}
+
+.vip-switch-control input:checked + .switch-slider::after {
+  transform: translateX(18px);
+}
+
+.switch-caption {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.btn-launch-game {
+  background: rgba(255, 0, 59, 0.12);
+  border: 1px solid var(--neon-red);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.btn-launch-game:hover {
+  background: var(--neon-red);
+  box-shadow: 0 0 12px var(--neon-red-glow);
+}
+
+/* ==========================================================================
+   VIP SIGNALS TELEMETRY LEDGER
+   ========================================================================== */
+.vip-ledger-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ledger-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ledger-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-icon {
+  font-size: 12px;
+}
+
+.ledger-header h3 {
+  font-family: var(--font-royal);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gold-sheen);
+  letter-spacing: 0.05em;
+}
+
+.badge-perfect-rate {
+  background: rgba(0, 230, 118, 0.15);
+  border: 1px solid var(--neon-emerald);
+  color: var(--neon-emerald);
+  font-size: 8px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+}
+
+.vip-ledger-card {
+  background: var(--bg-card);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.signal-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+
+.signal-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.signal-id {
+  color: var(--text-muted);
+}
+
+.signal-stop-val {
+  color: var(--gold-pure);
+  font-weight: 800;
+}
+
+.signal-actual-val {
+  color: #ffffff;
+}
+
+.signal-badge-pass {
+  text-align: right;
+  color: var(--neon-emerald);
+  font-weight: 800;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+/* ==========================================================================
+   APK INSTALL BANNER
+   ========================================================================== */
+.vip-apk-card {
+  background: linear-gradient(90deg, #1c1608 0%, #10141f 100%);
+  border: 1.5px solid var(--gold-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+  margin-top: 4px;
+}
+
+.apk-icon-circle {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid var(--gold-pure);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+
+.apk-card-content {
+  flex: 1;
+}
+
+.apk-card-content h4 {
+  font-family: var(--font-royal);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gold-sheen);
+  margin-bottom: 2px;
+}
+
+.apk-card-content p {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.btn-get-apk {
+  background: linear-gradient(135deg, #ffd700 0%, #b8860b 100%);
+  color: #050608;
+  border: none;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   STRATEGY & GUIDE SHEET
+   ========================================================================== */
+.vip-strategy-sheet {
+  background: var(--bg-card);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius-lg);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.strategy-hero {
+  text-align: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+}
+
+.crown-icon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.strategy-hero h2 {
+  font-family: var(--font-royal);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold-sheen);
+  margin-bottom: 6px;
+}
+
+.strategy-hero p {
+  font-size: 11px;
+  color: var(--text-sub);
+  line-height: 1.4;
+}
+
+.vip-rule-card {
+  display: flex;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.rule-badge {
+  font-family: var(--font-royal);
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--gold-pure);
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid var(--gold-border);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rule-content h4 {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.rule-content p {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   BOTTOM APP NAVIGATION BAR
+   ========================================================================== */
+.vip-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  max-width: 460px;
+  height: 64px;
+  background: rgba(8, 10, 15, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1.5px solid var(--gold-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 60;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.8);
+}
+
+.vip-nav-tab {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 12px;
+  transition: all 0.15s;
+}
+
+.nav-tab-icon {
+  font-size: 18px;
+  transition: transform 0.15s;
+}
+
+.nav-tab-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.vip-nav-tab.active {
+  color: var(--gold-pure);
+}
+
+.vip-nav-tab.active .nav-tab-icon {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 6px var(--gold-pure));
+}
+
+/* ==========================================================================
+   VIP MODAL / INSTALLATION SHEET
+   ========================================================================== */
+.vip-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+.vip-modal-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.vip-modal-sheet {
+  width: 100%;
+  max-width: 460px;
+  background: linear-gradient(180deg, #161922 0%, #0a0c10 100%);
+  border-top: 2px solid var(--gold-pure);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 20px 16px 36px;
+  box-shadow: 0 -10px 40px rgba(255, 215, 0, 0.2);
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.vip-modal-backdrop.show .vip-modal-sheet {
+  transform: translateY(0);
+}
+
+.vip-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.sheet-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet-crown {
+  font-size: 20px;
+}
+
+.vip-sheet-header h3 {
+  font-family: var(--font-royal);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-sheen);
+}
+
+.btn-sheet-close {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--gold-border);
+  color: var(--gold-sheen);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet-intro {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.vip-install-box {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.vip-install-box.featured {
+  border-color: var(--gold-pure);
+  background: rgba(255, 215, 0, 0.05);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+}
+
+.install-box-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.opt-tag {
+  background: var(--gold-pure);
+  color: #000;
+  font-size: 7px;
+  font-weight: 900;
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+}
+
+.install-box-header h4 {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.vip-install-box p {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.btn-gold-action {
+  width: 100%;
+  background: linear-gradient(135deg, #ffd700 0%, #b8860b 100%);
+  color: #050608;
+  border: none;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+}
+
+.btn-gold-outline {
+  display: block;
+  text-align: center;
+  background: transparent;
+  border: 1px solid var(--gold-pure);
+  color: var(--gold-pure);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}

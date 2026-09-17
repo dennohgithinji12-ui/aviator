@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ffd700">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Aviator Predictor VIP | 100% Accuracy Crash Stop Radar</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="vip-mobile-body">
+
+  <div class="vip-app-shell">
+    <!-- VIP Crown Top Header -->
+    <header class="vip-header">
+      <div class="vip-brand-block">
+        <div class="vip-crown-badge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M2 19h20v2H2v-2zm1.5-4.5L5 8l4.5 4 4.5-8 4.5 8 1.5-6.5 1.5 6.5H3.5z" fill="url(#vipGoldGrad)"/>
+            <defs>
+              <linearGradient id="vipGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fff5cc"/>
+                <stop offset="50%" stop-color="#ffd700"/>
+                <stop offset="100%" stop-color="#b8860b"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="vip-brand-info">
+          <div class="vip-title-line">
+            <span class="vip-app-name">AVIATOR PREDICTOR</span>
+            <span class="badge-vip-pill">VIP 100%</span>
+          </div>
+          <div class="vip-status-line">
+            <span class="live-dot-pulse"></span>
+            <span class="vip-subtext" id="sync-status-text">100% LIVE ENGINE SYNCED</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="vip-header-actions">
+        <button class="vip-icon-btn" id="btn-sound" title="Toggle VIP Audio Synthesizer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+        <button class="vip-icon-btn" id="btn-haptic" title="Toggle Tactile Haptic Vibration">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- VIP Member Status Card -->
+    <div class="vip-member-strip">
+      <div class="member-chip">
+        <span class="gold-star">★</span>
+        <span class="member-id">VIP PASS: <strong id="vip-member-id">#ELITE-9842</strong></span>
+      </div>
+      <div class="accuracy-guarantee">
+        <span class="check-gold">✓</span>
+        <span>ACCURACY: <strong>100.0% STOP</strong></span>
+      </div>
+    </div>
+
+    <!-- Casino Platform Selector Bar -->
+    <div class="vip-platform-card">
+      <label class="platform-caption" for="casino-select">TARGET AVIATOR PLATFORM:</label>
+      <div class="select-gold-wrapper">
+        <select id="casino-select" class="vip-casino-select">
+          <option value="shiftstack" selected>👑 ShiftStack Local Simulator (100% Live Provably Fair Sync)</option>
+          <option value="betika">🟢 Betika Aviator VIP (Calibrated)</option>
+          <option value="sportybet">🔴 SportyBet Aviator VIP (Calibrated)</option>
+          <option value="1xbet">🔵 1xBet Crash VIP (Calibrated)</option>
+          <option value="premierbet">🟡 PremierBet Aviator VIP (Calibrated)</option>
+          <option value="betway">⚪ Betway Aviator VIP (Calibrated)</option>
+          <option value="mozzart">🟣 Mozzart Aviator VIP (Calibrated)</option>
+        </select>
+        <span class="select-chevron">▼</span>
+      </div>
+    </div>
+
+    <!-- MAIN RADAR VIEW -->
+    <main class="vip-view-container active" id="view-radar">
+      
+      <!-- Holographic VIP Radar Card -->
+      <div class="vip-radar-card">
+        <div class="radar-hud-header">
+          <span class="hud-tag">CRASH STOP RADAR TELEMETRY</span>
+          <span class="hud-badge-100">100% EXACT</span>
+        </div>
+
+        <div class="vip-radar-disc">
+          <!-- Animated Radar Laser Sweep -->
+          <div class="vip-sweep-beam" id="radar-sweep"></div>
+          
+          <!-- Golden Crosshairs & Telemetry Rings -->
+          <div class="radar-line-h"></div>
+          <div class="radar-line-v"></div>
+          <div class="radar-inner-orbit"></div>
+          <div class="radar-middle-orbit"></div>
+          <div class="radar-center-blip"></div>
+
+          <!-- Central VIP Stop Multiplier Readout -->
+          <div class="vip-center-readout">
+            <span class="center-label" id="prediction-tag">EXACT CRASH STOP PREDICTED</span>
+            <div class="center-multiplier-box">
+              <span class="gold-mult-display" id="predicted-multiplier">3.48x</span>
+            </div>
+            <div class="vip-accuracy-badge" id="confidence-pill">
+              <span class="sparkle">✦</span> 100.0% STOP CONFIRMED
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Data Grid -->
+        <div class="vip-telemetry-grid">
+          <div class="telemetry-box">
+            <span class="tel-label">SAFE CASHOUT</span>
+            <span class="tel-val font-gold" id="safe-cashout-val">2.85x</span>
+          </div>
+          <div class="telemetry-box">
+            <span class="tel-label">CONFIDENCE</span>
+            <span class="tel-val font-cyan" id="confidence-percent">100.0%</span>
+          </div>
+          <div class="telemetry-box">
+            <span class="tel-label">ROUND COUNTDOWN</span>
+            <span class="tel-val font-amber" id="next-timer-val">05s</span>
+          </div>
+        </div>
+
+        <!-- Cryptographic Seed Monitor -->
+        <div class="vip-seed-ticker">
+          <span class="seed-icon">🔒</span>
+          <span class="seed-text" id="seed-hash-text">SHA256: 8f9b4c20d7e812a... (100% MATCHED)</span>
+        </div>
+      </div>
+
+      <!-- VIP Action Trigger Area -->
+      <div class="vip-actions-zone">
+        <button class="btn-vip-predict" id="btn-predict-now">
+          <div class="btn-glimmer"></div>
+          <span class="btn-lightning">⚡</span>
+          <span class="btn-main-label">LOCK NEXT 100% PREDICTION</span>
+        </button>
+
+        <div class="vip-toggles-strip">
+          <label class="vip-switch-control">
+            <input type="checkbox" id="check-auto-predict" checked>
+            <span class="switch-slider"></span>
+            <span class="switch-caption">Auto-Sync Every Round</span>
+          </label>
+          <a href="../index.html" class="btn-launch-game" target="_blank" title="Launch Main Aviator Game in New Tab">
+            <span>Play Aviator ↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- VIP Signals Telemetry Ledger -->
+      <section class="vip-ledger-section">
+        <div class="ledger-header">
+          <div class="ledger-title-wrap">
+            <span class="ledger-icon">📋</span>
+            <h3>VIP SIGNALS TRACK RECORD</h3>
+          </div>
+          <span class="badge-perfect-rate">100% ACCURACY RECORD</span>
+        </div>
+
+        <div class="vip-ledger-card" id="signals-list-card">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </section>
+
+      <!-- APK Install Banner -->
+      <div class="vip-apk-card" id="apk-install-banner">
+        <div class="apk-icon-circle">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2v14M12 16l-4-4M12 16l4-4M4 18v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="apk-card-content">
+          <h4>Download Aviator VIP APK</h4>
+          <p>Install full native Android APK or PWA directly onto your mobile home screen.</p>
+        </div>
+        <button class="btn-get-apk" id="btn-install-apk">Install APK</button>
+      </div>
+
+    </main>
+
+    <!-- VIP STRATEGY & MATHEMATICAL CALIBRATION VIEW -->
+    <section class="vip-view-container" id="view-strategy" style="display: none;">
+      <div class="vip-strategy-sheet">
+        <div class="strategy-hero">
+          <span class="crown-icon">👑</span>
+          <h2>VIP 100% Crash Stop Mathematics</h2>
+          <p>The Aviator VIP Engine leverages cryptographic SHA-256 HMAC pre-calculation directly synchronized with the Aviator Provably Fair seed protocol.</p>
+        </div>
+
+        <div class="vip-rule-card">
+          <div class="rule-badge">01</div>
+          <div class="rule-content">
+            <h4>Exact Crash Stop Pre-Calculation</h4>
+            <p>Because the Aviator game determines each round's crash multiplier at the moment the server seed is committed, this VIP engine listens to the live protocol broadcast and displays the exact crash stop before takeoff.</p>
+          </div>
+        </div>
+
+        <div class="vip-rule-card">
+          <div class="rule-badge">02</div>
+          <div class="rule-content">
+            <h4>Dual Bet Terminal Execution Rule</h4>
+            <p>Always cash out Terminal 1 at <strong>1.50x to 2.00x</strong> to lock in guaranteed profit, and let Terminal 2 run toward the exact VIP predicted stop.</p>
+          </div>
+        </div>
+
+        <div class="vip-rule-card">
+          <div class="rule-badge">03</div>
+          <div class="rule-content">
+            <h4>Zero-Greed Safe Cashout Margin</h4>
+            <p>The VIP engine recommends exiting at <strong>80%–90%</strong> of the predicted crash multiplier to guarantee 100% win consistency without server latency risk.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom App Navigation Bar -->
+    <nav class="vip-bottom-nav">
+      <button class="vip-nav-tab active" data-tab="radar" id="nav-item-radar">
+        <span class="nav-tab-icon">🎯</span>
+        <span class="nav-tab-label">Radar</span>
+      </button>
+      <button class="vip-nav-tab" data-tab="history" id="nav-item-history">
+        <span class="nav-tab-icon">📊</span>
+        <span class="nav-tab-label">100% Ledger</span>
+      </button>
+      <button class="vip-nav-tab" data-tab="strategy" id="nav-item-strategy">
+        <span class="nav-tab-icon">👑</span>
+        <span class="nav-tab-label">VIP Guide</span>
+      </button>
+      <button class="vip-nav-tab" data-tab="install" id="nav-item-install">
+        <span class="nav-tab-icon">📥</span>
+        <span class="nav-tab-label">Get APK</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- APK Installation Sheet Modal -->
+  <div class="vip-modal-backdrop" id="modal-apk-info">
+    <div class="vip-modal-sheet">
+      <div class="vip-sheet-header">
+        <div class="sheet-title-wrap">
+          <span class="sheet-crown">👑</span>
+          <h3>Install Aviator VIP APK</h3>
+        </div>
+        <button class="btn-sheet-close" id="btn-close-sheet">✕</button>
+      </div>
+
+      <div class="vip-sheet-body">
+        <p class="sheet-intro">Deploy the Aviator VIP Predictor on your Android or iOS mobile device with standalone full-screen performance:</p>
+        
+        <div class="vip-install-box featured">
+          <div class="install-box-header">
+            <span class="opt-tag">RECOMMENDED</span>
+            <h4>1-Tap Android PWA / APK Install</h4>
+          </div>
+          <p>Instantly installs to your Android or iOS home screen as a standalone, zero-lag VIP application with offline cache and instant launch.</p>
+          <button class="btn-gold-action" id="btn-pwa-trigger">
+            <span>📱 Install to Mobile Device</span>
+          </button>
+        </div>
+
+        <div class="vip-install-box">
+          <div class="install-box-header">
+            <h4>Build Standalone Android .APK Binary</h4>
+          </div>
+          <p>Contains full Capacitor / Bubblewrap Android source files. You can compile a signed release <code>.apk</code> in Android Studio or using the bundled build script.</p>
+          <a href="./README.md" class="btn-gold-outline" target="_blank">
+            <span>View APK Build Instructions (README)</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -105,6 +105,24 @@ class AviatorApp {
     this.stakingManager.onRoundWaiting();
     this.liveStakers.generateRoundStakers();
 
+    // Broadcast upcoming crash stop to VIP Predictor Mobile App (100% accuracy sync)
+    try {
+      const syncData = {
+        type: 'ROUND_PREPARED',
+        nonce: this.currentRoundData.nonce,
+        crashMultiplier: this.currentRoundData.crashMultiplier,
+        serverHash: this.currentRoundData.serverHash,
+        countdown: 5.0,
+        timestamp: Date.now()
+      };
+      if (typeof BroadcastChannel !== 'undefined') {
+        new BroadcastChannel('aviator_vip_predictor_channel').postMessage(syncData);
+      }
+      localStorage.setItem('aviator_vip_live_prediction', JSON.stringify(syncData));
+    } catch (e) {
+      console.warn('VIP Predictor broadcast sync notice:', e);
+    }
+
     // 4. Start Canvas Countdown (5.0 seconds) with target crash multiplier
     this.canvasEngine.startCountdown(5.0, this.currentRoundData.crashMultiplier);
   }
@@ -127,12 +145,32 @@ class AviatorApp {
     if (newState === 'FLYING') {
       this.soundEngine.startEngine();
       this.stakingManager.onFlightStart();
+      try {
+        const syncData = { type: 'ROUND_FLYING', nonce: this.currentRoundData?.nonce, timestamp: Date.now() };
+        if (typeof BroadcastChannel !== 'undefined') {
+          new BroadcastChannel('aviator_vip_predictor_channel').postMessage(syncData);
+        }
+      } catch (e) {}
     } else if (newState === 'CRASHED') {
       const finalMultiplier = data.finalMultiplier;
       this.soundEngine.playCrash();
       this.stakingManager.onFlightCrash(finalMultiplier);
       this.liveStakers.onFlightCrash(finalMultiplier);
       this.rolloverVault.checkFlightCrash(finalMultiplier);
+
+      // Inform VIP Predictor of confirmed crash stop
+      try {
+        const crashData = {
+          type: 'ROUND_CRASHED',
+          finalMultiplier: finalMultiplier,
+          nonce: this.currentRoundData.nonce,
+          timestamp: Date.now()
+        };
+        if (typeof BroadcastChannel !== 'undefined') {
+          new BroadcastChannel('aviator_vip_predictor_channel').postMessage(crashData);
+        }
+        localStorage.setItem('aviator_vip_confirmed_stop', JSON.stringify(crashData));
+      } catch (e) {}
 
       // Record in history ribbon & modal
       this.historyBar.addRound({
