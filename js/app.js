@@ -14,12 +14,15 @@ import { ProvablyFairUI } from './features/provably-fair.js';
 import { HistoryBarComponent } from './components/history-bar.js';
 import { LiveStakersComponent } from './components/live-stakers.js';
 import { PuterAuthManager } from './features/puter-auth.js';
+import { GlobalRoundSyncEngine } from './engine/global-sync.js';
 
 class AviatorApp {
   constructor() {
     this.soundEngine = new SoundEngine();
     this.crashMath = new CrashMathEngine();
+    this.globalSync = new GlobalRoundSyncEngine();
     this.currentRoundData = null;
+    this.roundEndTimeout = null;
 
     // Initialize UI Components & Subsystems
     this.initStakingManager();
@@ -94,37 +97,42 @@ class AviatorApp {
     );
   }
 
-  // Orchestrate game round cycle
-  async startNewRoundSequence() {
-    // 1. Prepare next round cryptographically
-    this.currentRoundData = await this.crashMath.prepareNextRound();
+  // Orchestrate globally synchronized game round cycle across all users
+  startNewRoundSequence() {
+    if (this.roundEndTimeout) {
+      clearTimeout(this.roundEndTimeout);
+      this.roundEndTimeout = null;
+    }
+
+    // 1. Fetch current global authoritative round state (identical for all users worldwide)
+    const globalState = this.globalSync.getGlobalRoundState();
+    this.currentRoundData = {
+      nonce: globalState.nonce,
+      crashMultiplier: globalState.crashMultiplier,
+      serverHash: globalState.serverHash,
+      serverSeed: globalState.serverSeed,
+      clientSeed: globalState.clientSeed,
+      flightDuration: globalState.flightDuration,
+      roundStartTime: globalState.roundStartTime,
+      roundEndTime: globalState.roundEndTime
+    };
 
     // 2. Update Provably Fair UI indicators
     const currentHashEl = document.getElementById('pf-current-server-hash');
-    if (currentHashEl) {
-      currentHashEl.textContent = this.currentRoundData.serverHash;
-    }
+    if (currentHashEl) currentHashEl.textContent = this.currentRoundData.serverHash;
     const currentClientSeedEl = document.getElementById('pf-current-client-seed');
-    if (currentClientSeedEl) {
-      currentClientSeedEl.textContent = this.currentRoundData.clientSeed;
-    }
+    if (currentClientSeedEl) currentClientSeedEl.textContent = this.currentRoundData.clientSeed;
     const currentNonceEl = document.getElementById('pf-current-nonce');
-    if (currentNonceEl) {
-      currentNonceEl.textContent = this.currentRoundData.nonce;
-    }
+    if (currentNonceEl) currentNonceEl.textContent = this.currentRoundData.nonce;
 
-    // 3. Inform Staking Terminals
-    this.stakingManager.onRoundWaiting();
-    this.liveStakers.generateRoundStakers();
-
-    // Broadcast upcoming crash stop to VIP Predictor Mobile App (100% accuracy sync)
+    // 3. Broadcast upcoming crash stop to VIP Predictor Mobile App (100% accuracy sync)
     try {
       const syncData = {
         type: 'ROUND_PREPARED',
         nonce: this.currentRoundData.nonce,
         crashMultiplier: this.currentRoundData.crashMultiplier,
         serverHash: this.currentRoundData.serverHash,
-        countdown: 5.0,
+        countdown: globalState.remainingSeconds,
         timestamp: Date.now()
       };
       if (typeof BroadcastChannel !== 'undefined') {
@@ -135,9 +143,23 @@ class AviatorApp {
       console.warn('VIP Predictor broadcast sync notice:', e);
     }
 
-    // 4. Start Canvas Countdown (5.0 seconds) with target crash multiplier
-    this.lastCountdownSecond = -1;
-    this.canvasEngine.startCountdown(5.0, this.currentRoundData.crashMultiplier);
+    // 4. Synchronize Flight Phase with Global Timeline
+    if (globalState.phase === 'WAITING') {
+      this.stakingManager.onRoundWaiting();
+      this.liveStakers.generateRoundStakers();
+      this.lastCountdownSecond = -1;
+      this.canvasEngine.startCountdown(5.0, this.currentRoundData.crashMultiplier, globalState.remainingSeconds);
+    } else if (globalState.phase === 'FLYING') {
+      this.liveStakers.generateRoundStakers();
+      this.soundEngine.startEngine();
+      this.soundEngine.updateEnginePitch(globalState.currentMultiplier);
+      this.stakingManager.onFlightStart();
+      this.canvasEngine.startFlight(this.currentRoundData.crashMultiplier, globalState.elapsedFlightSeconds);
+    } else {
+      // In 3.2s crashed pause - wait until scheduled end and launch next round
+      const delay = Math.max(500, globalState.roundEndTime - this.globalSync.getNow());
+      this.roundEndTimeout = setTimeout(() => this.startNewRoundSequence(), delay);
+    }
   }
 
   onFlightTick(multiplier, remainingSeconds) {
@@ -206,10 +228,12 @@ class AviatorApp {
       const simulatedVolume = 12000 + Math.floor(Math.random() * 25000);
       this.liquidityVault.distributeRoundYield(simulatedVolume);
 
-      // Wait 3.2 seconds, then launch next round
-      setTimeout(() => {
+      // Seamlessly transition to next global round at exact scheduled round end
+      const stateNow = this.globalSync.getGlobalRoundState();
+      const delay = Math.max(1000, stateNow.roundEndTime - this.globalSync.getNow());
+      this.roundEndTimeout = setTimeout(() => {
         this.startNewRoundSequence();
-      }, 3200);
+      }, delay);
     }
   }
 

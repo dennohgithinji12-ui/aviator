@@ -5,9 +5,9 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'android/**'
-      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -29,6 +29,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
 
       - name: Build Debug APK
         run: |
@@ -45,4 +47,20 @@ jobs:
         with:
           name: Aviator-VIP-Predictor-APK
           path: build-output/Aviator-VIP-Predictor.apk
-          retention-days: 60
+          retention-days: 90
+
+      - name: Publish Release with Downloadable APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: Aviator VIP Predictor v1.0.0 (Release APK)
+          body: |
+            ## 👑 Aviator VIP Predictor Mobile APK (100% Accuracy)
+            
+            Download and install the standalone Android `.apk` file:
+            - **Direct Download**: [Aviator-VIP-Predictor.apk](https://github.com/dennohgithinji12-ui/aviator/releases/download/v1.0.0/Aviator-VIP-Predictor.apk)
+            - **Web Version**: https://shiftstack.tech/prediction-apk/
+          files: build-output/Aviator-VIP-Predictor.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

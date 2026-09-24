@@ -135,17 +135,39 @@ class AviatorVipPredictorApp {
       }
     });
 
-    // Check if there is an active prediction in localStorage
-    try {
-      const stored = localStorage.getItem('aviator_vip_live_prediction');
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (Date.now() - data.timestamp < 10000) {
-          this.handleLiveSyncMessage(data);
+      // 3. Check active prediction in localStorage
+      try {
+        const stored = localStorage.getItem('aviator_vip_live_prediction');
+        if (stored) {
+          const data = JSON.parse(stored);
+          if (Date.now() - data.timestamp < 10000) {
+            this.handleLiveSyncMessage(data);
+          }
         }
-      }
-    } catch (e) {}
-  }
+      } catch (e) {}
+
+      // 4. Cross-device API sync with authoritative server clock
+      const syncWithApi = async () => {
+        try {
+          const res = await fetch('/api/round-state', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.nonce) {
+              this.handleLiveSyncMessage({
+                type: 'ROUND_PREPARED',
+                nonce: data.nonce,
+                crashMultiplier: data.crashMultiplier,
+                serverHash: data.serverHash,
+                countdown: data.remainingSeconds,
+                timestamp: Date.now()
+              });
+            }
+          }
+        } catch (err) {}
+      };
+      syncWithApi();
+      setInterval(syncWithApi, 2500);
+    }
 
   handleLiveSyncMessage(data) {
     if (!data) return;

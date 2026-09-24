@@ -83,12 +83,13 @@ export class FlightCanvasEngine {
     setTimeout(handleResize, 200);
   }
 
-  startCountdown(seconds = 5.0, crashMultiplier = 2.00) {
+  startCountdown(seconds = 5.0, crashMultiplier = 2.00, remaining = seconds) {
     this.state = 'WAITING';
     this.targetCrashMultiplier = Math.max(1.00, parseFloat(crashMultiplier) || 2.00);
     this.countdownDuration = seconds * 1000;
-    this.countdownStartTime = performance.now();
-    this.countdownSeconds = seconds;
+    const elapsedSoFar = Math.max(0, (seconds - remaining)) * 1000;
+    this.countdownStartTime = performance.now() - elapsedSoFar;
+    this.countdownSeconds = Math.max(0, remaining);
     this.currentMultiplier = 1.00;
     this.elapsedFlightTime = 0;
     this.particles = [];
@@ -100,23 +101,23 @@ export class FlightCanvasEngine {
     this.maxY = 2.2;
 
     if (this.onStateChange) {
-      this.onStateChange(this.state, { countdown: seconds, crashMultiplier: this.targetCrashMultiplier });
+      this.onStateChange(this.state, { countdown: this.countdownSeconds, crashMultiplier: this.targetCrashMultiplier });
     }
   }
 
-  startFlight(crashMultiplier) {
+  startFlight(crashMultiplier, initialElapsed = 0) {
     this.state = 'FLYING';
     if (crashMultiplier) {
       this.targetCrashMultiplier = Math.max(1.00, parseFloat(crashMultiplier));
     }
-    this.flightStartTime = performance.now();
-    this.currentMultiplier = 1.00;
-    this.elapsedFlightTime = 0;
+    this.flightStartTime = performance.now() - (initialElapsed * 1000);
+    this.elapsedFlightTime = initialElapsed;
+    this.currentMultiplier = this.computeMultiplierFromTime(this.elapsedFlightTime);
     this.particles = [];
     this.explosionParticles = [];
     this.crashTime = 0;
-    this.maxX = 7;
-    this.maxY = 2.2;
+    this.maxX = Math.max(7, initialElapsed * 1.35);
+    this.maxY = Math.max(2.2, this.currentMultiplier * 1.35);
 
     if (this.onStateChange) {
       this.onStateChange(this.state, { crashMultiplier: this.targetCrashMultiplier });
