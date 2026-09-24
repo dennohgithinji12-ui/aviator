@@ -13,7 +13,7 @@ import { RolloverStakingVault } from './features/rollover-vault.js';
 import { ProvablyFairUI } from './features/provably-fair.js';
 import { HistoryBarComponent } from './components/history-bar.js';
 import { LiveStakersComponent } from './components/live-stakers.js';
-import { PuterAuthManager } from './features/puter-auth.js';
+import { AuthManager } from './features/auth-manager.js';
 import { GlobalRoundSyncEngine } from './engine/global-sync.js';
 
 class AviatorApp {
@@ -85,16 +85,17 @@ class AviatorApp {
       (rolloverState) => this.updateRolloverUI(rolloverState)
     );
 
-    // 6. Puter.js Cloud Authentication & Persistence Manager
-    this.puterAuth = new PuterAuthManager(
+    // 6. Aviator Native Player Authentication & Session Manager
+    this.authManager = new AuthManager(
       this.stakingManager,
       this.soundEngine,
       (user) => {
         if (user) {
-          console.log('[Aviator] Puter.js user authenticated:', user.username);
+          console.log('[Aviator] Player authenticated:', user.username);
         }
       }
     );
+    this.puterAuth = this.authManager;
   }
 
   // Orchestrate globally synchronized game round cycle across all users

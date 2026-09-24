@@ -9,8 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <!-- Puter.js v2 SDK for Authentication and Cloud Persistence -->
-  <script src="https://js.puter.com/v2/"></script>
 </head>
 <body class="aviator-app">
 
@@ -99,9 +97,9 @@
         <span class="dep-text">DEPOSIT</span>
       </button>
 
-      <!-- Puter.js Cloud Auth Container -->
-      <div id="puter-auth-container" class="puter-auth-container">
-        <!-- Rendered dynamically by PuterAuthManager: Sign In / User Pill -->
+      <!-- Native Aviator Player Auth Container -->
+      <div id="aviator-auth-container" class="aviator-auth-container puter-auth-container">
+        <!-- Rendered dynamically by AuthManager: Login / Register Button or User Profile Pill -->
       </div>
 
       <!-- Hamburger Menu Button -->
@@ -747,7 +745,7 @@
           <span class="notice-icon">🛡️</span>
           <div class="notice-text">
             <strong>Minimum Deposit: KES 500.00</strong>
-            <p>Deposited funds are credited instantly and synchronized with your Puter.js cloud profile.</p>
+            <p>Deposited funds are credited instantly to your Aviator account wallet balance.</p>
           </div>
         </div>
 
@@ -826,6 +824,178 @@
 
         <div class="deposit-security-footer">
           <span>🔒 256-Bit SSL Encrypted • Instant Processing • Provably Fair Guaranteed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 5: AVIATOR NATIVE AUTHENTICATION (LOGIN & REGISTRATION)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <div class="modal-dialog auth-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <div class="auth-header-icon-box">
+            <!-- Red Stylized Aviator Monoplane -->
+            <svg width="24" height="20" viewBox="0 0 40 32" fill="none">
+              <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" fill="#ff003b" />
+              <path d="M16 16 L 24 3 L 28 4 L 21 16 Z" fill="#e00030" />
+              <path d="M14 20 L 19 28 L 16 29 L 10 21 Z" fill="#b80026" />
+              <circle cx="36" cy="7.5" r="2.5" fill="#ffffff" />
+            </svg>
+          </div>
+          <div>
+            <h2 id="auth-modal-title">Aviator Player Portal</h2>
+            <span class="auth-subtitle">Real-time gaming & wallet management</span>
+          </div>
+        </div>
+        <button class="btn-modal-close" id="btn-close-auth" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Auth Tabs (Login / Register) -->
+        <div class="auth-tabs-bar">
+          <button type="button" class="auth-tab-btn active" id="tab-auth-login" data-tab="login">
+            <span>Log In</span>
+          </button>
+          <button type="button" class="auth-tab-btn" id="tab-auth-register" data-tab="register">
+            <span>Register</span>
+          </button>
+        </div>
+
+        <!-- Feedback Alert Banner -->
+        <div id="auth-status-msg" class="auth-status-msg" style="display: none;"></div>
+
+        <!-- 1. LOGIN PANE -->
+        <div class="auth-pane active" id="pane-auth-login">
+          <div class="auth-form-group">
+            <label class="auth-label" for="login-identifier">Phone Number or Username:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">👤</span>
+              <input 
+                type="text" 
+                id="login-identifier" 
+                class="auth-input" 
+                placeholder="Phone (+254 7XX...) or Username"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="login-password">Password / PIN:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="login-password" 
+                class="auth-input" 
+                placeholder="Enter your password"
+                autocomplete="current-password"
+              />
+              <button type="button" class="btn-toggle-pwd" id="btn-toggle-login-pwd" title="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+
+          <div class="auth-row-options">
+            <label class="auth-checkbox-label">
+              <input type="checkbox" id="login-remember" checked>
+              <span>Remember me</span>
+            </label>
+            <button type="button" class="btn-demo-login-chip" id="btn-quick-demo-login" title="Instant login with demo credentials">
+              ⚡ Instant Demo Login
+            </button>
+          </div>
+
+          <button type="button" class="btn-auth-submit" id="btn-submit-login">
+            <span>Log In to Play</span>
+          </button>
+        </div>
+
+        <!-- 2. REGISTER PANE -->
+        <div class="auth-pane" id="pane-auth-register">
+          <div class="auth-form-group">
+            <label class="auth-label" for="reg-phone">M-PESA / Mobile Phone:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🇰🇪</span>
+              <input 
+                type="tel" 
+                id="reg-phone" 
+                class="auth-input" 
+                value="+254 7" 
+                placeholder="+254 7XX XXX XXX" 
+                autocomplete="tel"
+              />
+            </div>
+            <span class="auth-hint">Used for instant M-PESA deposits & cashouts.</span>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="reg-username">Aviator Pilot Call-sign (Username):</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">✈️</span>
+              <input 
+                type="text" 
+                id="reg-username" 
+                class="auth-input" 
+                placeholder="e.g. pilot_ace"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="reg-password">Create Password / PIN:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="reg-password" 
+                class="auth-input" 
+                placeholder="At least 4 characters"
+                autocomplete="new-password"
+              />
+              <button type="button" class="btn-toggle-pwd" id="btn-toggle-reg-pwd" title="Toggle password visibility">👁️</button>
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="reg-confirm-password">Confirm Password:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔑</span>
+              <input 
+                type="password" 
+                id="reg-confirm-password" 
+                class="auth-input" 
+                placeholder="Re-enter password"
+                autocomplete="new-password"
+              />
+            </div>
+          </div>
+
+          <div class="auth-welcome-bonus-banner">
+            <span class="bonus-tag">BONUS</span>
+            <div class="bonus-info">
+              <strong>Free 50,000 KES Simulator Bankroll</strong>
+              <p>Credited immediately on registration to practice crash flight strategies!</p>
+            </div>
+          </div>
+
+          <div class="auth-row-options">
+            <label class="auth-checkbox-label">
+              <input type="checkbox" id="reg-age-check" checked>
+              <span>I confirm I am 18+ years of age and agree to terms.</span>
+            </label>
+          </div>
+
+          <button type="button" class="btn-auth-submit btn-reg-submit" id="btn-submit-register">
+            <span>Create Aviator Account</span>
+          </button>
+        </div>
+
+        <div class="auth-security-footer">
+          <span>🔒 Provably Fair Verified • 100% Client-Side Private • Instant Play</span>
         </div>
       </div>
     </div>
