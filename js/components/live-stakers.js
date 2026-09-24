@@ -12,7 +12,7 @@ export class LiveStakersComponent {
     this.currentTab = 'all'; // 'all' | 'my' | 'top'
     this.activeStakers = [];
     this.myHistory = [];
-    this.totalRoundPlayers = 1420;
+    this.totalRoundPlayers = 80;
 
     this.topWins = [
       { user: 's***8', stake: 10000, multiplier: 84.50, payout: 845000, time: '3m ago' },
@@ -54,9 +54,8 @@ export class LiveStakersComponent {
 
   generateRoundStakers() {
     this.activeStakers = [];
-    // High-volume live players per round: 65 to 90 players!
-    const count = 65 + Math.floor(Math.random() * 25);
-    this.totalRoundPlayers = 1100 + Math.floor(Math.random() * 750);
+    // High-volume live players per round: 75 to 95 players
+    const count = 75 + Math.floor(Math.random() * 21);
 
     // Stakes strictly min 200 KES as requested
     const stakes = [200, 300, 400, 500, 750, 1000, 1500, 2000, 3500, 5000, 10000, 25000, 50000];
@@ -115,6 +114,7 @@ export class LiveStakersComponent {
       });
     }
 
+    this.totalRoundPlayers = this.activeStakers.length;
     this.render();
   }
 
@@ -174,9 +174,16 @@ export class LiveStakersComponent {
   render() {
     if (!this.container) return;
 
-    const visibleStaked = this.activeStakers.reduce((sum, s) => sum + s.stake, 0);
+    const totalBets = this.activeStakers.length;
+    this.totalRoundPlayers = totalBets;
+    const totalStaked = this.activeStakers.reduce((sum, s) => sum + s.stake, 0);
     const totalCashedOut = this.activeStakers.filter(s => s.cashedOut).length;
-    const estTotalPool = Math.round(visibleStaked * (this.totalRoundPlayers / this.activeStakers.length || 15));
+
+    // Synchronize tab header count with total bets
+    const allTabBtn = document.querySelector('.stakers-tab-btn[data-tab="all"]');
+    if (allTabBtn) {
+      allTabBtn.textContent = `All Bets ${totalBets}`;
+    }
 
     let contentHtml = '';
 
@@ -185,15 +192,15 @@ export class LiveStakersComponent {
         <div class="stakers-summary-bar">
           <div class="summary-metric">
             <span class="metric-label">TOTAL BETS</span>
-            <span class="metric-value font-bold">${this.totalRoundPlayers.toLocaleString()}</span>
+            <span class="metric-value font-bold">${totalBets}</span>
           </div>
           <div class="summary-metric">
             <span class="metric-label">ROUND POOL</span>
-            <span class="metric-value font-gold">KES ${estTotalPool.toLocaleString()}</span>
+            <span class="metric-value font-gold">KES ${totalStaked.toLocaleString()}</span>
           </div>
           <div class="summary-metric">
             <span class="metric-label">CASHED</span>
-            <span class="metric-value font-emerald">${totalCashedOut} / ${this.activeStakers.length}</span>
+            <span class="metric-value font-emerald">${totalCashedOut} / ${totalBets}</span>
           </div>
         </div>
         <div class="stakers-table-header" style="grid-template-columns: 1.1fr 1fr 0.8fr 1.1fr;">
