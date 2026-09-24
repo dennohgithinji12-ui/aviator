@@ -1,28 +1,36 @@
 /**
- * Aviator Native Player Authentication & Session Manager
- * Completely standalone - no external third-party dependencies (no Puter.js)
+ * Aviator Phone Authentication & Session Manager (100% Free)
+ * Login & Sign Up with Phone Number only - no passwords required!
  * Features:
- * - Registration with Phone Number & Pilot Username
- * - Login with Phone or Username + Password/PIN
- * - Instant 1-Click VIP Demo Account Login
- * - Isolated Wallet Balance persistence per registered account
- * - Live Player Profile Pill & Dropdown in App Header
+ * - Single-step Instant Phone Login & Registration
+ * - Free Simulated SMS OTP option for verification
+ * - Kenyan (+254) & International phone normalization
+ * - Isolated Wallet Balance persistence per phone number
+ * - Masked Phone privacy display in App Header
  * - Seamless integration with StakingManager, Deposit Modal, and History
  */
 
 const STORAGE_USERS_KEY = 'aviator_registered_users';
 const STORAGE_SESSION_KEY = 'aviator_active_session';
 
-const DEFAULT_DEMO_USER = {
-  id: '849201',
-  username: 'pilot_vip',
-  phone: '+254712345678',
-  password: '1234',
-  balance: 50000.00,
-  createdAt: 1727180000000,
-  lastLogin: Date.now(),
-  vipLevel: 'VIP Pilot'
-};
+const DEFAULT_DEMO_USERS = [
+  {
+    id: '849201',
+    phone: '+254712345678',
+    balance: 50000.00,
+    createdAt: 1727180000000,
+    lastLogin: Date.now(),
+    vipLevel: 'VIP Pilot'
+  },
+  {
+    id: '592104',
+    phone: '+254798765432',
+    balance: 50000.00,
+    createdAt: 1727180000000,
+    lastLogin: Date.now(),
+    vipLevel: 'Cadet Pilot'
+  }
+];
 
 export class AuthManager {
   constructor(stakingManager, soundEngine, onAuthChange) {
@@ -30,6 +38,8 @@ export class AuthManager {
     this.soundEngine = soundEngine;
     this.onAuthChange = onAuthChange;
     this.user = null;
+    this.currentOtp = null;
+    this.isOtpMode = false;
 
     this.init();
   }
@@ -42,16 +52,50 @@ export class AuthManager {
     this.hookBalancePersistence();
   }
 
-  // Ensure default demo user exists in local registry
+  normalizePhoneNumber(raw) {
+    if (!raw) return '';
+    let cleaned = raw.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('07') && cleaned.length === 10) {
+      return '+254' + cleaned.slice(1);
+    }
+    if (cleaned.startsWith('01') && cleaned.length === 10) {
+      return '+254' + cleaned.slice(1);
+    }
+    if (cleaned.startsWith('7') && cleaned.length === 9) {
+      return '+254' + cleaned;
+    }
+    if (cleaned.startsWith('1') && cleaned.length === 9) {
+      return '+254' + cleaned;
+    }
+    if (cleaned.startsWith('254') && cleaned.length === 12) {
+      return '+' + cleaned;
+    }
+    if (!cleaned.startsWith('+') && cleaned.length >= 9) {
+      return '+' + cleaned;
+    }
+    return cleaned;
+  }
+
+  maskPhone(phone) {
+    if (!phone) return 'Pilot';
+    const norm = this.normalizePhoneNumber(phone);
+    if (norm.length >= 10) {
+      const prefix = norm.slice(0, 7); // e.g. +254 712
+      const suffix = norm.slice(-3);   // e.g. 678
+      return `${prefix}•••${suffix}`;
+    }
+    return norm;
+  }
+
   ensureSeedUsers() {
     try {
       const raw = localStorage.getItem(STORAGE_USERS_KEY);
       if (!raw) {
-        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify([DEFAULT_DEMO_USER]));
+        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_DEMO_USERS));
       } else {
         const users = JSON.parse(raw);
         if (!Array.isArray(users) || users.length === 0) {
-          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify([DEFAULT_DEMO_USER]));
+          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_DEMO_USERS));
         }
       }
     } catch (e) {
@@ -62,9 +106,9 @@ export class AuthManager {
   getAllUsers() {
     try {
       const raw = localStorage.getItem(STORAGE_USERS_KEY);
-      return raw ? JSON.parse(raw) : [DEFAULT_DEMO_USER];
+      return raw ? JSON.parse(raw) : DEFAULT_DEMO_USERS;
     } catch (e) {
-      return [DEFAULT_DEMO_USER];
+      return DEFAULT_DEMO_USERS;
     }
   }
 
@@ -81,10 +125,9 @@ export class AuthManager {
       const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
       if (sessionId) {
         const users = this.getAllUsers();
-        const found = users.find(u => String(u.id) === String(sessionId) || u.username.toLowerCase() === sessionId.toLowerCase());
+        const found = users.find(u => String(u.id) === String(sessionId) || u.phone === sessionId);
         if (found) {
           this.user = found;
-          // Synchronize wallet balance with user account balance
           if (typeof found.balance === 'number' && !isNaN(found.balance)) {
             this.stakingManager.balance = found.balance;
             this.stakingManager.saveBalance();
@@ -104,7 +147,6 @@ export class AuthManager {
   }
 
   hookBalancePersistence() {
-    // Whenever stakingManager.saveBalance is called, update the active user's saved account balance
     const origSave = this.stakingManager.saveBalance.bind(this.stakingManager);
     this.stakingManager.saveBalance = () => {
       origSave();
@@ -120,49 +162,80 @@ export class AuthManager {
     };
   }
 
-  openAuthModal(defaultTab = 'login') {
+  openAuthModal() {
     this.soundEngine?.playClick();
     const modal = document.getElementById('auth-modal');
     if (!modal) return;
 
-    this.switchTab(defaultTab);
     this.clearStatus();
-
-    // Clear password inputs
-    const loginPwd = document.getElementById('login-password');
-    if (loginPwd) loginPwd.value = '';
-    const regPwd = document.getElementById('reg-password');
-    if (regPwd) regPwd.value = '';
-    const regConf = document.getElementById('reg-confirm-password');
-    if (regConf) regConf.value = '';
+    this.resetOtpMode();
 
     modal.classList.add('show');
+    const inp = document.getElementById('auth-phone-input');
+    if (inp) {
+      inp.focus();
+    }
   }
 
   closeAuthModal() {
     this.soundEngine?.playClick();
     const modal = document.getElementById('auth-modal');
     if (modal) modal.classList.remove('show');
+    this.resetOtpMode();
   }
 
-  switchTab(tab) {
-    const tabLogin = document.getElementById('tab-auth-login');
-    const tabReg = document.getElementById('tab-auth-register');
-    const paneLogin = document.getElementById('pane-auth-login');
-    const paneReg = document.getElementById('pane-auth-register');
+  resetOtpMode() {
+    this.isOtpMode = false;
+    this.currentOtp = null;
+    const otpSec = document.getElementById('auth-otp-section');
+    if (otpSec) otpSec.style.display = 'none';
 
-    if (tab === 'register') {
-      tabLogin?.classList.remove('active');
-      tabReg?.classList.add('active');
-      paneLogin?.classList.remove('active');
-      paneReg?.classList.add('active');
-    } else {
-      tabLogin?.classList.add('active');
-      tabReg?.classList.remove('active');
-      paneLogin?.classList.add('active');
-      paneReg?.classList.remove('active');
+    const submitBtn = document.getElementById('btn-submit-phone-auth');
+    if (submitBtn) {
+      submitBtn.innerHTML = `<span>⚡ Continue with Phone (Instant & Free)</span>`;
     }
-    this.clearStatus();
+    const toggleBtn = document.getElementById('btn-toggle-free-otp');
+    if (toggleBtn) {
+      toggleBtn.style.display = 'block';
+    }
+  }
+
+  startFreeOtpMode() {
+    const rawPhone = document.getElementById('auth-phone-input')?.value;
+    const normPhone = this.normalizePhoneNumber(rawPhone);
+
+    if (!normPhone || normPhone.length < 10) {
+      this.setStatus('Please enter a valid mobile phone number first (e.g. 07XX XXX XXX).');
+      return;
+    }
+
+    this.soundEngine?.playClick();
+    this.isOtpMode = true;
+    this.currentOtp = String(Math.floor(1000 + Math.random() * 9000));
+
+    const otpSec = document.getElementById('auth-otp-section');
+    if (otpSec) otpSec.style.display = 'block';
+
+    const simCode = document.getElementById('simulated-otp-code');
+    if (simCode) simCode.textContent = this.currentOtp;
+
+    const otpInp = document.getElementById('auth-otp-input');
+    if (otpInp) {
+      otpInp.value = '';
+      otpInp.focus();
+    }
+
+    const submitBtn = document.getElementById('btn-submit-phone-auth');
+    if (submitBtn) {
+      submitBtn.innerHTML = `<span>Confirm OTP & Enter Aviator</span>`;
+    }
+
+    const toggleBtn = document.getElementById('btn-toggle-free-otp');
+    if (toggleBtn) {
+      toggleBtn.style.display = 'none';
+    }
+
+    this.setStatus(`Free SMS sent to ${normPhone}! Verification code: ${this.currentOtp}`, false);
   }
 
   setStatus(msg, isError = true) {
@@ -182,135 +255,81 @@ export class AuthManager {
     }
   }
 
-  login(identifier, password) {
-    const cleanId = (identifier || '').trim();
-    const cleanPwd = (password || '').trim();
+  // 1-step Phone Login & Signup
+  authenticateWithPhone(rawPhone, otpCode = null) {
+    const normPhone = this.normalizePhoneNumber(rawPhone);
 
-    if (!cleanId) {
-      this.setStatus('Please enter your phone number or pilot username.');
+    if (!normPhone || normPhone.length < 10) {
+      this.setStatus('Please enter a valid mobile phone number (min 9 digits, e.g. 0712 345 678).');
       return false;
     }
-    if (!cleanPwd) {
-      this.setStatus('Please enter your account password.');
-      return false;
+
+    // If OTP mode is active, verify the code
+    if (this.isOtpMode) {
+      const enteredOtp = (otpCode || document.getElementById('auth-otp-input')?.value || '').trim();
+      if (!enteredOtp || enteredOtp !== this.currentOtp) {
+        this.setStatus(`Incorrect OTP code. Enter the 4-digit code shown above (${this.currentOtp}).`);
+        this.soundEngine?.playClick();
+        return false;
+      }
     }
 
     const users = this.getAllUsers();
-    const matched = users.find(u => 
-      u.username.toLowerCase() === cleanId.toLowerCase() || 
-      u.phone.replace(/[\s+-]/g, '') === cleanId.replace(/[\s+-]/g, '')
-    );
+    let user = users.find(u => u.phone.replace(/[\s+-]/g, '') === normPhone.replace(/[\s+-]/g, ''));
 
-    if (!matched) {
-      this.setStatus('Account not found. Please check your credentials or register.');
-      this.soundEngine?.playClick();
-      return false;
-    }
+    if (user) {
+      // Existing User -> Log in!
+      user.lastLogin = Date.now();
+      this.user = user;
+      try {
+        localStorage.setItem(STORAGE_SESSION_KEY, String(user.id));
+      } catch (e) {}
 
-    if (matched.password !== cleanPwd) {
-      this.setStatus('Incorrect password. Please try again.');
-      this.soundEngine?.playClick();
-      return false;
-    }
+      if (typeof user.balance === 'number' && !isNaN(user.balance)) {
+        this.stakingManager.balance = user.balance;
+        this.stakingManager.saveBalance();
+      }
 
-    // Success!
-    this.user = matched;
-    this.user.lastLogin = Date.now();
-    try {
-      localStorage.setItem(STORAGE_SESSION_KEY, String(this.user.id));
-    } catch (e) {}
+      this.renderLoggedIn();
+      this.closeAuthModal();
+      this.soundEngine?.playCashout();
+      this.showToast(`Welcome back, ${this.maskPhone(user.phone)}!`);
+      if (this.onAuthChange) this.onAuthChange(this.user);
+      return true;
+    } else {
+      // New User -> Free Instant Registration with 50,000 KES Demo Bankroll!
+      const newUser = {
+        id: String(Math.floor(100000 + Math.random() * 900000)),
+        phone: normPhone,
+        balance: 50000.00,
+        createdAt: Date.now(),
+        lastLogin: Date.now(),
+        vipLevel: 'Verified Pilot'
+      };
 
-    // Load account balance
-    if (typeof this.user.balance === 'number' && !isNaN(this.user.balance)) {
-      this.stakingManager.balance = this.user.balance;
+      users.push(newUser);
+      this.saveAllUsers(users);
+
+      this.user = newUser;
+      try {
+        localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
+      } catch (e) {}
+
+      this.stakingManager.balance = newUser.balance;
       this.stakingManager.saveBalance();
+
+      this.renderLoggedIn();
+      this.closeAuthModal();
+      this.soundEngine?.playCashout();
+      this.showToast(`Account created for ${this.maskPhone(newUser.phone)}! +KES 50,000 Free Bankroll Credited.`);
+      if (this.onAuthChange) this.onAuthChange(this.user);
+      return true;
     }
-
-    this.renderLoggedIn();
-    this.closeAuthModal();
-    this.soundEngine?.playCashout();
-    this.showToast(`Welcome back, @${this.user.username}!`);
-    if (this.onAuthChange) this.onAuthChange(this.user);
-    return true;
-  }
-
-  register(phone, username, password, confirmPassword) {
-    const cleanPhone = (phone || '').trim();
-    const cleanUser = (username || '').trim().toLowerCase();
-    const cleanPwd = (password || '').trim();
-    const cleanConf = (confirmPassword || '').trim();
-
-    if (!cleanPhone || cleanPhone.length < 9) {
-      this.setStatus('Please enter a valid mobile phone number.');
-      return false;
-    }
-
-    if (!cleanUser || cleanUser.length < 3) {
-      this.setStatus('Username must be at least 3 characters long.');
-      return false;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(cleanUser)) {
-      this.setStatus('Username may only contain letters, numbers, and underscores.');
-      return false;
-    }
-
-    if (!cleanPwd || cleanPwd.length < 4) {
-      this.setStatus('Password must be at least 4 characters long.');
-      return false;
-    }
-
-    if (cleanPwd !== cleanConf) {
-      this.setStatus('Passwords do not match. Please re-enter.');
-      return false;
-    }
-
-    const users = this.getAllUsers();
-    const existing = users.find(u => 
-      u.username.toLowerCase() === cleanUser || 
-      u.phone.replace(/[\s+-]/g, '') === cleanPhone.replace(/[\s+-]/g, '')
-    );
-
-    if (existing) {
-      this.setStatus('An account with this username or phone already exists. Please log in.');
-      return false;
-    }
-
-    // Create new Aviator Pilot Account with Welcome 50,000 KES Balance
-    const newUser = {
-      id: String(Math.floor(100000 + Math.random() * 900000)),
-      username: cleanUser,
-      phone: cleanPhone,
-      password: cleanPwd,
-      balance: 50000.00,
-      createdAt: Date.now(),
-      lastLogin: Date.now(),
-      vipLevel: 'Verified Pilot'
-    };
-
-    users.push(newUser);
-    this.saveAllUsers(users);
-
-    this.user = newUser;
-    try {
-      localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
-    } catch (e) {}
-
-    this.stakingManager.balance = newUser.balance;
-    this.stakingManager.saveBalance();
-
-    this.renderLoggedIn();
-    this.closeAuthModal();
-    this.soundEngine?.playCashout();
-    this.showToast(`Account created! Welcome aboard, @${newUser.username}!`);
-    if (this.onAuthChange) this.onAuthChange(this.user);
-    return true;
   }
 
   logout() {
     this.soundEngine?.playClick();
     if (this.user) {
-      // Save final balance
       const users = this.getAllUsers();
       const idx = users.findIndex(u => String(u.id) === String(this.user.id));
       if (idx !== -1) {
@@ -337,16 +356,15 @@ export class AuthManager {
 
     if (containers.length === 0) return;
 
-    const username = this.user?.username || 'Pilot';
-    const initial = username.charAt(0).toUpperCase();
-    const phone = this.user?.phone || '';
+    const phone = this.user?.phone || '+254712345678';
+    const masked = this.maskPhone(phone);
     const userId = this.user?.id || '849201';
     const vipLevel = this.user?.vipLevel || 'Verified Pilot';
 
     const html = `
-      <div class="aviator-user-pill puter-user-pill" id="aviator-user-trigger" title="Aviator Pilot Account: @${username}">
-        <span class="aviator-avatar puter-avatar">${initial}</span>
-        <span class="aviator-name puter-name desktop-only">${username}</span>
+      <div class="aviator-user-pill puter-user-pill" id="aviator-user-trigger" title="Aviator Account: ${phone}">
+        <span class="aviator-avatar puter-avatar">📱</span>
+        <span class="aviator-name puter-name desktop-only">${masked}</span>
         <span class="aviator-online-dot puter-cloud-dot" title="Account Active"></span>
         <span class="aviator-chevron puter-chevron">▼</span>
       </div>
@@ -356,8 +374,8 @@ export class AuthManager {
             <span class="aviator-badge puter-badge">🟢 ${vipLevel}</span>
             <span class="aviator-id-tag">ID: #${userId}</span>
           </div>
-          <strong class="aviator-dropdown-username puter-dropdown-username">@${username}</strong>
-          ${phone ? `<span class="aviator-dropdown-phone">${phone}</span>` : ''}
+          <strong class="aviator-dropdown-username puter-dropdown-username">${phone}</strong>
+          <span class="aviator-dropdown-phone">Free Active Mobile Account</span>
         </div>
         <div class="aviator-menu-divider puter-menu-divider"></div>
         <button class="aviator-menu-item puter-menu-item" id="btn-user-deposit">
@@ -384,7 +402,6 @@ export class AuthManager {
       c.innerHTML = html;
     });
 
-    // Wire dropdown toggle & actions
     const trigger = document.getElementById('aviator-user-trigger');
     const menu = document.getElementById('aviator-user-menu');
 
@@ -441,12 +458,9 @@ export class AuthManager {
     if (containers.length === 0) return;
 
     const html = `
-      <button class="btn-aviator-auth btn-puter-auth" id="btn-open-auth-portal" title="Login or Register Aviator Account">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-        <span>Login / Sign Up</span>
+      <button class="btn-aviator-auth btn-puter-auth" id="btn-open-auth-portal" title="Login with Phone Number (Free)">
+        <span class="auth-icon-phone">📱</span>
+        <span>Phone Login</span>
       </button>
     `;
 
@@ -457,13 +471,12 @@ export class AuthManager {
     const btn = document.getElementById('btn-open-auth-portal');
     if (btn) {
       btn.onclick = () => {
-        this.openAuthModal('login');
+        this.openAuthModal();
       };
     }
   }
 
   setupDropdownListeners() {
-    // Close user dropdown menu when clicking anywhere else
     document.addEventListener('click', (e) => {
       const menu = document.getElementById('aviator-user-menu');
       const trigger = document.getElementById('aviator-user-trigger');
@@ -476,13 +489,12 @@ export class AuthManager {
   }
 
   setupModalListeners() {
-    // Close modal button
+    // Close modal
     const closeBtn = document.getElementById('btn-close-auth');
     if (closeBtn) {
       closeBtn.onclick = () => this.closeAuthModal();
     }
 
-    // Backdrop click to close
     const modal = document.getElementById('auth-modal');
     if (modal) {
       modal.onclick = (e) => {
@@ -490,90 +502,68 @@ export class AuthManager {
       };
     }
 
-    // Tabs toggle
-    const tabLogin = document.getElementById('tab-auth-login');
-    if (tabLogin) {
-      tabLogin.onclick = () => this.switchTab('login');
-    }
-    const tabReg = document.getElementById('tab-auth-register');
-    if (tabReg) {
-      tabReg.onclick = () => this.switchTab('register');
+    // Quick demo phone chips
+    document.querySelectorAll('.btn-quick-phone-chip').forEach(btn => {
+      btn.onclick = () => {
+        const phone = btn.getAttribute('data-phone');
+        const inp = document.getElementById('auth-phone-input');
+        if (inp) inp.value = phone;
+        this.authenticateWithPhone(phone);
+      };
+    });
+
+    // Toggle Free SMS OTP mode
+    const toggleOtpBtn = document.getElementById('btn-toggle-free-otp');
+    if (toggleOtpBtn) {
+      toggleOtpBtn.onclick = () => {
+        this.startFreeOtpMode();
+      };
     }
 
-    // Toggle password reveals
-    const toggleLoginPwd = document.getElementById('btn-toggle-login-pwd');
-    if (toggleLoginPwd) {
-      toggleLoginPwd.onclick = () => {
-        const inp = document.getElementById('login-password');
-        if (inp) {
-          inp.type = inp.type === 'password' ? 'text' : 'password';
+    // Auto-fill OTP button
+    const autofillBtn = document.getElementById('btn-autofill-otp');
+    if (autofillBtn) {
+      autofillBtn.onclick = () => {
+        const otpInp = document.getElementById('auth-otp-input');
+        if (otpInp && this.currentOtp) {
+          otpInp.value = this.currentOtp;
+          const phoneInp = document.getElementById('auth-phone-input');
+          this.authenticateWithPhone(phoneInp?.value, this.currentOtp);
         }
       };
     }
-    const toggleRegPwd = document.getElementById('btn-toggle-reg-pwd');
-    if (toggleRegPwd) {
-      toggleRegPwd.onclick = () => {
-        const inp = document.getElementById('reg-password');
-        if (inp) {
-          inp.type = inp.type === 'password' ? 'text' : 'password';
-        }
+
+    // Submit Phone Auth
+    const submitBtn = document.getElementById('btn-submit-phone-auth');
+    if (submitBtn) {
+      submitBtn.onclick = () => {
+        const phoneInp = document.getElementById('auth-phone-input');
+        const otpInp = document.getElementById('auth-otp-input');
+        this.authenticateWithPhone(phoneInp?.value, otpInp?.value);
       };
     }
 
-    // Instant One-Click Demo Login
-    const demoBtn = document.getElementById('btn-quick-demo-login');
-    if (demoBtn) {
-      demoBtn.onclick = () => {
-        const idInp = document.getElementById('login-identifier');
-        const pwdInp = document.getElementById('login-password');
-        if (idInp) idInp.value = 'pilot_vip';
-        if (pwdInp) pwdInp.value = '1234';
-        this.login('pilot_vip', '1234');
-      };
-    }
-
-    // Submit Login
-    const submitLogin = document.getElementById('btn-submit-login');
-    if (submitLogin) {
-      submitLogin.onclick = () => {
-        const idInp = document.getElementById('login-identifier');
-        const pwdInp = document.getElementById('login-password');
-        this.login(idInp?.value, pwdInp?.value);
-      };
-    }
-
-    // Enter key submits login
-    const loginPwd = document.getElementById('login-password');
-    if (loginPwd) {
-      loginPwd.onkeydown = (e) => {
+    // Enter key submits
+    const phoneInp = document.getElementById('auth-phone-input');
+    if (phoneInp) {
+      phoneInp.onkeydown = (e) => {
         if (e.key === 'Enter') {
-          const idInp = document.getElementById('login-identifier');
-          this.login(idInp?.value, loginPwd.value);
+          if (!this.isOtpMode) {
+            this.authenticateWithPhone(phoneInp.value);
+          } else {
+            const otpInp = document.getElementById('auth-otp-input');
+            this.authenticateWithPhone(phoneInp.value, otpInp?.value);
+          }
         }
       };
     }
 
-    // Submit Register
-    const submitReg = document.getElementById('btn-submit-register');
-    if (submitReg) {
-      submitReg.onclick = () => {
-        const phone = document.getElementById('reg-phone')?.value;
-        const user = document.getElementById('reg-username')?.value;
-        const pwd = document.getElementById('reg-password')?.value;
-        const conf = document.getElementById('reg-confirm-password')?.value;
-        this.register(phone, user, pwd, conf);
-      };
-    }
-
-    // Enter key submits registration
-    const regConf = document.getElementById('reg-confirm-password');
-    if (regConf) {
-      regConf.onkeydown = (e) => {
+    const otpInp = document.getElementById('auth-otp-input');
+    if (otpInp) {
+      otpInp.onkeydown = (e) => {
         if (e.key === 'Enter') {
-          const phone = document.getElementById('reg-phone')?.value;
-          const user = document.getElementById('reg-username')?.value;
-          const pwd = document.getElementById('reg-password')?.value;
-          this.register(phone, user, pwd, regConf.value);
+          const p = document.getElementById('auth-phone-input')?.value;
+          this.authenticateWithPhone(p, otpInp.value);
         }
       };
     }

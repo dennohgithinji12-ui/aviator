@@ -830,7 +830,7 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 5: AVIATOR NATIVE AUTHENTICATION (LOGIN & REGISTRATION)
+       MODAL 5: AVIATOR PHONE LOGIN & SIGN UP (100% FREE)
        ========================================================================== -->
   <div class="modal-backdrop" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <div class="modal-dialog auth-modal-dialog">
@@ -846,156 +846,93 @@
             </svg>
           </div>
           <div>
-            <h2 id="auth-modal-title">Aviator Player Portal</h2>
-            <span class="auth-subtitle">Real-time gaming & wallet management</span>
+            <h2 id="auth-modal-title">Phone Login & Sign Up</h2>
+            <span class="auth-subtitle">100% Free • Enter phone number to play</span>
           </div>
         </div>
         <button class="btn-modal-close" id="btn-close-auth" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <!-- Auth Tabs (Login / Register) -->
-        <div class="auth-tabs-bar">
-          <button type="button" class="auth-tab-btn active" id="tab-auth-login" data-tab="login">
-            <span>Log In</span>
-          </button>
-          <button type="button" class="auth-tab-btn" id="tab-auth-register" data-tab="register">
-            <span>Register</span>
-          </button>
+        <!-- Free Bonus Notice -->
+        <div class="auth-phone-banner">
+          <span class="phone-banner-icon">🎁</span>
+          <div class="phone-banner-text">
+            <strong>Free 50,000 KES Instant Bankroll</strong>
+            <p>Enter your phone number to login or register automatically with 0 fees.</p>
+          </div>
         </div>
 
         <!-- Feedback Alert Banner -->
         <div id="auth-status-msg" class="auth-status-msg" style="display: none;"></div>
 
-        <!-- 1. LOGIN PANE -->
-        <div class="auth-pane active" id="pane-auth-login">
+        <!-- Phone Number Input Form -->
+        <div class="auth-phone-form">
           <div class="auth-form-group">
-            <label class="auth-label" for="login-identifier">Phone Number or Username:</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">👤</span>
-              <input 
-                type="text" 
-                id="login-identifier" 
-                class="auth-input" 
-                placeholder="Phone (+254 7XX...) or Username"
-                autocomplete="username"
-              />
-            </div>
-          </div>
-
-          <div class="auth-form-group">
-            <label class="auth-label" for="login-password">Password / PIN:</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">🔒</span>
-              <input 
-                type="password" 
-                id="login-password" 
-                class="auth-input" 
-                placeholder="Enter your password"
-                autocomplete="current-password"
-              />
-              <button type="button" class="btn-toggle-pwd" id="btn-toggle-login-pwd" title="Toggle password visibility">👁️</button>
-            </div>
-          </div>
-
-          <div class="auth-row-options">
-            <label class="auth-checkbox-label">
-              <input type="checkbox" id="login-remember" checked>
-              <span>Remember me</span>
-            </label>
-            <button type="button" class="btn-demo-login-chip" id="btn-quick-demo-login" title="Instant login with demo credentials">
-              ⚡ Instant Demo Login
-            </button>
-          </div>
-
-          <button type="button" class="btn-auth-submit" id="btn-submit-login">
-            <span>Log In to Play</span>
-          </button>
-        </div>
-
-        <!-- 2. REGISTER PANE -->
-        <div class="auth-pane" id="pane-auth-register">
-          <div class="auth-form-group">
-            <label class="auth-label" for="reg-phone">M-PESA / Mobile Phone:</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">🇰🇪</span>
+            <label class="auth-label" for="auth-phone-input">Mobile Phone Number (M-PESA / Airtel):</label>
+            <div class="auth-phone-wrapper">
+              <span class="auth-flag">🇰🇪</span>
               <input 
                 type="tel" 
-                id="reg-phone" 
-                class="auth-input" 
+                id="auth-phone-input" 
+                class="auth-phone-field" 
                 value="+254 7" 
-                placeholder="+254 7XX XXX XXX" 
+                placeholder="+254 7XX XXX XXX or 07XX XXX XXX" 
                 autocomplete="tel"
               />
             </div>
-            <span class="auth-hint">Used for instant M-PESA deposits & cashouts.</span>
+            <span class="auth-hint">Enter your phone number. New numbers receive +KES 50,000 automatically.</span>
           </div>
 
-          <div class="auth-form-group">
-            <label class="auth-label" for="reg-username">Aviator Pilot Call-sign (Username):</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">✈️</span>
-              <input 
-                type="text" 
-                id="reg-username" 
-                class="auth-input" 
-                placeholder="e.g. pilot_ace"
-                autocomplete="username"
-              />
+          <!-- Quick Test Numbers -->
+          <div class="auth-quick-numbers">
+            <span class="quick-lbl">⚡ Quick Free Demo Accounts:</span>
+            <div class="quick-chips-row">
+              <button type="button" class="btn-quick-phone-chip" data-phone="+254712345678">🇰🇪 0712 345 678 (VIP)</button>
+              <button type="button" class="btn-quick-phone-chip" data-phone="+254798765432">🇰🇪 0798 765 432 (Cadet)</button>
             </div>
           </div>
 
-          <div class="auth-form-group">
-            <label class="auth-label" for="reg-password">Create Password / PIN:</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">🔒</span>
-              <input 
-                type="password" 
-                id="reg-password" 
-                class="auth-input" 
-                placeholder="At least 4 characters"
-                autocomplete="new-password"
-              />
-              <button type="button" class="btn-toggle-pwd" id="btn-toggle-reg-pwd" title="Toggle password visibility">👁️</button>
+          <!-- Optional Free SMS Verification Toggle -->
+          <div class="auth-otp-section" id="auth-otp-section" style="display: none;">
+            <div class="auth-simulated-sms-card" id="auth-simulated-sms-card">
+              <div class="sms-card-header">
+                <span class="sms-badge">FREE SMS GATEWAY</span>
+                <span class="sms-time">Just Now</span>
+              </div>
+              <p class="sms-body">Your Aviator Verification Code is: <strong id="simulated-otp-code">----</strong></p>
+              <button type="button" class="btn-autofill-otp" id="btn-autofill-otp">⚡ Auto-Fill Code</button>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="auth-otp-input">Enter 4-Digit Verification Code:</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔑</span>
+                <input 
+                  type="text" 
+                  id="auth-otp-input" 
+                  class="auth-input otp-digit-input" 
+                  placeholder="Enter 4-digit code" 
+                  maxlength="4" 
+                  autocomplete="one-time-code"
+                />
+              </div>
             </div>
           </div>
 
-          <div class="auth-form-group">
-            <label class="auth-label" for="reg-confirm-password">Confirm Password:</label>
-            <div class="auth-input-wrapper">
-              <span class="auth-input-icon">🔑</span>
-              <input 
-                type="password" 
-                id="reg-confirm-password" 
-                class="auth-input" 
-                placeholder="Re-enter password"
-                autocomplete="new-password"
-              />
-            </div>
-          </div>
+          <!-- Primary Submit Action Button -->
+          <button type="button" class="btn-auth-submit" id="btn-submit-phone-auth">
+            <span class="btn-text">⚡ Continue with Phone (Instant & Free)</span>
+          </button>
 
-          <div class="auth-welcome-bonus-banner">
-            <span class="bonus-tag">BONUS</span>
-            <div class="bonus-info">
-              <strong>Free 50,000 KES Simulator Bankroll</strong>
-              <p>Credited immediately on registration to practice crash flight strategies!</p>
-            </div>
-          </div>
-
-          <div class="auth-row-options">
-            <label class="auth-checkbox-label">
-              <input type="checkbox" id="reg-age-check" checked>
-              <span>I confirm I am 18+ years of age and agree to terms.</span>
-            </label>
-          </div>
-
-          <button type="button" class="btn-auth-submit btn-reg-submit" id="btn-submit-register">
-            <span>Create Aviator Account</span>
+          <!-- Free OTP Toggle Button -->
+          <button type="button" class="btn-toggle-free-otp" id="btn-toggle-free-otp">
+            💬 Or verify with Free SMS OTP
           </button>
         </div>
 
         <div class="auth-security-footer">
-          <span>🔒 Provably Fair Verified • 100% Client-Side Private • Instant Play</span>
+          <span>🔒 100% Free • No Charges • Provably Fair Guaranteed</span>
         </div>
       </div>
     </div>
