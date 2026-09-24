@@ -1797,33 +1797,201 @@ h1, h2, h3, h4 {
 }
 
 /* ==========================================================================
-   UNIVERSAL RESPONSIVE BREAKPOINTS (All Screen Sizes)
+/* ==========================================================================
+   UNIVERSAL RESPONSIVE BREAKPOINTS (Optimized for All Screen Sizes)
+   From Ultrawide (2560px+) to Small Mobile (320px) & Mobile Landscape
    ========================================================================== */
 
-/* 1. Large Tablets & Medium Laptops (1024px and below) */
+/* Universal Display Helpers */
+.mobile-only {
+  display: none !important;
+}
+
+/* 1. Ultrawide Monitors & 4K Displays (1920px and above) */
+@media (min-width: 1920px) {
+  .app-main {
+    max-width: 1680px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 12px 16px 28px;
+  }
+
+  .aviator-console-layout {
+    grid-template-columns: 340px 1fr;
+    gap: 16px;
+  }
+
+  .console-sidebar {
+    height: 680px;
+  }
+
+  .flight-canvas-container {
+    height: 490px;
+  }
+
+  .dual-betting-terminals {
+    gap: 14px;
+  }
+
+  .betting-terminal {
+    height: 156px;
+    min-height: 156px;
+    padding: 10px 14px;
+  }
+
+  .terminal-grid-content {
+    grid-template-columns: 1fr 160px;
+    height: 86px;
+  }
+
+  .terminal-left-controls {
+    height: 86px;
+  }
+
+  .terminal-right-action {
+    width: 160px;
+    height: 86px;
+  }
+
+  .btn-terminal-action {
+    height: 86px;
+  }
+
+  .action-btn-main {
+    font-size: 20px;
+  }
+
+  .action-btn-sub {
+    font-size: 13px;
+  }
+
+  .stepper-row {
+    height: 46px;
+  }
+
+  .btn-step {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .terminal-stake-input {
+    width: 110px;
+    font-size: 19px;
+  }
+
+  .quick-chips-grid {
+    height: 32px;
+    gap: 6px;
+  }
+
+  .chip-btn {
+    height: 32px;
+    font-size: 12px;
+  }
+}
+
+/* 2. Large Desktops & 1440p Displays (1440px to 1919px) */
+@media (min-width: 1440px) and (max-width: 1919px) {
+  .app-main {
+    max-width: 1540px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 10px 14px 24px;
+  }
+
+  .aviator-console-layout {
+    grid-template-columns: 310px 1fr;
+    gap: 12px;
+  }
+
+  .console-sidebar {
+    height: 620px;
+  }
+
+  .flight-canvas-container {
+    height: 430px;
+  }
+
+  .betting-terminal {
+    height: 150px;
+    min-height: 150px;
+  }
+
+  .terminal-grid-content {
+    grid-template-columns: 1fr 150px;
+    height: 82px;
+  }
+
+  .terminal-left-controls, .terminal-right-action, .btn-terminal-action {
+    height: 82px;
+  }
+  .terminal-right-action {
+    width: 150px;
+  }
+
+  .action-btn-main {
+    font-size: 19px;
+  }
+}
+
+/* 3. Standard Laptops & Medium Screens (1025px to 1200px) */
+@media (max-width: 1200px) {
+  .aviator-console-layout {
+    grid-template-columns: 270px 1fr;
+    gap: 10px;
+  }
+
+  .console-sidebar {
+    height: 570px;
+  }
+
+  .flight-canvas-container {
+    height: 385px;
+  }
+
+  .terminal-grid-content {
+    grid-template-columns: 1fr 130px;
+  }
+
+  .terminal-right-action {
+    width: 130px;
+  }
+}
+
+/* 4. Large Tablets & Compact Laptops (769px to 1024px) */
 @media (max-width: 1024px) {
   .app-main {
     padding: 6px 8px 16px;
   }
 
+  .app-header {
+    padding: 0 10px;
+  }
+
   .aviator-console-layout {
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 250px 1fr;
     gap: 8px;
   }
 
   .console-sidebar {
-    height: 560px;
+    height: 540px;
   }
 
   .flight-canvas-container {
-    height: 370px;
+    height: 350px;
+  }
+
+  .dual-betting-terminals {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .terminal-grid-content {
-    grid-template-columns: 1fr 125px;
+    grid-template-columns: 1fr 120px;
   }
   .terminal-right-action {
-    width: 125px;
+    width: 120px;
   }
 
   .vault-hero {
@@ -1835,7 +2003,7 @@ h1, h2, h3, h4 {
   }
 }
 
-/* 2. Tablets & Mobile Devices (768px and below) */
+/* 5. Tablets & Foldables Portrait (541px to 768px) */
 @media (max-width: 768px) {
   :root {
     --header-height: 48px;
@@ -1876,18 +2044,18 @@ h1, h2, h3, h4 {
   .console-sidebar {
     order: 2;
     height: 380px;
-    margin-top: 4px;
+    margin-top: 6px;
   }
 
   /* Responsive Canvas Height */
   .flight-canvas-container {
     height: auto;
     aspect-ratio: 16 / 10;
-    max-height: 300px;
+    max-height: 290px;
     min-height: 210px;
   }
 
-  /* Dual Bet Terminals on Tablet/Mobile */
+  /* Dual Bet Terminals on Tablet */
   .dual-betting-terminals {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
@@ -1942,10 +2110,34 @@ h1, h2, h3, h4 {
   }
 }
 
-/* 3. Small Mobile Phones (480px and below, e.g. iPhone SE, Pixel, Galaxy S) */
+/* 6. Phablets & Small Tablets (541px to 640px) */
+@media (max-width: 640px) {
+  .main-nav-tabs {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex !important;
+  }
+}
+
+/* 7. Large Smartphones (481px to 540px) */
+@media (max-width: 540px) {
+  .dual-betting-terminals {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .flight-canvas-container {
+    max-height: 250px;
+    min-height: 190px;
+  }
+}
+
+/* 8. Standard Mobile Smartphones (361px to 480px, e.g. iPhone 13/14/15/16, Pixel, Galaxy S) */
 @media (max-width: 480px) {
   .app-main {
-    padding: 4px 6px 12px;
+    padding: 4px 6px 14px;
   }
 
   .header-btn-how-to-play .how-text {
@@ -1953,13 +2145,42 @@ h1, h2, h3, h4 {
   }
   .header-btn-how-to-play {
     padding: 4px 6px;
+    width: 26px;
+    height: 26px;
+    justify-content: center;
+  }
+
+  .brand-title {
+    font-size: 17px;
   }
 
   .bal-amount {
-    font-size: 12px;
+    font-size: 11.5px;
   }
 
-  /* On small phones, stack the betting terminals vertically or allow smooth full-width buttons */
+  .header-balance-card {
+    padding: 3px 6px;
+    max-width: 95px;
+  }
+
+  .btn-deposit-header {
+    padding: 4px 8px;
+    font-size: 10px;
+    gap: 3px;
+  }
+
+  .btn-puter-auth {
+    padding: 4px 7px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .puter-name {
+    max-width: 55px;
+    font-size: 10px;
+  }
+
+  /* Single Column Full Width Betting Terminals */
   .dual-betting-terminals {
     grid-template-columns: 1fr;
     gap: 6px;
@@ -1972,32 +2193,223 @@ h1, h2, h3, h4 {
   }
 
   .terminal-grid-content {
-    grid-template-columns: 1fr 130px;
+    grid-template-columns: 1fr 125px;
     height: 74px;
   }
   .terminal-right-action {
-    width: 130px;
+    width: 125px;
   }
 
   .flight-canvas-container {
     aspect-ratio: 16 / 10;
-    max-height: 240px;
-    min-height: 190px;
+    max-height: 230px;
+    min-height: 180px;
   }
 
+  /* Modals on Phones */
   .modal-dialog {
     max-width: 96vw;
+    max-height: 92vh;
     padding: 0;
   }
+  .modal-header {
+    padding: 10px 14px;
+  }
   .modal-body {
-    padding: 14px;
+    padding: 12px 14px;
+  }
+
+  .deposit-methods-bar {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .deposit-presets-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
   }
 }
 
-/* 4. Mobile Landscape (< 900px width with small height) */
+/* 9. Ultra-Narrow Smartphones & Foldable Covers (320px to 360px, e.g. iPhone SE, Galaxy A-series) */
+@media (max-width: 360px) {
+  .app-header {
+    padding: 0 6px;
+    height: 46px;
+  }
+
+  .header-left {
+    gap: 6px;
+  }
+  .header-right {
+    gap: 4px;
+  }
+
+  .brand-container {
+    gap: 4px;
+  }
+
+  .brand-logo-icon svg {
+    width: 28px;
+    height: 18px;
+  }
+
+  .brand-title {
+    font-size: 15px;
+  }
+
+  .header-btn-how-to-play {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+  }
+  .how-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+  }
+
+  .header-balance-card {
+    padding: 3px 5px;
+    max-width: 80px;
+  }
+  .bal-amount {
+    font-size: 10px;
+  }
+
+  .btn-deposit-header {
+    padding: 4px 6px;
+    font-size: 9.5px;
+    gap: 2px;
+  }
+  .btn-deposit-header .dep-plus {
+    font-size: 12px;
+  }
+
+  .btn-puter-auth {
+    padding: 4px 6px;
+  }
+  .btn-puter-auth span {
+    display: none;
+  }
+
+  .puter-user-pill {
+    padding: 2px 4px 2px 3px;
+    gap: 3px;
+  }
+  .puter-avatar {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+  .puter-name {
+    max-width: 40px;
+    font-size: 9px;
+  }
+
+  .btn-hamburger {
+    width: 30px;
+    height: 30px;
+  }
+
+  .flight-canvas-container {
+    max-height: 195px;
+    min-height: 155px;
+  }
+
+  .betting-terminal {
+    height: 130px;
+    min-height: 130px;
+    padding: 5px 6px;
+    gap: 4px;
+  }
+
+  .terminal-grid-content {
+    grid-template-columns: 1fr 105px;
+    height: 70px;
+    gap: 4px;
+  }
+  .terminal-left-controls {
+    height: 70px;
+  }
+  .terminal-right-action {
+    width: 105px;
+    height: 70px;
+  }
+  .btn-terminal-action {
+    height: 70px;
+    padding: 4px 2px;
+  }
+  .action-btn-main {
+    font-size: 15px;
+  }
+  .action-btn-sub {
+    font-size: 10px;
+  }
+
+  .stepper-row {
+    height: 34px;
+  }
+  .btn-step {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .terminal-stake-input {
+    width: 52px;
+    font-size: 13.5px;
+  }
+  .currency-tag {
+    font-size: 9px;
+  }
+
+  .quick-chips-grid {
+    height: 24px;
+    gap: 2px;
+  }
+  .chip-btn {
+    height: 24px;
+    font-size: 9.5px;
+    padding: 0 1px;
+    letter-spacing: -0.02em;
+  }
+
+  .auto-controls-panel {
+    height: 26px;
+    padding: 0 6px;
+  }
+  .toggle-name {
+    font-size: 9px;
+  }
+  .mult-input-group {
+    width: 46px;
+    height: 20px;
+  }
+  .input-auto-cashout {
+    font-size: 10px;
+  }
+
+  .modal-dialog {
+    max-width: 98vw;
+    border-radius: var(--radius-sm);
+  }
+  .modal-body {
+    padding: 10px;
+  }
+
+  .deposit-presets-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .btn-deposit-chip {
+    font-size: 10px;
+    padding: 5px 0;
+  }
+}
+
+/* 10. Mobile Landscape Mode (Phone turned horizontally, max-height 550px) */
 @media (max-height: 550px) and (orientation: landscape) {
   :root {
-    --header-height: 40px;
+    --header-height: 38px;
   }
 
   .app-header {
@@ -2005,59 +2417,108 @@ h1, h2, h3, h4 {
   }
 
   .brand-title {
-    font-size: 17px;
+    font-size: 16px;
+  }
+
+  .header-balance-card {
+    padding: 2px 6px;
+  }
+  .bal-amount {
+    font-size: 11px;
+  }
+
+  .btn-deposit-header {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+
+  .btn-puter-auth {
+    padding: 3px 6px;
+    font-size: 10px;
   }
 
   .aviator-console-layout {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 210px 1fr;
     gap: 6px;
   }
 
   .console-sidebar {
-    height: calc(100vh - 56px);
+    height: calc(100vh - 46px);
+    order: 1;
+  }
+
+  .console-main-stage {
+    order: 2;
   }
 
   .flight-canvas-container {
-    height: 200px;
+    height: 175px;
   }
 
   .dual-betting-terminals {
     grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 
   .betting-terminal {
-    height: 120px;
-    min-height: 120px;
-    padding: 6px 8px;
+    height: 110px;
+    min-height: 110px;
+    padding: 4px 6px;
+    gap: 3px;
+  }
+  .terminal-tab-bar {
+    height: 18px;
+  }
+  .tab-btn {
+    font-size: 9px;
+    padding: 1px 6px;
   }
   .terminal-grid-content {
-    height: 66px;
-    grid-template-columns: 1fr 110px;
+    height: 58px;
+    grid-template-columns: 1fr 100px;
+    gap: 6px;
   }
   .terminal-left-controls {
-    height: 66px;
+    height: 58px;
+    gap: 3px;
   }
   .stepper-row {
-    height: 34px;
+    height: 30px;
   }
   .btn-step {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+  .terminal-stake-input {
+    width: 55px;
+    font-size: 13px;
   }
   .quick-chips-grid {
-    height: 24px;
+    height: 22px;
+    gap: 2px;
   }
   .chip-btn {
-    height: 24px;
-    font-size: 9px;
+    height: 22px;
+    font-size: 8.5px;
   }
   .terminal-right-action {
-    width: 110px;
-    height: 66px;
+    width: 100px;
+    height: 58px;
   }
   .btn-terminal-action {
-    height: 66px;
+    height: 58px;
+    padding: 4px;
+  }
+  .action-btn-main {
+    font-size: 14px;
+  }
+  .action-btn-sub {
+    font-size: 10px;
+  }
+  .auto-controls-panel {
+    display: none;
   }
 }
 

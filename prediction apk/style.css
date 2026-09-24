@@ -986,6 +986,8 @@ html, body {
 .vip-bottom-nav {
   position: fixed;
   bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
   max-width: 460px;
   height: 64px;
@@ -1184,4 +1186,332 @@ html, body {
   font-size: 11px;
   font-weight: 800;
   text-decoration: none;
+}
+
+/* ==========================================================================
+   VIP PREDICTOR UNIVERSAL RESPONSIVE BREAKPOINTS
+   Optimized for All Screens: Desktops, Tablets, Smartphones & Small Screens
+   ========================================================================== */
+
+/* 1. Desktop & Large Tablets (Royal Luxury Mobile Cockpit Shell) */
+@media (min-width: 600px) {
+  body.vip-mobile-body {
+    background: radial-gradient(circle at 50% 25%, #181408 0%, #08090d 55%, #020304 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 12px;
+    box-sizing: border-box;
+  }
+
+  .vip-app-shell {
+    max-width: 440px;
+    border: 1.5px solid var(--gold-border);
+    border-radius: 36px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95), 0 0 35px rgba(255, 215, 0, 0.15), inset 0 0 2px rgba(255, 215, 0, 0.4);
+    overflow: hidden;
+    position: relative;
+    min-height: 840px;
+  }
+
+  .vip-bottom-nav {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    max-width: 100%;
+    border-radius: 0 0 34px 34px;
+  }
+
+  .vip-modal-sheet {
+    border-radius: 28px 28px 34px 34px;
+  }
+}
+
+/* 2. Standard Smartphones (361px to 430px, e.g. iPhone 13/14/15/16, Pixel, Galaxy S) */
+@media (max-width: 430px) {
+  .vip-header {
+    height: 56px;
+    padding: 0 10px;
+  }
+
+  .vip-crown-badge {
+    width: 32px;
+    height: 32px;
+  }
+
+  .vip-app-name {
+    font-size: 12px;
+  }
+
+  .vip-radar-disc {
+    width: 215px;
+    height: 215px;
+  }
+
+  .radar-middle-orbit {
+    width: 155px;
+    height: 155px;
+  }
+
+  .radar-inner-orbit {
+    width: 100px;
+    height: 100px;
+  }
+
+  .gold-mult-display {
+    font-size: 34px;
+  }
+
+  .telemetry-box {
+    padding: 6px 3px;
+  }
+
+  .tel-val {
+    font-size: 13px;
+  }
+
+  .btn-vip-predict {
+    height: 50px;
+    font-size: 13.5px;
+  }
+}
+
+/* 3. Small / Ultra-Narrow Smartphones (320px to 360px, e.g. iPhone SE, Galaxy Fold cover) */
+@media (max-width: 360px) {
+  .vip-header {
+    height: 50px;
+    padding: 0 8px;
+  }
+
+  .vip-crown-badge {
+    width: 28px;
+    height: 28px;
+  }
+  .vip-crown-badge svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .vip-app-name {
+    font-size: 11px;
+  }
+
+  .badge-vip-pill {
+    font-size: 7px;
+    padding: 1px 4px;
+  }
+
+  .vip-subtext {
+    font-size: 7.5px;
+  }
+
+  .vip-icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .vip-member-strip {
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+
+  .member-chip, .accuracy-guarantee {
+    font-size: 9px;
+  }
+
+  .vip-platform-card {
+    padding: 8px 10px 2px;
+  }
+
+  .vip-casino-select {
+    padding: 7px 24px 7px 8px;
+    font-size: 11px;
+  }
+
+  .vip-view-container {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .vip-radar-card {
+    padding: 10px 8px;
+    border-radius: var(--radius-md);
+  }
+
+  .vip-radar-disc {
+    width: 190px;
+    height: 190px;
+    margin: 4px 0;
+  }
+
+  .radar-middle-orbit {
+    width: 140px;
+    height: 140px;
+  }
+
+  .radar-inner-orbit {
+    width: 90px;
+    height: 90px;
+  }
+
+  .vip-center-readout {
+    padding: 6px 8px;
+  }
+
+  .center-multiplier-box {
+    min-height: 38px;
+  }
+
+  .gold-mult-display {
+    font-size: 28px;
+  }
+
+  .center-label {
+    font-size: 7px;
+  }
+
+  .vip-accuracy-badge {
+    font-size: 8px;
+    padding: 2px 6px;
+  }
+
+  .vip-telemetry-grid {
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .telemetry-box {
+    padding: 5px 2px;
+  }
+
+  .tel-label {
+    font-size: 7px;
+  }
+
+  .tel-val {
+    font-size: 11.5px;
+  }
+
+  .vip-seed-ticker {
+    font-size: 8px;
+    padding: 3px 6px;
+  }
+
+  .btn-vip-predict {
+    height: 46px;
+    font-size: 12.5px;
+    gap: 6px;
+  }
+
+  .switch-caption {
+    font-size: 10px;
+  }
+
+  .btn-launch-game {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  .signal-row {
+    font-size: 9px;
+    padding: 5px 4px;
+  }
+
+  .vip-bottom-nav {
+    height: 56px;
+  }
+
+  .nav-tab-icon {
+    font-size: 16px;
+  }
+
+  .nav-tab-label {
+    font-size: 8px;
+  }
+
+  .vip-modal-sheet {
+    padding: 16px 12px 28px;
+  }
+}
+
+/* 4. Mobile Landscape Mode (Phone turned sideways, max-height 550px) */
+@media (max-height: 550px) and (orientation: landscape) {
+  .vip-app-shell {
+    max-width: 100%;
+    padding-bottom: 58px;
+  }
+
+  .vip-header {
+    height: 44px;
+    padding: 0 10px;
+  }
+
+  .vip-member-strip {
+    padding: 3px 10px;
+  }
+
+  .vip-platform-card {
+    padding: 4px 10px 2px;
+  }
+
+  .vip-view-container {
+    padding: 4px 10px;
+    gap: 6px;
+  }
+
+  .vip-radar-card {
+    padding: 8px 12px;
+  }
+
+  .vip-radar-disc {
+    width: 155px;
+    height: 155px;
+    margin: 2px 0;
+  }
+
+  .radar-middle-orbit {
+    width: 115px;
+    height: 115px;
+  }
+
+  .radar-inner-orbit {
+    width: 75px;
+    height: 75px;
+  }
+
+  .vip-center-readout {
+    padding: 4px 8px;
+  }
+
+  .center-multiplier-box {
+    min-height: 32px;
+  }
+
+  .gold-mult-display {
+    font-size: 24px;
+  }
+
+  .vip-telemetry-grid {
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .telemetry-box {
+    padding: 4px 4px;
+  }
+
+  .tel-val {
+    font-size: 11px;
+  }
+
+  .btn-vip-predict {
+    height: 42px;
+    font-size: 12px;
+  }
+
+  .vip-bottom-nav {
+    height: 50px;
+  }
 }

@@ -691,6 +691,8 @@ class AviatorApp {
       tab.addEventListener('click', () => {
         const targetView = tab.getAttribute('data-view');
         this.switchView(targetView);
+        const menu = document.getElementById('spribe-dropdown-menu');
+        if (menu) menu.classList.remove('show');
       });
     });
 
