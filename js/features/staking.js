@@ -17,7 +17,7 @@ export class StakingTerminalManager {
     this.terminals = {
       1: {
         id: 1,
-        amount: 100,
+        amount: 200,
         staked: false,
         stakedInRound: false,
         cashedOut: false,
@@ -62,10 +62,20 @@ export class StakingTerminalManager {
     this.soundEngine?.playClick();
   }
 
-  topUp(amount = 20000) {
-    this.balance += amount;
+  topUp(amount = 1000) {
+    const depositAmt = Math.round(Number(amount));
+    if (depositAmt < 500) {
+      alert('Minimum deposit amount is KES 500.00');
+      return false;
+    }
+    this.balance += depositAmt;
     this.saveBalance();
-    this.soundEngine?.playClick();
+    if (this.soundEngine?.playDeposit) {
+      this.soundEngine.playDeposit();
+    } else {
+      this.soundEngine?.playCashout();
+    }
+    return true;
   }
 
   getTerminal(id) {
@@ -75,7 +85,7 @@ export class StakingTerminalManager {
   setAmount(id, amount) {
     const t = this.terminals[id];
     if (!t) return;
-    t.amount = Math.max(10, Math.min(100000, Math.round(amount)));
+    t.amount = Math.max(200, Math.min(100000, Math.round(amount)));
     this.notifyUpdate(id);
   }
 
@@ -159,8 +169,13 @@ export class StakingTerminalManager {
     const t = this.terminals[id];
     if (!t || t.staked) return false;
 
+    if (t.amount < 200) {
+      t.amount = 200;
+      this.notifyUpdate(id);
+    }
+
     if (this.balance < t.amount) {
-      alert(`Insufficient balance (KES ${this.balance.toFixed(2)}). Please top up or reduce stake.`);
+      alert(`Insufficient balance (KES ${this.balance.toFixed(2)}). Minimum bet is KES 200.00. Please deposit funds.`);
       return false;
     }
 
@@ -173,7 +188,11 @@ export class StakingTerminalManager {
     t.cashedOutMultiplier = 0;
 
     this.saveBalance();
-    this.soundEngine?.playClick();
+    if (this.soundEngine?.playBetPlaced) {
+      this.soundEngine.playBetPlaced();
+    } else {
+      this.soundEngine?.playClick();
+    }
     this.notifyUpdate(id);
     return true;
   }

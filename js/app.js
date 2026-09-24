@@ -13,6 +13,7 @@ import { RolloverStakingVault } from './features/rollover-vault.js';
 import { ProvablyFairUI } from './features/provably-fair.js';
 import { HistoryBarComponent } from './components/history-bar.js';
 import { LiveStakersComponent } from './components/live-stakers.js';
+import { PuterAuthManager } from './features/puter-auth.js';
 
 class AviatorApp {
   constructor() {
@@ -80,6 +81,17 @@ class AviatorApp {
       this.soundEngine,
       (rolloverState) => this.updateRolloverUI(rolloverState)
     );
+
+    // 6. Puter.js Cloud Authentication & Persistence Manager
+    this.puterAuth = new PuterAuthManager(
+      this.stakingManager,
+      this.soundEngine,
+      (user) => {
+        if (user) {
+          console.log('[Aviator] Puter.js user authenticated:', user.username);
+        }
+      }
+    );
   }
 
   // Orchestrate game round cycle
@@ -124,11 +136,18 @@ class AviatorApp {
     }
 
     // 4. Start Canvas Countdown (5.0 seconds) with target crash multiplier
+    this.lastCountdownSecond = -1;
     this.canvasEngine.startCountdown(5.0, this.currentRoundData.crashMultiplier);
   }
 
   onFlightTick(multiplier, remainingSeconds) {
-    if (this.canvasEngine.state === 'FLYING') {
+    if (this.canvasEngine.state === 'WAITING') {
+      const ceilSec = Math.ceil(remainingSeconds);
+      if (ceilSec > 0 && ceilSec !== this.lastCountdownSecond) {
+        this.lastCountdownSecond = ceilSec;
+        this.soundEngine.playCountdownTick(ceilSec);
+      }
+    } else if (this.canvasEngine.state === 'FLYING') {
       this.soundEngine.updateEnginePitch(multiplier);
       this.stakingManager.onFlightTick(multiplier);
       this.liveStakers.onFlightTick(multiplier);
@@ -143,6 +162,7 @@ class AviatorApp {
     }
 
     if (newState === 'FLYING') {
+      this.soundEngine.playTakeoff();
       this.soundEngine.startEngine();
       this.stakingManager.onFlightStart();
       try {
@@ -340,11 +360,124 @@ class AviatorApp {
       });
     }
 
-    // 2. Top-up Balance
-    const topUpBtn = document.getElementById('btn-top-up');
-    if (topUpBtn) {
-      topUpBtn.addEventListener('click', () => {
-        this.stakingManager.topUp(20000);
+    // 2. Deposit Funds Modal & Top-Up (Min KES 500.00)
+    const depositModal = document.getElementById('deposit-modal');
+    const openDepositBtns = [
+      document.getElementById('btn-open-deposit'),
+      document.getElementById('menu-btn-deposit'),
+      document.getElementById('btn-top-up')
+    ];
+    const closeDepositBtn = document.getElementById('btn-close-deposit');
+    const depositAmtInput = document.getElementById('deposit-amount-input');
+    const depositChips = document.querySelectorAll('.btn-deposit-chip');
+    const depositMethodBtns = document.querySelectorAll('.deposit-method-btn');
+    const btnConfirmDeposit = document.getElementById('btn-confirm-deposit');
+    const btnConfirmDepositText = document.getElementById('btn-confirm-deposit-text');
+    const depositStatusMsg = document.getElementById('deposit-status-msg');
+    const depositPhoneContainer = document.getElementById('deposit-phone-container');
+
+    const updateDepositAmount = (val) => {
+      const amt = Math.max(0, parseFloat(val) || 0);
+      if (depositAmtInput && document.activeElement !== depositAmtInput) {
+        depositAmtInput.value = amt;
+      }
+      if (btnConfirmDepositText) {
+        btnConfirmDepositText.textContent = `Deposit KES ${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      }
+
+      depositChips.forEach(c => {
+        const chipVal = parseFloat(c.getAttribute('data-amount'));
+        c.classList.toggle('active', chipVal === amt);
+      });
+
+      if (amt < 500) {
+        if (depositStatusMsg) {
+          depositStatusMsg.className = 'deposit-status-msg error';
+          depositStatusMsg.textContent = 'Minimum deposit is KES 500.00. Please enter at least 500.';
+        }
+        if (btnConfirmDeposit) btnConfirmDeposit.style.opacity = '0.6';
+      } else {
+        if (depositStatusMsg) {
+          depositStatusMsg.className = 'deposit-status-msg';
+          depositStatusMsg.textContent = `Ready to deposit KES ${amt.toLocaleString()} via selected payment provider.`;
+        }
+        if (btnConfirmDeposit) btnConfirmDeposit.style.opacity = '1';
+      }
+    };
+
+    openDepositBtns.forEach(btn => {
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const menu = document.getElementById('spribe-dropdown-menu');
+          if (menu) menu.classList.remove('show');
+          depositModal?.classList.add('show');
+          updateDepositAmount(depositAmtInput?.value || 1000);
+          this.soundEngine.playClick();
+        });
+      }
+    });
+
+    if (closeDepositBtn && depositModal) {
+      closeDepositBtn.addEventListener('click', () => {
+        depositModal.classList.remove('show');
+      });
+      depositModal.addEventListener('click', (e) => {
+        if (e.target === depositModal) depositModal.classList.remove('show');
+      });
+    }
+
+    depositMethodBtns.forEach(mBtn => {
+      mBtn.addEventListener('click', () => {
+        depositMethodBtns.forEach(b => b.classList.remove('active'));
+        mBtn.classList.add('active');
+        const method = mBtn.getAttribute('data-method');
+        if (depositPhoneContainer) {
+          depositPhoneContainer.style.display = (method === 'mpesa' || method === 'airtel') ? 'block' : 'none';
+        }
+        this.soundEngine.playClick();
+      });
+    });
+
+    depositChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const val = parseFloat(chip.getAttribute('data-amount'));
+        if (depositAmtInput) depositAmtInput.value = val;
+        updateDepositAmount(val);
+        this.soundEngine.playClick();
+      });
+    });
+
+    if (depositAmtInput) {
+      depositAmtInput.addEventListener('input', (e) => {
+        updateDepositAmount(e.target.value);
+      });
+    }
+
+    if (btnConfirmDeposit) {
+      btnConfirmDeposit.addEventListener('click', () => {
+        const amt = parseFloat(depositAmtInput?.value || 0);
+        if (amt < 500) {
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg error';
+            depositStatusMsg.textContent = 'Minimum deposit is KES 500.00. Please increase your deposit.';
+          }
+          return;
+        }
+
+        const success = this.stakingManager.topUp(amt);
+        if (success) {
+          depositModal?.classList.remove('show');
+          let toast = document.getElementById('aviator-toast-notification');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'aviator-toast-notification';
+            toast.className = 'aviator-toast';
+            document.body.appendChild(toast);
+          }
+          toast.textContent = `Deposit Successful! +KES ${amt.toLocaleString()} credited to your Aviator wallet.`;
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 3500);
+        }
       });
     }
 

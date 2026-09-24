@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <!-- Puter.js v2 SDK for Authentication and Cloud Persistence -->
+  <script src="https://js.puter.com/v2/"></script>
 </head>
 <body class="aviator-app">
 
@@ -90,15 +92,21 @@
         </svg>
       </button>
 
-      <!-- User Demo Balance Card -->
-      <div class="header-balance-card" title="Demo Wallet Balance">
+      <!-- User Wallet Balance Card -->
+      <div class="header-balance-card" title="Wallet Balance">
         <span class="bal-amount user-balance-value">50,000.00 KES</span>
       </div>
 
-      <!-- Quick Top Up Button -->
-      <button class="btn-top-up" id="btn-top-up" title="Add KES 20,000 demo funds">
-        <span>+</span>
+      <!-- Spribe Deposit Button (Min 500 KES) -->
+      <button class="btn-deposit-header" id="btn-open-deposit" title="Deposit Funds (Min KES 500.00)">
+        <span class="dep-plus">+</span>
+        <span class="dep-text">DEPOSIT</span>
       </button>
+
+      <!-- Puter.js Cloud Auth Container -->
+      <div id="puter-auth-container" class="puter-auth-container">
+        <!-- Rendered dynamically by PuterAuthManager: Sign In / User Pill -->
+      </div>
 
       <!-- Hamburger Menu Button -->
       <div class="menu-dropdown-wrapper">
@@ -135,6 +143,10 @@
             </label>
           </div>
           <div class="menu-divider"></div>
+          <button class="menu-link-btn" id="menu-btn-deposit" style="color: #2ecc71;">
+            <span class="menu-link-icon">💳</span>
+            <span>Deposit Funds (Min 500)</span>
+          </button>
           <button class="menu-link-btn" id="menu-btn-how">
             <span class="menu-link-icon">?</span>
             <span>How to play?</span>
@@ -235,18 +247,18 @@
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="100" min="10" max="100000" step="10">
+                      <input type="number" class="terminal-stake-input" value="200" min="200" max="100000" step="50">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
                   </div>
 
-                  <!-- Quick Preset Chips Row (Default in Bet mode) -->
+                  <!-- Quick Preset Chips Row (Default in Bet mode, min 200) -->
                   <div class="quick-chips-grid">
-                    <button class="chip-btn" data-val="100">100</button>
-                    <button class="chip-btn" data-val="200">200</button>
+                    <button class="chip-btn active" data-val="200">200</button>
                     <button class="chip-btn" data-val="500">500</button>
                     <button class="chip-btn" data-val="1000">1,000</button>
+                    <button class="chip-btn" data-val="2000">2,000</button>
                   </div>
 
                   <!-- Auto Mode Controls (Swapped in Auto mode) -->
@@ -274,7 +286,7 @@
                 <div class="terminal-right-action">
                   <button class="btn-terminal-action state-stake">
                     <div class="action-btn-main">BET</div>
-                    <div class="action-btn-sub">100.00 KES</div>
+                    <div class="action-btn-sub">200.00 KES</div>
                   </button>
                 </div>
               </div>
@@ -301,17 +313,17 @@
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="200" min="10" max="100000" step="10">
+                      <input type="number" class="terminal-stake-input" value="200" min="200" max="100000" step="50">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
                   </div>
 
                   <div class="quick-chips-grid">
-                    <button class="chip-btn" data-val="100">100</button>
-                    <button class="chip-btn" data-val="200">200</button>
+                    <button class="chip-btn active" data-val="200">200</button>
                     <button class="chip-btn" data-val="500">500</button>
                     <button class="chip-btn" data-val="1000">1,000</button>
+                    <button class="chip-btn" data-val="2000">2,000</button>
                   </div>
 
                   <!-- Auto Mode Controls (Swapped in Auto mode) -->
@@ -698,6 +710,117 @@
           <button class="btn-verify-action" id="btn-run-verify">Verify Cryptographic Multiplier</button>
 
           <div class="pf-result-container" id="pf-verify-result"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 4: DEPOSIT FUNDS (M-PESA / AIRTEL / CARD / CRYPTO / DEMO)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="deposit-modal" role="dialog" aria-modal="true" aria-labelledby="deposit-modal-title">
+    <div class="modal-dialog deposit-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <div class="deposit-header-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2.5">
+              <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+              <line x1="2" y1="10" x2="22" y2="10"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 id="deposit-modal-title">Deposit Funds</h2>
+            <span class="deposit-subtitle">Instant wallet funding • Min KES 500.00</span>
+          </div>
+        </div>
+        <button class="btn-modal-close" id="btn-close-deposit" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Minimum Deposit Notice Banner -->
+        <div class="deposit-notice-banner">
+          <span class="notice-icon">🛡️</span>
+          <div class="notice-text">
+            <strong>Minimum Deposit: KES 500.00</strong>
+            <p>Deposited funds are credited instantly and synchronized with your Puter.js cloud profile.</p>
+          </div>
+        </div>
+
+        <!-- Payment Method Selector -->
+        <div class="deposit-methods-bar">
+          <button type="button" class="deposit-method-btn active" data-method="mpesa">
+            <span class="method-badge">LIPA NA</span>
+            <span class="method-name">M-PESA</span>
+          </button>
+          <button type="button" class="deposit-method-btn" data-method="airtel">
+            <span class="method-badge">AIRTEL</span>
+            <span class="method-name">Money</span>
+          </button>
+          <button type="button" class="deposit-method-btn" data-method="card">
+            <span class="method-badge">VISA / MC</span>
+            <span class="method-name">Card</span>
+          </button>
+          <button type="button" class="deposit-method-btn" data-method="crypto">
+            <span class="method-badge">USDT</span>
+            <span class="method-name">Crypto</span>
+          </button>
+        </div>
+
+        <!-- Amount Selection -->
+        <div class="deposit-section">
+          <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
+          <div class="deposit-input-wrapper">
+            <span class="deposit-currency-tag">KES</span>
+            <input 
+              type="number" 
+              id="deposit-amount-input" 
+              class="deposit-amount-input" 
+              value="1000" 
+              min="500" 
+              step="100" 
+              placeholder="500" 
+            />
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="deposit-presets-grid">
+            <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
+            <button type="button" class="btn-deposit-chip active" data-amount="1000">KES 1,000</button>
+            <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
+            <button type="button" class="btn-deposit-chip" data-amount="5000">KES 5,000</button>
+            <button type="button" class="btn-deposit-chip" data-amount="10000">KES 10,000</button>
+          </div>
+        </div>
+
+        <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
+        <div class="deposit-section" id="deposit-phone-container">
+          <label class="deposit-label" for="deposit-phone-input">M-PESA Phone Number (STK Push):</label>
+          <div class="deposit-input-wrapper">
+            <span class="deposit-currency-tag">🇰🇪</span>
+            <input 
+              type="tel" 
+              id="deposit-phone-input" 
+              class="deposit-amount-input" 
+              value="+254 7" 
+              placeholder="+254 7XX XXX XXX" 
+            />
+          </div>
+          <span class="deposit-hint-text">You will receive an M-PESA PIN prompt on your phone for verification.</span>
+        </div>
+
+        <!-- Status / Error Feedback -->
+        <div id="deposit-status-msg" class="deposit-status-msg">
+          Minimum deposit allowed is KES 500.00.
+        </div>
+
+        <!-- Confirm Deposit Action -->
+        <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
+          <span class="btn-dep-icon">⚡</span>
+          <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 1,000.00</span>
+        </button>
+
+        <div class="deposit-security-footer">
+          <span>🔒 256-Bit SSL Encrypted • Instant Processing • Provably Fair Guaranteed</span>
         </div>
       </div>
     </div>

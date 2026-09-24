@@ -371,7 +371,7 @@ export class SoundEngine {
   }
 
   /* =========================================================================
-     5. UI INTERACTIONS & BUTTON TICKS
+     5. UI INTERACTIONS, COUNTDOWN TICKS & SOUND MATCHING
      ========================================================================= */
   playClick() {
     if (this.soundMuted) return;
@@ -394,5 +394,119 @@ export class SoundEngine {
 
     osc.start(t);
     osc.stop(t + 0.04);
+  }
+
+  // Authentic Spribe countdown tick per second
+  playCountdownTick(secondsLeft = 5) {
+    if (this.soundMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    const isFinal = secondsLeft <= 1;
+    osc.type = isFinal ? 'square' : 'triangle';
+    osc.frequency.setValueAtTime(isFinal ? 1200 : 750, t);
+    osc.frequency.exponentialRampToValueAtTime(isFinal ? 440 : 320, t + 0.04);
+
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(this.masterVolume * (isFinal ? 0.16 : 0.09), t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.05);
+  }
+
+  // Jet takeoff rev whoosh as multiplier initiates at 1.00x
+  playTakeoff() {
+    if (this.soundMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(95, t);
+    osc.frequency.exponentialRampToValueAtTime(280, t + 0.35);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(260, t);
+    filter.frequency.linearRampToValueAtTime(800, t + 0.35);
+
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(this.masterVolume * 0.22, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.40);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.42);
+  }
+
+  // Crisp mechanical bet placed sound
+  playBetPlaced() {
+    if (this.soundMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    // Two rapid micro-taps: mechanical switch + chip drop
+    [0.0, 0.035].forEach((delay, idx) => {
+      const pingTime = t + delay;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(idx === 0 ? 1040 : 1480, pingTime);
+      osc.frequency.exponentialRampToValueAtTime(idx === 0 ? 320 : 480, pingTime + 0.025);
+
+      gain.gain.setValueAtTime(this.masterVolume * 0.14, pingTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, pingTime + 0.03);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(pingTime);
+      osc.stop(pingTime + 0.035);
+    });
+  }
+
+  // Deposit success jingle (C6 -> E6 -> G6 -> C7 cascade)
+  playDeposit() {
+    if (this.soundMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const notes = [1046.50, 1318.51, 1567.98, 2093.00];
+
+    notes.forEach((freq, idx) => {
+      const noteTime = t + (idx * 0.065);
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, noteTime);
+
+      gain.gain.setValueAtTime(0.001, noteTime);
+      gain.gain.linearRampToValueAtTime(this.masterVolume * 0.24, noteTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.5);
+    });
   }
 }
