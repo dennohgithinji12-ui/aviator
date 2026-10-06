@@ -207,6 +207,24 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify(getLiveRoundState()));
   }
 
+  // Client Firebase configuration endpoint (loads from .env if provided)
+  if (pathname === '/api/config/firebase') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Access-Control-Allow-Origin': '*'
+    });
+    return res.end(JSON.stringify({
+      apiKey: process.env.FIREBASE_API_KEY || null,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,
+      projectId: process.env.FIREBASE_PROJECT_ID || null,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || null,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || null,
+      appId: process.env.FIREBASE_APP_ID || null,
+      isConfigured: Boolean(process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID)
+    }));
+  }
+
   // PayHero API endpoints for Kenyan M-PESA STK Push (Min 49 Bob)
   if (pathname === '/api/payhero/stk-push' && req.method === 'POST') {
     let body = '';

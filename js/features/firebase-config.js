@@ -15,12 +15,13 @@
  */
 
 export const firebaseConfig = {
-  apiKey: "AIzaSy_SHIFTSTACK_PUBLIC_SPARK_KEY_2026",
-  authDomain: "shiftstack-aviator.firebaseapp.com",
-  projectId: "shiftstack-aviator",
-  storageBucket: "shiftstack-aviator.appspot.com",
-  messagingSenderId: "729482019485",
-  appId: "1:729482019485:web:8a9b0c1d2e3f4a5b6c7d8e"
+  apiKey: "AIzaSyBt2tbAjjNpKiciGq5HZs3Bv3a3ebPkyQ4",
+  authDomain: "shiftstack-log-in.firebaseapp.com",
+  projectId: "shiftstack-log-in",
+  storageBucket: "shiftstack-log-in.firebasestorage.app",
+  messagingSenderId: "54352624967",
+  appId: "1:54352624967:web:247d96b5f0afe002b02062",
+  measurementId: "G-XFFZQ513RG"
 };
 
 /**
@@ -50,15 +51,37 @@ let firebaseAuthInstance = null;
 let recaptchaVerifierInstance = null;
 
 /**
+ * Fetch active Firebase project configuration (from .env/server, window, or local fallback)
+ */
+export async function getActiveFirebaseConfig() {
+  if (window.__FIREBASE_CONFIG__ && window.__FIREBASE_CONFIG__.apiKey) {
+    return window.__FIREBASE_CONFIG__;
+  }
+  try {
+    const res = await fetch('/api/config/firebase');
+    if (res.ok) {
+      const serverCfg = await res.json();
+      if (serverCfg && serverCfg.isConfigured && serverCfg.apiKey) {
+        return serverCfg;
+      }
+    }
+  } catch (e) {
+    // Use fallback
+  }
+  return firebaseConfig;
+}
+
+/**
  * Initialize Firebase Web SDK (Modular v10)
  */
 export async function initFirebaseAuth() {
   if (firebaseAuthInstance) return firebaseAuthInstance;
   try {
+    const activeConfig = await getActiveFirebaseConfig();
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
     const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
     
-    firebaseAppInstance = initializeApp(firebaseConfig);
+    firebaseAppInstance = initializeApp(activeConfig);
     firebaseAuthInstance = getAuth(firebaseAppInstance);
     return firebaseAuthInstance;
   } catch (err) {
