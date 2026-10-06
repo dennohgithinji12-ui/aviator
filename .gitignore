@@ -2,3 +2,11 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+.env
+data/
+*.db
+*.mp4
+*.lnk
+android/.gradle/
+android/build/
+android/app/build/

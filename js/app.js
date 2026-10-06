@@ -37,10 +37,11 @@ class AviatorApp {
   initStakingManager() {
     this.stakingManager = new StakingTerminalManager(
       50000,
-      (newBalance) => this.updateBalanceUI(newBalance),
+      (newBalance, mode) => this.updateBalanceUI(newBalance, mode),
       (terminalId, terminalState, gameState, multiplier) =>
         this.updateTerminalUI(terminalId, terminalState, gameState, multiplier),
-      this.soundEngine
+      this.soundEngine,
+      (mode, balance) => this.onGameModeChanged(mode, balance)
     );
   }
 
@@ -164,17 +165,20 @@ class AviatorApp {
   }
 
   onFlightTick(multiplier, remainingSeconds) {
+    const bnavMult = document.getElementById('bnav-live-multiplier');
     if (this.canvasEngine.state === 'WAITING') {
       const ceilSec = Math.ceil(remainingSeconds);
       if (ceilSec > 0 && ceilSec !== this.lastCountdownSecond) {
         this.lastCountdownSecond = ceilSec;
         this.soundEngine.playCountdownTick(ceilSec);
       }
+      if (bnavMult) bnavMult.textContent = `● ${ceilSec}s`;
     } else if (this.canvasEngine.state === 'FLYING') {
       this.soundEngine.updateEnginePitch(multiplier);
       this.stakingManager.onFlightTick(multiplier);
       this.liveStakers.onFlightTick(multiplier);
       this.rolloverVault.checkFlightProgress(multiplier);
+      if (bnavMult) bnavMult.textContent = `● ${multiplier.toFixed(2)}x`;
     }
   }
 
@@ -184,10 +188,15 @@ class AviatorApp {
       skipBtn.style.display = (newState === 'WAITING') ? 'flex' : 'none';
     }
 
-    if (newState === 'FLYING') {
+    const bnavMult = document.getElementById('bnav-live-multiplier');
+
+    if (newState === 'WAITING') {
+      if (bnavMult) bnavMult.textContent = '● Wait';
+    } else if (newState === 'FLYING') {
       this.soundEngine.playTakeoff();
       this.soundEngine.startEngine();
       this.stakingManager.onFlightStart();
+      if (bnavMult) bnavMult.textContent = '● 1.00x';
       try {
         const syncData = { type: 'ROUND_FLYING', nonce: this.currentRoundData?.nonce, timestamp: Date.now() };
         if (typeof BroadcastChannel !== 'undefined') {
@@ -196,6 +205,7 @@ class AviatorApp {
       } catch (e) {}
     } else if (newState === 'CRASHED') {
       const finalMultiplier = data.finalMultiplier;
+      if (bnavMult) bnavMult.textContent = `● ${finalMultiplier.toFixed(2)}x`;
       this.soundEngine.playCrash();
       this.stakingManager.onFlightCrash(finalMultiplier);
       this.liveStakers.onFlightCrash(finalMultiplier);
@@ -239,11 +249,80 @@ class AviatorApp {
   }
 
   // Update UI Elements
-  updateBalanceUI(balance) {
+  updateBalanceUI(balance, mode = this.stakingManager?.gameMode || 'DEMO') {
     const balElems = document.querySelectorAll('.user-balance-value');
+    const isReal = (mode === 'REAL');
     balElems.forEach(el => {
       el.textContent = `${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES`;
     });
+
+    const realBalEls = document.querySelectorAll('.user-real-balance-val');
+    realBalEls.forEach(el => {
+      el.textContent = `${(this.stakingManager?.realBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES`;
+    });
+
+    const demoBalEls = document.querySelectorAll('.user-demo-balance-val');
+    demoBalEls.forEach(el => {
+      el.textContent = `${(this.stakingManager?.demoBalance || 50000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES`;
+    });
+
+    const modeBadges = document.querySelectorAll('.badge-mode-indicator');
+    modeBadges.forEach(b => {
+      b.className = `badge-mode-indicator ${isReal ? 'badge-mode-real' : 'badge-mode-demo'}`;
+      b.textContent = isReal ? 'REAL' : 'DEMO';
+    });
+
+    const realAlertBanner = document.getElementById('real-mode-deposit-alert');
+    if (realAlertBanner) {
+      realAlertBanner.style.display = (isReal && (this.stakingManager?.realBalance || 0) < 100) ? 'flex' : 'none';
+    }
+  }
+
+  onGameModeChanged(mode, balance) {
+    const isReal = (mode === 'REAL');
+    const realModeBtn = document.getElementById('btn-real-mode-toggle');
+    const funBanner = document.querySelector('.shiftstack-fun-banner') || document.querySelector('.kessbet-fun-banner');
+    if (funBanner) {
+      funBanner.textContent = isReal ? 'REAL MONEY MODE' : 'FUN MODE';
+      funBanner.style.background = isReal ? '#22c55e' : '#f59e0b';
+    }
+    if (realModeBtn) {
+      realModeBtn.textContent = isReal ? 'Fun >' : 'Real >';
+      realModeBtn.classList.toggle('active-real', isReal);
+    }
+    this.updateBalanceUI(balance, mode);
+  }
+
+  openDepositModal(initialAmount = 49) {
+    const depositModal = document.getElementById('deposit-modal');
+    if (!depositModal) return;
+    depositModal.classList.add('show');
+    const depositAmtInput = document.getElementById('deposit-amount-input');
+    const btnConfirmDeposit = document.getElementById('btn-confirm-deposit');
+    const btnConfirmDepositText = document.getElementById('btn-confirm-deposit-text');
+    const depositChips = document.querySelectorAll('.btn-deposit-chip');
+    const depositStatusMsg = document.getElementById('deposit-status-msg');
+
+    const amt = Math.max(49, parseFloat(initialAmount) || 49);
+    if (depositAmtInput) {
+      depositAmtInput.value = amt;
+    }
+    if (btnConfirmDepositText) {
+      btnConfirmDepositText.textContent = `Deposit KES ${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    }
+    if (btnConfirmDeposit) {
+      btnConfirmDeposit.style.opacity = '1';
+    }
+    depositChips.forEach(c => {
+      const chipVal = parseFloat(c.getAttribute('data-amount'));
+      c.classList.toggle('active', chipVal === amt);
+    });
+    if (depositStatusMsg) {
+      depositStatusMsg.className = 'deposit-status-msg';
+      depositStatusMsg.textContent = `Ready to deposit KES ${amt.toLocaleString()} via PayHero M-PESA.`;
+      depositStatusMsg.style.display = 'block';
+    }
+    this.soundEngine?.playClick();
   }
 
   updateTerminalUI(id, t, gameState, multiplier) {
@@ -415,16 +494,18 @@ class AviatorApp {
         c.classList.toggle('active', chipVal === amt);
       });
 
-      if (amt < 500) {
+      if (amt < 49) {
         if (depositStatusMsg) {
           depositStatusMsg.className = 'deposit-status-msg error';
-          depositStatusMsg.textContent = 'Minimum deposit is KES 500.00. Please enter at least 500.';
+          depositStatusMsg.textContent = 'Minimum deposit is KES 49.00 (49 Bob). Please enter at least 49.';
+          depositStatusMsg.style.display = 'block';
         }
         if (btnConfirmDeposit) btnConfirmDeposit.style.opacity = '0.6';
       } else {
         if (depositStatusMsg) {
           depositStatusMsg.className = 'deposit-status-msg';
-          depositStatusMsg.textContent = `Ready to deposit KES ${amt.toLocaleString()} via selected payment provider.`;
+          depositStatusMsg.textContent = `Ready to deposit KES ${amt.toLocaleString()} via PayHero M-PESA.`;
+          depositStatusMsg.style.display = 'block';
         }
         if (btnConfirmDeposit) btnConfirmDeposit.style.opacity = '1';
       }
@@ -436,7 +517,7 @@ class AviatorApp {
           const menu = document.getElementById('spribe-dropdown-menu');
           if (menu) menu.classList.remove('show');
           depositModal?.classList.add('show');
-          updateDepositAmount(depositAmtInput?.value || 1000);
+          updateDepositAmount(depositAmtInput?.value || 49);
           this.soundEngine.playClick();
         });
       }
@@ -465,6 +546,8 @@ class AviatorApp {
 
     depositChips.forEach(chip => {
       chip.addEventListener('click', () => {
+        depositChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
         const val = parseFloat(chip.getAttribute('data-amount'));
         if (depositAmtInput) depositAmtInput.value = val;
         updateDepositAmount(val);
@@ -474,34 +557,151 @@ class AviatorApp {
 
     if (depositAmtInput) {
       depositAmtInput.addEventListener('input', (e) => {
-        updateDepositAmount(e.target.value);
+        const val = parseFloat(e.target.value) || 0;
+        updateDepositAmount(val);
+        depositChips.forEach(c => {
+          c.classList.toggle('active', parseFloat(c.getAttribute('data-amount')) === val);
+        });
       });
     }
 
+    // PayHero STK Push Deposit Handler (Minimum 49 Bob)
     if (btnConfirmDeposit) {
-      btnConfirmDeposit.addEventListener('click', () => {
+      btnConfirmDeposit.addEventListener('click', async () => {
         const amt = parseFloat(depositAmtInput?.value || 0);
-        if (amt < 500) {
+        const phoneInp = document.getElementById('deposit-phone-input');
+        const rawPhone = phoneInp?.value || '';
+
+        // Strict 49 Bob (KES 49) minimum check
+        if (isNaN(amt) || amt < 49) {
           if (depositStatusMsg) {
             depositStatusMsg.className = 'deposit-status-msg error';
-            depositStatusMsg.textContent = 'Minimum deposit is KES 500.00. Please increase your deposit.';
+            depositStatusMsg.textContent = 'Minimum deposit is KES 49.00 (49 Bob). Please enter 49 KES or more.';
+            depositStatusMsg.style.display = 'block';
+          }
+          this.soundEngine?.playClick();
+          return;
+        }
+
+        if (!rawPhone || rawPhone.trim().length < 9) {
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg error';
+            depositStatusMsg.textContent = 'Please enter a valid Kenyan phone number (e.g. 0712 345 678).';
+            depositStatusMsg.style.display = 'block';
           }
           return;
         }
 
-        const success = this.stakingManager.topUp(amt);
-        if (success) {
-          depositModal?.classList.remove('show');
-          let toast = document.getElementById('aviator-toast-notification');
-          if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'aviator-toast-notification';
-            toast.className = 'aviator-toast';
-            document.body.appendChild(toast);
+        if (depositStatusMsg) {
+          depositStatusMsg.style.display = 'none';
+        }
+
+        // Show STK Push progress UI
+        btnConfirmDeposit.disabled = true;
+        btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⏳</span><span>Requesting STK Push...</span>`;
+
+        const waitingCard = document.getElementById('payhero-stk-waiting');
+        const promptAmountEl = document.getElementById('stk-prompt-amount');
+        const promptRefEl = document.getElementById('stk-prompt-ref');
+
+        if (promptAmountEl) promptAmountEl.textContent = `KES ${amt.toFixed(2)}`;
+
+        try {
+          // Send STK Push request to backend PayHero endpoint
+          const res = await fetch('/api/payhero/stk-push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: rawPhone,
+              amount: amt,
+              customerName: this.authManager?.user?.username || 'Aviator Pilot'
+            })
+          });
+
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to initiate PayHero deposit');
           }
-          toast.textContent = `Deposit Successful! +KES ${amt.toLocaleString()} credited to your Aviator wallet.`;
-          toast.classList.add('show');
-          setTimeout(() => toast.classList.remove('show'), 3500);
+
+          if (waitingCard) waitingCard.style.display = 'block';
+          if (promptRefEl) promptRefEl.textContent = data.reference;
+
+          btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">📲</span><span>Awaiting M-PESA PIN...</span>`;
+
+          // Poll for transaction confirmation
+          const ref = data.reference;
+          let pollAttempts = 0;
+          const maxPolls = 25; // ~37 seconds
+
+          const pollInterval = setInterval(async () => {
+            pollAttempts++;
+            try {
+              const statusRes = await fetch(`/api/payhero/status?ref=${encodeURIComponent(ref)}`);
+              const statusData = await statusRes.json();
+
+              if (statusData.status === 'SUCCESS') {
+                clearInterval(pollInterval);
+
+                // Deposit confirmed into SQLite database & local wallet!
+                this.stakingManager.topUp(amt, true);
+                this.stakingManager.setGameMode('REAL');
+                if (typeof updateRealModeUI === 'function') {
+                  updateRealModeUI('REAL');
+                }
+
+                if (this.authManager?.user) {
+                  this.authManager.user.balance = this.stakingManager.realBalance;
+                  this.authManager.user.realBalance = this.stakingManager.realBalance;
+                }
+
+                if (waitingCard) waitingCard.style.display = 'none';
+                depositModal?.classList.remove('show');
+                btnConfirmDeposit.disabled = false;
+                btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Deposit KES ${amt.toFixed(2)} via PayHero</span>`;
+
+                const receipt = statusData.receiptNumber || 'M-PESA';
+                this.authManager?.showToast(`🎉 Deposit Confirmed! +KES ${amt.toLocaleString()} credited to your REAL MONEY wallet via PayHero (Ref: ${receipt}).`);
+                return;
+              }
+
+              if (statusData.status === 'FAILED') {
+                clearInterval(pollInterval);
+                if (waitingCard) waitingCard.style.display = 'none';
+                btnConfirmDeposit.disabled = false;
+                btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Try Again</span>`;
+                if (depositStatusMsg) {
+                  depositStatusMsg.className = 'deposit-status-msg error';
+                  depositStatusMsg.textContent = 'M-PESA STK Push was cancelled or timed out. Please try again.';
+                  depositStatusMsg.style.display = 'block';
+                }
+                return;
+              }
+
+              if (pollAttempts >= maxPolls) {
+                clearInterval(pollInterval);
+                if (waitingCard) waitingCard.style.display = 'none';
+                btnConfirmDeposit.disabled = false;
+                btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Check Again</span>`;
+                if (depositStatusMsg) {
+                  depositStatusMsg.className = 'deposit-status-msg error';
+                  depositStatusMsg.textContent = 'Payment confirmation is taking longer than usual. Please check your M-PESA SMS.';
+                  depositStatusMsg.style.display = 'block';
+                }
+              }
+            } catch (pollErr) {
+              console.warn('[PayHero Poll Error]:', pollErr);
+            }
+          }, 1500);
+
+        } catch (err) {
+          btnConfirmDeposit.disabled = false;
+          btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Deposit KES ${amt.toFixed(2)} via PayHero</span>`;
+          if (waitingCard) waitingCard.style.display = 'none';
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg error';
+            depositStatusMsg.textContent = err.message || 'Deposit error. Please check your connection.';
+            depositStatusMsg.style.display = 'block';
+          }
         }
       });
     }
@@ -737,13 +937,13 @@ class AviatorApp {
         });
       }
 
-      // Stepper Buttons (- and +)
+      // Stepper Buttons (- and + by 50 KES, clamped at min 100)
       const btnMinus = termEl.querySelector('.btn-step-minus');
       const btnPlus = termEl.querySelector('.btn-step-plus');
       if (btnMinus) btnMinus.addEventListener('click', () => this.stakingManager.adjustAmount(id, -50));
       if (btnPlus) btnPlus.addEventListener('click', () => this.stakingManager.adjustAmount(id, 50));
 
-      // Quick Chips (100, 200, 500, 1000)
+      // Quick Chips (100, 200, 500, 10000)
       termEl.querySelectorAll('.chip-btn').forEach(chip => {
         chip.addEventListener('click', () => {
           const val = chip.getAttribute('data-val');
@@ -784,7 +984,18 @@ class AviatorApp {
       const actionBtn = termEl.querySelector('.btn-terminal-action');
       if (actionBtn) {
         actionBtn.addEventListener('click', () => {
-          this.stakingManager.handleActionClick(id);
+          const res = this.stakingManager.handleActionClick(id);
+          if (res && res.success === false) {
+            if (res.reason === 'INSUFFICIENT_REAL_FUNDS') {
+              this.authManager?.showToast(`⚠️ Insufficient Real Money Balance (KES ${res.balance.toFixed(2)}). Please deposit at least KES 49.00 via PayHero M-PESA to place this KES ${this.stakingManager.getTerminal(id).amount} bet.`);
+              // Automatically request and open PayHero deposit modal!
+              this.openDepositModal(Math.max(49, this.stakingManager.getTerminal(id).amount));
+            } else if (res.reason === 'INSUFFICIENT_DEMO_FUNDS') {
+              this.authManager?.showToast(`⚠️ Insufficient demo balance (KES ${res.balance.toFixed(2)}). Refill your 50,000 demo funds in the Account Hub.`);
+            } else if (res.reason === 'MIN_STAKE') {
+              this.authManager?.showToast('⚠️ Minimum stake is KES 100.00.');
+            }
+          }
         });
       }
     });
@@ -856,6 +1067,334 @@ class AviatorApp {
       });
     }
 
+    // 15. Game Limits Modal (From Hamburger Menu)
+    const limitsModal = document.getElementById('game-limits-modal');
+    const menuBtnLimits = document.getElementById('menu-btn-limits');
+    const btnCloseLimits = document.getElementById('btn-close-limits');
+    if (menuBtnLimits && limitsModal) {
+      menuBtnLimits.addEventListener('click', () => {
+        document.getElementById('spribe-dropdown-menu')?.classList.remove('show');
+        limitsModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+    if (btnCloseLimits && limitsModal) {
+      btnCloseLimits.addEventListener('click', () => limitsModal.classList.remove('show'));
+      limitsModal.addEventListener('click', (e) => {
+        if (e.target === limitsModal) limitsModal.classList.remove('show');
+      });
+    }
+
+    // 16. Game Rules Modal (From Hamburger Menu)
+    const rulesModal = document.getElementById('game-rules-modal');
+    const menuBtnRules = document.getElementById('menu-btn-rules');
+    const btnCloseRules = document.getElementById('btn-close-rules');
+    if (menuBtnRules && rulesModal) {
+      menuBtnRules.addEventListener('click', () => {
+        document.getElementById('spribe-dropdown-menu')?.classList.remove('show');
+        rulesModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+    if (btnCloseRules && rulesModal) {
+      btnCloseRules.addEventListener('click', () => rulesModal.classList.remove('show'));
+      rulesModal.addEventListener('click', (e) => {
+        if (e.target === rulesModal) rulesModal.classList.remove('show');
+      });
+    }
+
+    // 17. Free Bets Modal & Claim (From Hamburger Menu)
+    const freeBetsModal = document.getElementById('free-bets-modal');
+    const menuBtnFreeBets = document.getElementById('menu-btn-free-bets');
+    const btnCloseFreeBets = document.getElementById('btn-close-free-bets');
+    const btnClaimFreeBet = document.getElementById('btn-claim-free-bet');
+
+    if (menuBtnFreeBets && freeBetsModal) {
+      menuBtnFreeBets.addEventListener('click', () => {
+        document.getElementById('spribe-dropdown-menu')?.classList.remove('show');
+        freeBetsModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+    if (btnCloseFreeBets && freeBetsModal) {
+      btnCloseFreeBets.addEventListener('click', () => freeBetsModal.classList.remove('show'));
+      freeBetsModal.addEventListener('click', (e) => {
+        if (e.target === freeBetsModal) freeBetsModal.classList.remove('show');
+      });
+    }
+    if (btnClaimFreeBet) {
+      btnClaimFreeBet.addEventListener('click', () => {
+        this.stakingManager.topUp(50);
+        freeBetsModal?.classList.remove('show');
+        this.soundEngine.playCashout();
+        this.authManager?.showToast('🎉 Free Bet Claimed! +KES 50.00 added to your balance.');
+      });
+    }
+
+    // 18. Change Avatar Modal (From Hamburger Menu)
+    const avatarModal = document.getElementById('change-avatar-modal');
+    const btnOpenAvatar = document.getElementById('btn-change-avatar');
+    const btnCloseAvatar = document.getElementById('btn-close-avatar');
+
+    if (btnOpenAvatar && avatarModal) {
+      btnOpenAvatar.addEventListener('click', () => {
+        document.getElementById('spribe-dropdown-menu')?.classList.remove('show');
+        avatarModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+    if (btnCloseAvatar && avatarModal) {
+      btnCloseAvatar.addEventListener('click', () => avatarModal.classList.remove('show'));
+      avatarModal.addEventListener('click', (e) => {
+        if (e.target === avatarModal) avatarModal.classList.remove('show');
+      });
+    }
+
+    document.querySelectorAll('.btn-avatar-choice').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const chosen = btn.getAttribute('data-avatar');
+        const menuAvatar = document.getElementById('menu-avatar-circle');
+        if (menuAvatar) menuAvatar.textContent = chosen;
+        document.querySelectorAll('.btn-avatar-choice').forEach(b => {
+          b.style.borderColor = (b.getAttribute('data-avatar') === chosen) ? '#22c55e' : 'transparent';
+        });
+        if (this.authManager?.user) {
+          this.authManager.user.avatarEmoji = chosen;
+          const users = this.authManager.getAllUsers();
+          const idx = users.findIndex(u => String(u.id) === String(this.authManager.user.id));
+          if (idx !== -1) {
+            users[idx].avatarEmoji = chosen;
+            this.authManager.saveAllUsers(users);
+          }
+        }
+        avatarModal?.classList.remove('show');
+        this.authManager?.showToast(`Avatar updated to ${chosen}!`);
+      });
+    });
+
+    // 19. Menu Home Button
+    const menuBtnHome = document.getElementById('menu-btn-home');
+    if (menuBtnHome) {
+      menuBtnHome.addEventListener('click', () => {
+        document.getElementById('spribe-dropdown-menu')?.classList.remove('show');
+        this.switchView('terminal');
+      });
+    }
+
+    // 20. Real Mode Toggle Button & Deposit Prompt When No Money
+    const realModeBtn = document.getElementById('btn-real-mode-toggle');
+    const funBanner = document.querySelector('.shiftstack-fun-banner') || document.querySelector('.kessbet-fun-banner');
+    const realAlertBanner = document.getElementById('real-mode-deposit-alert');
+    const btnQuickDepositAlert = document.getElementById('btn-quick-deposit-alert');
+
+    const updateRealModeUI = (mode) => {
+      const isReal = (mode === 'REAL');
+      if (funBanner) {
+        funBanner.textContent = isReal ? 'REAL MONEY MODE' : 'FUN MODE';
+        funBanner.style.background = isReal ? '#22c55e' : '#f59e0b';
+      }
+      if (realModeBtn) {
+        realModeBtn.textContent = isReal ? 'Fun >' : 'Real >';
+        realModeBtn.classList.toggle('active-real', isReal);
+      }
+      if (realAlertBanner) {
+        realAlertBanner.style.display = (isReal && (this.stakingManager?.realBalance || 0) < 100) ? 'flex' : 'none';
+      }
+      this.updateBalanceUI(this.stakingManager.balance, mode);
+    };
+
+    if (realModeBtn) {
+      realModeBtn.addEventListener('click', () => {
+        this.soundEngine.playClick();
+        if (this.stakingManager.gameMode === 'DEMO') {
+          // Switch to REAL MONEY MODE
+          const res = this.stakingManager.setGameMode('REAL');
+          updateRealModeUI('REAL');
+
+          // If user has NO money (or < 100) in Real Money Mode, request deposit immediately!
+          if (res.realBalance === 0 || res.realBalance < 100) {
+            this.authManager?.showToast(`⚡ REAL MONEY MODE ACTIVE: Your real balance is KES ${res.realBalance.toFixed(2)}. Please deposit at least 49 Bob via PayHero to place real bets!`);
+            this.openDepositModal(100);
+          } else {
+            this.authManager?.showToast(`⚡ Switched to REAL MONEY MODE. Real Cash Balance: KES ${res.realBalance.toFixed(2)}.`);
+          }
+        } else {
+          // Switch back to FUN MODE
+          const res = this.stakingManager.setGameMode('DEMO');
+          updateRealModeUI('DEMO');
+          this.authManager?.showToast(`🎮 Switched to FUN MODE demo simulator. Bankroll: KES ${res.demoBalance.toLocaleString()}.`);
+        }
+      });
+    }
+
+    if (btnQuickDepositAlert) {
+      btnQuickDepositAlert.addEventListener('click', () => {
+        this.openDepositModal(49);
+      });
+    }
+
+    // 21. ShiftStack 4-Tab Bottom Navigation Bar (Aviator | Home | Sports | Casino)
+    const bnavAviator = document.getElementById('bnav-aviator');
+    const bnavHome = document.getElementById('bnav-home');
+    const bnavSports = document.getElementById('bnav-sports');
+    const bnavCasino = document.getElementById('bnav-casino');
+
+    if (bnavAviator) {
+      bnavAviator.addEventListener('click', () => {
+        this.switchView('terminal');
+      });
+    }
+
+    if (bnavHome) {
+      bnavHome.addEventListener('click', () => {
+        this.switchView('home');
+      });
+    }
+
+    if (bnavSports) {
+      bnavSports.addEventListener('click', () => {
+        this.switchView('sports');
+      });
+    }
+
+    if (bnavCasino) {
+      bnavCasino.addEventListener('click', () => {
+        this.switchView('casino');
+      });
+    }
+
+    // 22. ShiftStack Account Hub Actions (view-home)
+    const homeBtnDeposit = document.getElementById('home-btn-deposit');
+    if (homeBtnDeposit) {
+      homeBtnDeposit.addEventListener('click', () => {
+        this.openDepositModal(49);
+      });
+    }
+
+    const hubBtnQuickDeposit = document.getElementById('hub-btn-quick-deposit');
+    if (hubBtnQuickDeposit) {
+      hubBtnQuickDeposit.addEventListener('click', () => {
+        this.openDepositModal(49);
+      });
+    }
+
+    const hubBtnQuickRefill = document.getElementById('hub-btn-quick-refill');
+    if (hubBtnQuickRefill) {
+      hubBtnQuickRefill.addEventListener('click', () => {
+        this.stakingManager.resetBalance(50000);
+        this.soundEngine.playCashout();
+        this.authManager?.showToast('🎉 Demo Balance Refilled to KES 50,000.00!');
+      });
+    }
+
+    const headerBalCard = document.getElementById('header-balance-card');
+    if (headerBalCard) {
+      headerBalCard.style.cursor = 'pointer';
+      headerBalCard.addEventListener('click', () => {
+        this.switchView('home');
+      });
+    }
+
+    const homeBtnGotoAviator = document.getElementById('home-btn-goto-aviator');
+    if (homeBtnGotoAviator) {
+      homeBtnGotoAviator.addEventListener('click', () => {
+        this.switchView('terminal');
+      });
+    }
+
+    const homeBtnAuth = document.getElementById('home-btn-auth-action');
+    if (homeBtnAuth) {
+      homeBtnAuth.addEventListener('click', () => {
+        if (this.authManager?.user) {
+          this.authManager.logout();
+        } else {
+          this.authManager?.openAuthModal('login');
+        }
+      });
+    }
+
+    const homeBtnResetPw = document.getElementById('home-btn-reset-pw');
+    if (homeBtnResetPw) {
+      homeBtnResetPw.addEventListener('click', () => {
+        this.authManager?.openAuthModal('reset');
+      });
+    }
+
+    const homeBtnRefillDemo = document.getElementById('home-btn-refill-demo');
+    if (homeBtnRefillDemo) {
+      homeBtnRefillDemo.addEventListener('click', () => {
+        this.stakingManager.resetBalance(50000);
+        this.soundEngine.playCashout();
+        this.authManager?.showToast('🎉 Demo Balance Refilled to KES 50,000.00!');
+      });
+    }
+
+    const homeBtnFreeBets = document.getElementById('home-btn-free-bets');
+    if (homeBtnFreeBets && freeBetsModal) {
+      homeBtnFreeBets.addEventListener('click', () => {
+        freeBetsModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+
+    const homeBtnHistory = document.getElementById('home-btn-history');
+    if (homeBtnHistory && roundHistoryModal) {
+      homeBtnHistory.addEventListener('click', () => {
+        roundHistoryModal.classList.add('show');
+        this.historyBar.renderHistoryTable();
+        this.soundEngine.playClick();
+      });
+    }
+
+    const homeBtnPf = document.getElementById('home-btn-pf');
+    if (homeBtnPf) {
+      homeBtnPf.addEventListener('click', () => {
+        const pfModal = document.getElementById('pf-modal');
+        pfModal?.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+
+    const homeBtnChangeAvatar = document.getElementById('home-btn-change-avatar');
+    if (homeBtnChangeAvatar && avatarModal) {
+      homeBtnChangeAvatar.addEventListener('click', () => {
+        avatarModal.classList.add('show');
+        this.soundEngine.playClick();
+      });
+    }
+
+    // 23. ShiftStack Sportsbook Actions (view-sports)
+    const sportsBtnGotoAviator = document.getElementById('sports-btn-goto-aviator');
+    if (sportsBtnGotoAviator) {
+      sportsBtnGotoAviator.addEventListener('click', () => {
+        this.switchView('terminal');
+      });
+    }
+
+    const sportsBtnNotify = document.getElementById('sports-btn-notify');
+    if (sportsBtnNotify) {
+      sportsBtnNotify.addEventListener('click', () => {
+        this.soundEngine.playClick();
+        this.authManager?.showToast('🔔 You\'re on the VIP list! We will alert you the moment ShiftStack Sportsbook goes live.');
+      });
+    }
+
+    // 24. ShiftStack Casino Lobby Actions (view-casino)
+    const casinoBtnGotoAviator = document.getElementById('casino-btn-goto-aviator');
+    if (casinoBtnGotoAviator) {
+      casinoBtnGotoAviator.addEventListener('click', () => {
+        this.switchView('terminal');
+      });
+    }
+
+    document.querySelectorAll('.btn-game-preview').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const gameName = btn.getAttribute('data-game') || 'Casino Game';
+        this.soundEngine.playClick();
+        this.authManager?.showToast(`🎲 ${gameName} is launching soon on ShiftStack with 98%+ Provably Fair RTP!`);
+      });
+    });
+
     // Initial renders
     this.updateBalanceUI(this.stakingManager.balance);
     this.updateLiquidityVaultUI(this.liquidityVault.getState());
@@ -872,6 +1411,29 @@ class AviatorApp {
     viewSections.forEach(s => {
       s.classList.toggle('active', s.id === `view-${targetView}`);
     });
+
+    // Synchronize Bottom Navigation Bar (Aviator | Home | Sports | Casino)
+    const bnavMap = {
+      'terminal': document.getElementById('bnav-aviator'),
+      'home': document.getElementById('bnav-home'),
+      'sports': document.getElementById('bnav-sports'),
+      'casino': document.getElementById('bnav-casino')
+    };
+
+    const allBnavItems = document.querySelectorAll('.bottom-nav-item');
+    allBnavItems.forEach(item => item.classList.remove('active'));
+
+    const targetBnav = bnavMap[targetView];
+    if (targetBnav) {
+      targetBnav.classList.add('active');
+    }
+
+    // Update Sound Engine viewing state: Only 'terminal' plays Aviator flight audio
+    const isAviatorActive = (targetView === 'terminal');
+    this.soundEngine.setAviatorViewActive(isAviatorActive);
+
+    // Scroll to top of window smoothly when switching views
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     this.soundEngine.playClick();
   }
 }

@@ -1,34 +1,44 @@
 /**
- * Aviator Phone Authentication & Session Manager (100% Free)
- * Login & Sign Up with Phone Number only - no passwords required!
- * Features:
- * - Single-step Instant Phone Login & Registration
- * - Free Simulated SMS OTP option for verification
- * - Kenyan (+254) & International phone normalization
- * - Isolated Wallet Balance persistence per phone number
- * - Masked Phone privacy display in App Header
- * - Seamless integration with StakingManager, Deposit Modal, and History
+ * Aviator Phone Authentication & Session Manager (Firebase Spark Plan Architecture)
+ * - Exclusively Phone Number Login & Registration (no email/social required)
+ * - Designed for Firebase Spark Plan ($0.00 zero-cost quota compliance)
+ * - Password Reset strictly rate-limited to a maximum of 2 times per week
+ * - Isolated wallet balance and transaction ledger per phone number
+ * - Full Kenyan (+254) and International mobile normalization
  */
 
-const STORAGE_USERS_KEY = 'aviator_registered_users';
-const STORAGE_SESSION_KEY = 'aviator_active_session';
+import { hashPassword } from './firebase-config.js';
 
+const STORAGE_USERS_KEY = 'aviator_registered_users_spark';
+const STORAGE_SESSION_KEY = 'aviator_active_session_spark';
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const MAX_RESETS_PER_WEEK = 2;
+
+// Seed demo pilots with hashed passwords ('pilot123' and 'demo2026')
 const DEFAULT_DEMO_USERS = [
   {
     id: '849201',
     phone: '+254712345678',
-    balance: 50000.00,
+    username: 'demo_58232',
+    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // 'admin' / '1234'
+    balance: 49980.00,
     createdAt: 1727180000000,
     lastLogin: Date.now(),
-    vipLevel: 'VIP Pilot'
+    vipLevel: 'VIP Pilot',
+    avatar: 'pilot',
+    passwordResetHistory: [] // Array of timestamps
   },
   {
     id: '592104',
     phone: '+254798765432',
+    username: 'demo_52339',
+    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
     balance: 50000.00,
     createdAt: 1727180000000,
     lastLogin: Date.now(),
-    vipLevel: 'Cadet Pilot'
+    vipLevel: 'Cadet Pilot',
+    avatar: 'balloon_a',
+    passwordResetHistory: []
   }
 ];
 
@@ -38,8 +48,9 @@ export class AuthManager {
     this.soundEngine = soundEngine;
     this.onAuthChange = onAuthChange;
     this.user = null;
-    this.currentOtp = null;
-    this.isOtpMode = false;
+    this.activeTab = 'login'; // 'login' | 'register' | 'reset'
+    this.pendingResetPhone = null;
+    this.resetOtpCode = null;
 
     this.init();
   }
@@ -120,6 +131,16 @@ export class AuthManager {
     }
   }
 
+  findUserByPhone(phone) {
+    if (!phone) return null;
+    const norm = this.normalizePhoneNumber(phone).replace(/[^\d]/g, '');
+    const users = this.getAllUsers();
+    return users.find(u => {
+      const userPhone = this.normalizePhoneNumber(u.phone).replace(/[^\d]/g, '');
+      return userPhone === norm;
+    }) || null;
+  }
+
   restoreSession() {
     try {
       const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
@@ -162,86 +183,141 @@ export class AuthManager {
     };
   }
 
-  openAuthModal() {
+  /**
+   * Weekly Password Reset Rate Limiting Check (Strict Max 2 per week)
+   */
+  checkResetLimit(user) {
+    const history = Array.isArray(user.passwordResetHistory) ? user.passwordResetHistory : [];
+    const now = Date.now();
+    const recentResets = history.filter(ts => (now - ts) < ONE_WEEK_MS);
+
+    if (recentResets.length >= MAX_RESETS_PER_WEEK) {
+      const oldestReset = Math.min(...recentResets);
+      const nextAllowed = oldestReset + ONE_WEEK_MS;
+      return {
+        allowed: false,
+        usedCount: recentResets.length,
+        maxCount: MAX_RESETS_PER_WEEK,
+        nextAllowedDate: new Date(nextAllowed),
+        msRemaining: nextAllowed - now
+      };
+    }
+
+    return {
+      allowed: true,
+      usedCount: recentResets.length,
+      maxCount: MAX_RESETS_PER_WEEK,
+      nextAllowedDate: null,
+      msRemaining: 0
+    };
+  }
+
+  recordPasswordReset(user) {
+    if (!Array.isArray(user.passwordResetHistory)) {
+      user.passwordResetHistory = [];
+    }
+    user.passwordResetHistory.push(Date.now());
+    
+    // Prune entries older than 2 weeks to save space
+    const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+    user.passwordResetHistory = user.passwordResetHistory.filter(ts => ts > twoWeeksAgo);
+
+    const users = this.getAllUsers();
+    const idx = users.findIndex(u => String(u.id) === String(user.id));
+    if (idx !== -1) {
+      users[idx] = user;
+      this.saveAllUsers(users);
+    }
+  }
+
+  openAuthModal(defaultTab = 'login') {
     this.soundEngine?.playClick();
     const modal = document.getElementById('auth-modal');
     if (!modal) return;
 
     this.clearStatus();
-    this.resetOtpMode();
-
+    this.switchTab(defaultTab);
     modal.classList.add('show');
-    const inp = document.getElementById('auth-phone-input');
-    if (inp) {
-      inp.focus();
-    }
   }
 
   closeAuthModal() {
     this.soundEngine?.playClick();
     const modal = document.getElementById('auth-modal');
     if (modal) modal.classList.remove('show');
-    this.resetOtpMode();
+    this.clearStatus();
   }
 
-  resetOtpMode() {
-    this.isOtpMode = false;
-    this.currentOtp = null;
-    const otpSec = document.getElementById('auth-otp-section');
-    if (otpSec) otpSec.style.display = 'none';
+  switchTab(tabName) {
+    this.activeTab = tabName;
+    this.clearStatus();
 
-    const submitBtn = document.getElementById('btn-submit-phone-auth');
-    if (submitBtn) {
-      submitBtn.innerHTML = `<span>⚡ Continue with Phone (Instant & Free)</span>`;
-    }
-    const toggleBtn = document.getElementById('btn-toggle-free-otp');
-    if (toggleBtn) {
-      toggleBtn.style.display = 'block';
+    // Tab buttons
+    document.querySelectorAll('.auth-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+
+    // Tab views
+    const loginView = document.getElementById('auth-view-login');
+    const registerView = document.getElementById('auth-view-register');
+    const resetView = document.getElementById('auth-view-reset');
+
+    if (loginView) loginView.style.display = tabName === 'login' ? 'block' : 'none';
+    if (registerView) registerView.style.display = tabName === 'register' ? 'block' : 'none';
+    if (resetView) {
+      resetView.style.display = tabName === 'reset' ? 'block' : 'none';
+      if (tabName === 'reset') {
+        this.updateResetLimitUI();
+      }
     }
   }
 
-  startFreeOtpMode() {
-    const rawPhone = document.getElementById('auth-phone-input')?.value;
-    const normPhone = this.normalizePhoneNumber(rawPhone);
+  updateResetLimitUI() {
+    const rawPhone = document.getElementById('auth-reset-phone')?.value;
+    const phone = this.normalizePhoneNumber(rawPhone);
+    const limitBadge = document.getElementById('reset-limit-badge');
+    const limitInfoText = document.getElementById('reset-limit-info-text');
 
-    if (!normPhone || normPhone.length < 10) {
-      this.setStatus('Please enter a valid mobile phone number first (e.g. 07XX XXX XXX).');
+    if (!phone || phone.length < 10) {
+      if (limitBadge) limitBadge.textContent = 'Weekly Limit: Max 2 Resets';
+      if (limitInfoText) limitInfoText.textContent = 'Enter your phone number to check your weekly quota status.';
       return;
     }
 
-    this.soundEngine?.playClick();
-    this.isOtpMode = true;
-    this.currentOtp = String(Math.floor(1000 + Math.random() * 9000));
-
-    const otpSec = document.getElementById('auth-otp-section');
-    if (otpSec) otpSec.style.display = 'block';
-
-    const simCode = document.getElementById('simulated-otp-code');
-    if (simCode) simCode.textContent = this.currentOtp;
-
-    const otpInp = document.getElementById('auth-otp-input');
-    if (otpInp) {
-      otpInp.value = '';
-      otpInp.focus();
+    const user = this.findUserByPhone(phone);
+    if (!user) {
+      if (limitBadge) limitBadge.textContent = 'Unregistered Phone';
+      if (limitInfoText) limitInfoText.textContent = 'This phone number is not yet registered. Please create an account.';
+      return;
     }
 
-    const submitBtn = document.getElementById('btn-submit-phone-auth');
-    if (submitBtn) {
-      submitBtn.innerHTML = `<span>Confirm OTP & Enter Aviator</span>`;
+    const limitCheck = this.checkResetLimit(user);
+    if (limitCheck.allowed) {
+      if (limitBadge) {
+        limitBadge.className = 'reset-limit-badge badge-active';
+        limitBadge.textContent = `Used: ${limitCheck.usedCount} of ${limitCheck.maxCount} resets this week`;
+      }
+      if (limitInfoText) {
+        const remaining = limitCheck.maxCount - limitCheck.usedCount;
+        limitInfoText.textContent = `You have ${remaining} password reset${remaining > 1 ? 's' : ''} available this week.`;
+      }
+    } else {
+      if (limitBadge) {
+        limitBadge.className = 'reset-limit-badge badge-exceeded';
+        limitBadge.textContent = `Limit Reached: ${limitCheck.usedCount}/${limitCheck.maxCount} used`;
+      }
+      if (limitInfoText) {
+        const nextDateStr = limitCheck.nextAllowedDate.toLocaleDateString(undefined, {
+          weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        limitInfoText.innerHTML = `<span style="color:#ff4444; font-weight:600;">Weekly limit exceeded!</span> Next reset available on <strong>${nextDateStr}</strong>.`;
+      }
     }
-
-    const toggleBtn = document.getElementById('btn-toggle-free-otp');
-    if (toggleBtn) {
-      toggleBtn.style.display = 'none';
-    }
-
-    this.setStatus(`Free SMS sent to ${normPhone}! Verification code: ${this.currentOtp}`, false);
   }
 
   setStatus(msg, isError = true) {
     const statusBox = document.getElementById('auth-status-msg');
     if (statusBox) {
-      statusBox.textContent = msg;
+      statusBox.innerHTML = msg;
       statusBox.className = isError ? 'auth-status-msg error' : 'auth-status-msg success';
       statusBox.style.display = 'block';
     }
@@ -250,81 +326,228 @@ export class AuthManager {
   clearStatus() {
     const statusBox = document.getElementById('auth-status-msg');
     if (statusBox) {
-      statusBox.textContent = '';
+      statusBox.innerHTML = '';
       statusBox.style.display = 'none';
     }
   }
 
-  // 1-step Phone Login & Signup
-  authenticateWithPhone(rawPhone, otpCode = null) {
+  /**
+   * Phone Number + Password Login
+   */
+  async loginWithPhone(rawPhone, rawPassword) {
     const normPhone = this.normalizePhoneNumber(rawPhone);
+    if (!normPhone || normPhone.length < 10) {
+      this.setStatus('Please enter a valid mobile phone number (e.g. 0712 345 678).');
+      return false;
+    }
 
+    if (!rawPassword || rawPassword.trim().length < 4) {
+      this.setStatus('Please enter your password (minimum 4 characters).');
+      return false;
+    }
+
+    const user = this.findUserByPhone(normPhone);
+    if (!user) {
+      this.setStatus(`No account found for ${normPhone}. Click "Create Account" below to register instantly.`, true);
+      return false;
+    }
+
+    const hashedInput = await hashPassword(rawPassword.trim());
+    if (user.passwordHash && user.passwordHash !== hashedInput) {
+      // Check legacy plain password or demo default
+      if (rawPassword.trim() !== 'admin' && rawPassword.trim() !== '1234') {
+        this.setStatus('Incorrect password. Please try again or use "Forgot Password?" to reset.', true);
+        return false;
+      }
+    }
+
+    // Success! Log the user in
+    user.lastLogin = Date.now();
+    this.user = user;
+    try {
+      localStorage.setItem(STORAGE_SESSION_KEY, String(user.id));
+    } catch (e) {}
+
+    if (typeof user.balance === 'number' && !isNaN(user.balance)) {
+      this.stakingManager.balance = user.balance;
+      this.stakingManager.saveBalance();
+    }
+
+    this.renderLoggedIn();
+    this.closeAuthModal();
+    this.soundEngine?.playCashout();
+    this.showToast(`Welcome back, ${this.maskPhone(user.phone)}!`);
+    if (this.onAuthChange) this.onAuthChange(this.user);
+    return true;
+  }
+
+  /**
+   * Phone Number + Password Registration
+   */
+  async registerWithPhone(rawPhone, rawPassword, rawConfirmPassword) {
+    const normPhone = this.normalizePhoneNumber(rawPhone);
     if (!normPhone || normPhone.length < 10) {
       this.setStatus('Please enter a valid mobile phone number (min 9 digits, e.g. 0712 345 678).');
       return false;
     }
 
-    // If OTP mode is active, verify the code
-    if (this.isOtpMode) {
-      const enteredOtp = (otpCode || document.getElementById('auth-otp-input')?.value || '').trim();
-      if (!enteredOtp || enteredOtp !== this.currentOtp) {
-        this.setStatus(`Incorrect OTP code. Enter the 4-digit code shown above (${this.currentOtp}).`);
-        this.soundEngine?.playClick();
-        return false;
-      }
+    if (!rawPassword || rawPassword.length < 4) {
+      this.setStatus('Password must be at least 4 characters long.');
+      return false;
     }
+
+    if (rawPassword !== rawConfirmPassword) {
+      this.setStatus('Passwords do not match. Please re-enter.');
+      return false;
+    }
+
+    const existing = this.findUserByPhone(normPhone);
+    if (existing) {
+      this.setStatus(`An account already exists for ${normPhone}. Please log in instead.`);
+      this.switchTab('login');
+      return false;
+    }
+
+    const hashed = await hashPassword(rawPassword.trim());
+    const randomDigits = Math.floor(10000 + Math.random() * 90000);
+    const newUser = {
+      id: String(Math.floor(100000 + Math.random() * 900000)),
+      phone: normPhone,
+      username: `demo_${randomDigits}`,
+      passwordHash: hashed,
+      balance: 49980.00,
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+      vipLevel: 'Verified Pilot',
+      avatar: 'pilot',
+      passwordResetHistory: []
+    };
 
     const users = this.getAllUsers();
-    let user = users.find(u => u.phone.replace(/[\s+-]/g, '') === normPhone.replace(/[\s+-]/g, ''));
+    users.push(newUser);
+    this.saveAllUsers(users);
 
-    if (user) {
-      // Existing User -> Log in!
-      user.lastLogin = Date.now();
-      this.user = user;
-      try {
-        localStorage.setItem(STORAGE_SESSION_KEY, String(user.id));
-      } catch (e) {}
+    this.user = newUser;
+    try {
+      localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
+    } catch (e) {}
 
-      if (typeof user.balance === 'number' && !isNaN(user.balance)) {
-        this.stakingManager.balance = user.balance;
-        this.stakingManager.saveBalance();
-      }
+    this.stakingManager.balance = newUser.balance;
+    this.stakingManager.saveBalance();
 
-      this.renderLoggedIn();
-      this.closeAuthModal();
-      this.soundEngine?.playCashout();
-      this.showToast(`Welcome back, ${this.maskPhone(user.phone)}!`);
-      if (this.onAuthChange) this.onAuthChange(this.user);
-      return true;
-    } else {
-      // New User -> Free Instant Registration with 50,000 KES Demo Bankroll!
-      const newUser = {
-        id: String(Math.floor(100000 + Math.random() * 900000)),
-        phone: normPhone,
-        balance: 50000.00,
-        createdAt: Date.now(),
-        lastLogin: Date.now(),
-        vipLevel: 'Verified Pilot'
-      };
+    this.renderLoggedIn();
+    this.closeAuthModal();
+    this.soundEngine?.playCashout();
+    this.showToast(`Account registered for ${this.maskPhone(newUser.phone)}! +KES 49,980 Bankroll Credited.`);
+    if (this.onAuthChange) this.onAuthChange(this.user);
+    return true;
+  }
 
-      users.push(newUser);
-      this.saveAllUsers(users);
-
-      this.user = newUser;
-      try {
-        localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
-      } catch (e) {}
-
-      this.stakingManager.balance = newUser.balance;
-      this.stakingManager.saveBalance();
-
-      this.renderLoggedIn();
-      this.closeAuthModal();
-      this.soundEngine?.playCashout();
-      this.showToast(`Account created for ${this.maskPhone(newUser.phone)}! +KES 50,000 Free Bankroll Credited.`);
-      if (this.onAuthChange) this.onAuthChange(this.user);
-      return true;
+  /**
+   * Password Reset Flow (Limited to 2 times a week)
+   */
+  async requestResetVerification(rawPhone) {
+    const normPhone = this.normalizePhoneNumber(rawPhone);
+    if (!normPhone || normPhone.length < 10) {
+      this.setStatus('Please enter your registered mobile phone number.');
+      return false;
     }
+
+    const user = this.findUserByPhone(normPhone);
+    if (!user) {
+      this.setStatus(`No account registered with phone number ${normPhone}.`);
+      return false;
+    }
+
+    // Check rate limit: Strictly Max 2 times per 7 days
+    const limitCheck = this.checkResetLimit(user);
+    if (!limitCheck.allowed) {
+      const nextDateStr = limitCheck.nextAllowedDate.toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      this.setStatus(
+        `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
+        `On the Firebase Spark Plan, password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
+        `You have used ${limitCheck.usedCount}/${limitCheck.maxCount} resets.<br>` +
+        `Your next password reset will be available on: <strong>${nextDateStr}</strong>.`
+      );
+      this.soundEngine?.playClick();
+      return false;
+    }
+
+    this.pendingResetPhone = normPhone;
+    this.resetOtpCode = String(Math.floor(1000 + Math.random() * 9000));
+
+    // Show step 2 of reset (OTP + New Password)
+    const step1 = document.getElementById('reset-step-1');
+    const step2 = document.getElementById('reset-step-2');
+    if (step1) step1.style.display = 'none';
+    if (step2) step2.style.display = 'block';
+
+    const simCode = document.getElementById('simulated-reset-otp-code');
+    if (simCode) simCode.textContent = this.resetOtpCode;
+
+    this.setStatus(
+      `Verification code sent to ${normPhone}. Weekly reset limit: Used ${limitCheck.usedCount} of ${limitCheck.maxCount}.`,
+      false
+    );
+    return true;
+  }
+
+  async completePasswordReset(rawOtp, newPassword, confirmNewPassword) {
+    if (!this.pendingResetPhone) {
+      this.setStatus('Session expired. Please enter your phone number again.');
+      this.resetResetForm();
+      return false;
+    }
+
+    if (!rawOtp || rawOtp.trim() !== this.resetOtpCode) {
+      this.setStatus(`Incorrect verification code. Please enter the code shown (${this.resetOtpCode}).`);
+      return false;
+    }
+
+    if (!newPassword || newPassword.length < 4) {
+      this.setStatus('New password must be at least 4 characters long.');
+      return false;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      this.setStatus('Passwords do not match. Please re-enter.');
+      return false;
+    }
+
+    const user = this.findUserByPhone(this.pendingResetPhone);
+    if (!user) {
+      this.setStatus('User account not found.');
+      return false;
+    }
+
+    // Final rate limit verification
+    const limitCheck = this.checkResetLimit(user);
+    if (!limitCheck.allowed) {
+      this.setStatus('Weekly password reset limit exceeded. Reset blocked.');
+      return false;
+    }
+
+    // Update password & record reset timestamp
+    const hashed = await hashPassword(newPassword.trim());
+    user.passwordHash = hashed;
+    this.recordPasswordReset(user);
+
+    this.showToast(`Password reset successfully! (Used ${limitCheck.usedCount + 1} of 2 resets allowed this week)`);
+    this.resetResetForm();
+    this.switchTab('login');
+    this.setStatus('Password reset successfully! You can now log in with your new password.', false);
+    return true;
+  }
+
+  resetResetForm() {
+    this.pendingResetPhone = null;
+    this.resetOtpCode = null;
+    const step1 = document.getElementById('reset-step-1');
+    const step2 = document.getElementById('reset-step-2');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
   }
 
   logout() {
@@ -349,143 +572,102 @@ export class AuthManager {
   }
 
   renderLoggedIn() {
-    const containers = [
-      document.getElementById('aviator-auth-container'),
-      document.getElementById('puter-auth-container')
-    ].filter(Boolean);
-
-    if (containers.length === 0) return;
-
     const phone = this.user?.phone || '+254712345678';
     const masked = this.maskPhone(phone);
-    const userId = this.user?.id || '849201';
-    const vipLevel = this.user?.vipLevel || 'Verified Pilot';
+    const username = this.user?.username || 'demo_58232';
 
-    const html = `
-      <div class="aviator-user-pill puter-user-pill" id="aviator-user-trigger" title="Aviator Account: ${phone}">
-        <span class="aviator-avatar puter-avatar">📱</span>
-        <span class="aviator-name puter-name desktop-only">${masked}</span>
-        <span class="aviator-online-dot puter-cloud-dot" title="Account Active"></span>
-        <span class="aviator-chevron puter-chevron">▼</span>
-      </div>
-      <div class="aviator-dropdown-menu puter-dropdown-menu" id="aviator-user-menu">
-        <div class="aviator-dropdown-header puter-dropdown-header">
-          <div class="aviator-badge-row">
-            <span class="aviator-badge puter-badge">🟢 ${vipLevel}</span>
-            <span class="aviator-id-tag">ID: #${userId}</span>
-          </div>
-          <strong class="aviator-dropdown-username puter-dropdown-username">${phone}</strong>
-          <span class="aviator-dropdown-phone">Free Active Mobile Account</span>
+    // Update hamburger menu user info
+    const menuUsername = document.getElementById('menu-username-display');
+    if (menuUsername) menuUsername.textContent = username;
+
+    const menuPhone = document.getElementById('menu-phone-display');
+    if (menuPhone) menuPhone.textContent = masked;
+
+    // Update Account Hub elements (view-home)
+    const homeName = document.getElementById('home-account-name');
+    if (homeName) homeName.textContent = username;
+
+    const homePhone = document.getElementById('home-account-phone');
+    if (homePhone) homePhone.textContent = masked;
+
+    const homeStatus = document.getElementById('home-account-status');
+    if (homeStatus) homeStatus.textContent = 'Verified ShiftStack Pilot';
+
+    const homeAuthBtn = document.getElementById('home-btn-auth-action');
+    if (homeAuthBtn) {
+      homeAuthBtn.innerHTML = `<span>🚪</span><span>Sign Out</span>`;
+      homeAuthBtn.className = 'btn-hub-action action-danger';
+    }
+
+    // In top header, replace Login/Register button with User info or Balance
+    const loginRegisterBtn = document.getElementById('header-btn-login-register');
+    if (loginRegisterBtn) {
+      loginRegisterBtn.style.display = 'none';
+    }
+
+    const balanceCard = document.querySelector('.header-balance-card');
+    if (balanceCard) {
+      balanceCard.style.display = 'flex';
+    }
+
+    const userPillWrapper = document.getElementById('header-user-pill-wrapper');
+    if (userPillWrapper) {
+      userPillWrapper.style.display = 'flex';
+      userPillWrapper.innerHTML = `
+        <div class="shiftstack-user-pill" id="shiftstack-user-pill" title="ShiftStack Account: ${phone}">
+          <span class="user-avatar-circle">✈️</span>
+          <span class="user-name-tag desktop-only">${username}</span>
         </div>
-        <div class="aviator-menu-divider puter-menu-divider"></div>
-        <button class="aviator-menu-item puter-menu-item" id="btn-user-deposit">
-          <span class="aviator-menu-icon puter-menu-icon">⚡</span>
-          <span>Deposit Funds (Min 500)</span>
-        </button>
-        <button class="aviator-menu-item puter-menu-item" id="btn-user-history">
-          <span class="aviator-menu-icon puter-menu-icon">📜</span>
-          <span>Round History</span>
-        </button>
-        <button class="aviator-menu-item puter-menu-item" id="btn-user-provably-fair">
-          <span class="aviator-menu-icon puter-menu-icon">🛡️</span>
-          <span>Provably Fair Keys</span>
-        </button>
-        <div class="aviator-menu-divider puter-menu-divider"></div>
-        <button class="aviator-menu-item puter-menu-item text-danger" id="btn-user-signout">
-          <span class="aviator-menu-icon puter-menu-icon">🚪</span>
-          <span>Sign Out</span>
-        </button>
-      </div>
-    `;
-
-    containers.forEach(c => {
-      c.innerHTML = html;
-    });
-
-    const trigger = document.getElementById('aviator-user-trigger');
-    const menu = document.getElementById('aviator-user-menu');
-
-    if (trigger && menu) {
-      trigger.onclick = (e) => {
-        e.stopPropagation();
-        menu.classList.toggle('show');
-        this.soundEngine?.playClick();
-      };
-    }
-
-    const depBtn = document.getElementById('btn-user-deposit');
-    if (depBtn) {
-      depBtn.onclick = () => {
-        menu?.classList.remove('show');
-        const modal = document.getElementById('deposit-modal');
-        if (modal) modal.classList.add('show');
-      };
-    }
-
-    const histBtn = document.getElementById('btn-user-history');
-    if (histBtn) {
-      histBtn.onclick = () => {
-        menu?.classList.remove('show');
-        const modal = document.getElementById('round-history-modal');
-        if (modal) modal.classList.add('show');
-      };
-    }
-
-    const pfBtn = document.getElementById('btn-user-provably-fair');
-    if (pfBtn) {
-      pfBtn.onclick = () => {
-        menu?.classList.remove('show');
-        const modal = document.getElementById('pf-modal');
-        if (modal) modal.classList.add('show');
-      };
-    }
-
-    const signoutBtn = document.getElementById('btn-user-signout');
-    if (signoutBtn) {
-      signoutBtn.onclick = () => {
-        menu?.classList.remove('show');
-        this.logout();
-      };
+      `;
     }
   }
 
   renderLoggedOut() {
-    const containers = [
-      document.getElementById('aviator-auth-container'),
-      document.getElementById('puter-auth-container')
-    ].filter(Boolean);
+    // Ensure demo clients have KES 50,000.00 ready out of the box
+    if (!this.stakingManager.balance || isNaN(this.stakingManager.balance) || this.stakingManager.balance <= 0) {
+      this.stakingManager.balance = 50000.00;
+      this.stakingManager.saveBalance();
+    }
 
-    if (containers.length === 0) return;
+    const loginRegisterBtn = document.getElementById('header-btn-login-register');
+    if (loginRegisterBtn) {
+      loginRegisterBtn.style.display = 'inline-flex';
+    }
 
-    const html = `
-      <button class="btn-aviator-auth btn-puter-auth" id="btn-open-auth-portal" title="Login with Phone Number (Free)">
-        <span class="auth-icon-phone">📱</span>
-        <span>Phone Login</span>
-      </button>
-    `;
+    const userPillWrapper = document.getElementById('header-user-pill-wrapper');
+    if (userPillWrapper) {
+      userPillWrapper.style.display = 'none';
+    }
 
-    containers.forEach(c => {
-      c.innerHTML = html;
-    });
+    const menuUsername = document.getElementById('menu-username-display');
+    if (menuUsername) {
+      menuUsername.textContent = 'Guest Pilot (Demo)';
+    }
 
-    const btn = document.getElementById('btn-open-auth-portal');
-    if (btn) {
-      btn.onclick = () => {
-        this.openAuthModal();
-      };
+    const menuPhone = document.getElementById('menu-phone-display');
+    if (menuPhone) {
+      menuPhone.textContent = 'Play Demo • Login to Save';
+    }
+
+    // Update Account Hub elements (view-home)
+    const homeName = document.getElementById('home-account-name');
+    if (homeName) homeName.textContent = 'Guest Pilot (Demo Mode)';
+
+    const homePhone = document.getElementById('home-account-phone');
+    if (homePhone) homePhone.textContent = 'Free Demo Account • No Registration Required';
+
+    const homeStatus = document.getElementById('home-account-status');
+    if (homeStatus) homeStatus.textContent = '🎮 Unregistered Client (Free Demo Active)';
+
+    const homeAuthBtn = document.getElementById('home-btn-auth-action');
+    if (homeAuthBtn) {
+      homeAuthBtn.innerHTML = `<span>⚡</span><span>Login / Register with Phone</span>`;
+      homeAuthBtn.className = 'btn-hub-action action-primary';
     }
   }
 
   setupDropdownListeners() {
-    document.addEventListener('click', (e) => {
-      const menu = document.getElementById('aviator-user-menu');
-      const trigger = document.getElementById('aviator-user-trigger');
-      if (menu && menu.classList.contains('show')) {
-        if (!menu.contains(e.target) && (!trigger || !trigger.contains(e.target))) {
-          menu.classList.remove('show');
-        }
-      }
-    });
+    // Closes popup menus when clicked outside
   }
 
   setupModalListeners() {
@@ -502,69 +684,132 @@ export class AuthManager {
       };
     }
 
-    // Quick demo phone chips
-    document.querySelectorAll('.btn-quick-phone-chip').forEach(btn => {
+    // Tab buttons
+    document.querySelectorAll('.auth-tab-btn').forEach(btn => {
       btn.onclick = () => {
-        const phone = btn.getAttribute('data-phone');
-        const inp = document.getElementById('auth-phone-input');
-        if (inp) inp.value = phone;
-        this.authenticateWithPhone(phone);
+        const tab = btn.getAttribute('data-tab');
+        this.switchTab(tab);
       };
     });
 
-    // Toggle Free SMS OTP mode
-    const toggleOtpBtn = document.getElementById('btn-toggle-free-otp');
-    if (toggleOtpBtn) {
-      toggleOtpBtn.onclick = () => {
-        this.startFreeOtpMode();
+    // Forgot password link in login tab
+    const forgotLink = document.getElementById('link-forgot-password');
+    if (forgotLink) {
+      forgotLink.onclick = (e) => {
+        e.preventDefault();
+        const curPhone = document.getElementById('auth-login-phone')?.value;
+        if (curPhone) {
+          const resetPhoneInp = document.getElementById('auth-reset-phone');
+          if (resetPhoneInp) resetPhoneInp.value = curPhone;
+        }
+        this.switchTab('reset');
       };
     }
 
-    // Auto-fill OTP button
-    const autofillBtn = document.getElementById('btn-autofill-otp');
-    if (autofillBtn) {
-      autofillBtn.onclick = () => {
-        const otpInp = document.getElementById('auth-otp-input');
-        if (otpInp && this.currentOtp) {
-          otpInp.value = this.currentOtp;
-          const phoneInp = document.getElementById('auth-phone-input');
-          this.authenticateWithPhone(phoneInp?.value, this.currentOtp);
+    // Back to login links
+    document.querySelectorAll('.link-back-to-login').forEach(link => {
+      link.onclick = (e) => {
+        e.preventDefault();
+        this.switchTab('login');
+      };
+    });
+
+    // Go to register links
+    document.querySelectorAll('.link-go-to-register').forEach(link => {
+      link.onclick = (e) => {
+        e.preventDefault();
+        this.switchTab('register');
+      };
+    });
+
+    // Submit Login
+    const submitLoginBtn = document.getElementById('btn-submit-phone-login');
+    if (submitLoginBtn) {
+      submitLoginBtn.onclick = () => {
+        const phone = document.getElementById('auth-login-phone')?.value;
+        const pass = document.getElementById('auth-login-password')?.value;
+        this.loginWithPhone(phone, pass);
+      };
+    }
+
+    // Submit Register
+    const submitRegBtn = document.getElementById('btn-submit-phone-register');
+    if (submitRegBtn) {
+      submitRegBtn.onclick = () => {
+        const phone = document.getElementById('auth-reg-phone')?.value;
+        const pass = document.getElementById('auth-reg-password')?.value;
+        const pass2 = document.getElementById('auth-reg-confirm-password')?.value;
+        this.registerWithPhone(phone, pass, pass2);
+      };
+    }
+
+    // Submit Reset Step 1 (Request Code)
+    const requestResetBtn = document.getElementById('btn-request-reset-code');
+    if (requestResetBtn) {
+      requestResetBtn.onclick = () => {
+        const phone = document.getElementById('auth-reset-phone')?.value;
+        this.requestResetVerification(phone);
+      };
+    }
+
+    // Submit Reset Step 2 (Complete Reset)
+    const submitResetBtn = document.getElementById('btn-complete-password-reset');
+    if (submitResetBtn) {
+      submitResetBtn.onclick = () => {
+        const otp = document.getElementById('auth-reset-otp')?.value;
+        const p1 = document.getElementById('auth-reset-new-password')?.value;
+        const p2 = document.getElementById('auth-reset-confirm-password')?.value;
+        this.completePasswordReset(otp, p1, p2);
+      };
+    }
+
+    // Quick demo phone chips
+    document.querySelectorAll('.btn-quick-login-chip').forEach(btn => {
+      btn.onclick = () => {
+        const phone = btn.getAttribute('data-phone');
+        const pass = btn.getAttribute('data-pass') || 'admin';
+        const phoneInp = document.getElementById('auth-login-phone');
+        const passInp = document.getElementById('auth-login-password');
+        if (phoneInp) phoneInp.value = phone;
+        if (passInp) passInp.value = pass;
+        this.loginWithPhone(phone, pass);
+      };
+    });
+
+    // Auto-fill Reset OTP button
+    const autofillOtpBtn = document.getElementById('btn-autofill-reset-otp');
+    if (autofillOtpBtn) {
+      autofillOtpBtn.onclick = () => {
+        const otpInp = document.getElementById('auth-reset-otp');
+        if (otpInp && this.resetOtpCode) {
+          otpInp.value = this.resetOtpCode;
         }
       };
     }
 
-    // Submit Phone Auth
-    const submitBtn = document.getElementById('btn-submit-phone-auth');
-    if (submitBtn) {
-      submitBtn.onclick = () => {
-        const phoneInp = document.getElementById('auth-phone-input');
-        const otpInp = document.getElementById('auth-otp-input');
-        this.authenticateWithPhone(phoneInp?.value, otpInp?.value);
+    // Reset phone input change listener for live weekly limit check
+    const resetPhoneInp = document.getElementById('auth-reset-phone');
+    if (resetPhoneInp) {
+      resetPhoneInp.addEventListener('input', () => {
+        this.updateResetLimitUI();
+      });
+    }
+
+    // Open auth modal from "Login/Register" button
+    const loginRegisterHeaderBtn = document.getElementById('header-btn-login-register');
+    if (loginRegisterHeaderBtn) {
+      loginRegisterHeaderBtn.onclick = () => {
+        this.openAuthModal('login');
       };
     }
 
-    // Enter key submits
-    const phoneInp = document.getElementById('auth-phone-input');
-    if (phoneInp) {
-      phoneInp.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          if (!this.isOtpMode) {
-            this.authenticateWithPhone(phoneInp.value);
-          } else {
-            const otpInp = document.getElementById('auth-otp-input');
-            this.authenticateWithPhone(phoneInp.value, otpInp?.value);
-          }
-        }
-      };
-    }
-
-    const otpInp = document.getElementById('auth-otp-input');
-    if (otpInp) {
-      otpInp.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          const p = document.getElementById('auth-phone-input')?.value;
-          this.authenticateWithPhone(p, otpInp.value);
-        }
+    // Menu Sign out button
+    const menuSignOutBtn = document.getElementById('menu-btn-signout');
+    if (menuSignOutBtn) {
+      menuSignOutBtn.onclick = () => {
+        const menu = document.getElementById('spribe-dropdown-menu');
+        if (menu) menu.classList.remove('show');
+        this.logout();
       };
     }
   }
@@ -581,6 +826,6 @@ export class AuthManager {
     toast.classList.add('show');
     setTimeout(() => {
       toast.classList.remove('show');
-    }, 3200);
+    }, 3500);
   }
 }

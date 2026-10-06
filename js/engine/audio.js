@@ -11,6 +11,10 @@
  * - Milestone reward chimes (2x Purple tier & 10x Magenta tier)
  * - 4-note cascading coin drop deposit jingle
  * - Ambient hypnotic lounge synth groove in Dm9 / G13 / Bbmaj7 / Am7
+ * 
+ * STRICT VIEWING LIFECYCLE:
+ * - Sounds do NOT play when user is not viewing (tab hidden, window blurred/minimized, or navigated away from Aviator screen)
+ * - Master gain automatically silences on backgrounding, and resumes seamlessly when returning to the game view.
  */
 
 export class SoundEngine {
@@ -45,29 +49,156 @@ export class SoundEngine {
     // Ambient music scheduler
     this.musicInterval = null;
     this.isPlayingMusic = false;
+    this.wasPlayingMusicBeforeHidden = false;
+
+    // Viewing Lifecycle Management
+    this.isTabVisible = typeof document !== 'undefined' ? (!document.hidden && document.visibilityState === 'visible') : true;
+    this.isAviatorViewActive = true; // true when player is viewing the Aviator flight terminal
+    this.isWindowFocused = typeof document !== 'undefined' && document.hasFocus ? document.hasFocus() : true;
+    this.isFlightActive = false; // whether a flight round is currently in progress
+    this.lastMultiplier = 1.0;
+
+    // Register Page Visibility & Window Focus Lifecycle
+    this.initVisibilityListeners();
 
     // Universal unlock on first user gesture across mobile & desktop
-    const unlockEvents = ['click', 'touchstart', 'touchend', 'mousedown', 'pointerdown', 'keydown'];
-    const unlockAudio = () => {
-      this.initContext();
-      if (!this.musicMuted && !this.isPlayingMusic) {
+    if (typeof window !== 'undefined') {
+      const unlockEvents = ['click', 'touchstart', 'touchend', 'mousedown', 'pointerdown', 'keydown'];
+      const unlockAudio = () => {
+        this.initContext();
+        if (!this.musicMuted && !this.isPlayingMusic && this.isUserViewingApp()) {
+          this.startAmbientMusic();
+        }
+        unlockEvents.forEach(evt => window.removeEventListener(evt, unlockAudio));
+      };
+
+      unlockEvents.forEach(evt => window.addEventListener(evt, unlockAudio, { passive: true }));
+    }
+  }
+
+  /* =========================================================================
+     VIEWING LIFECYCLE MANAGEMENT (Sounds Don't Work If User Is Not Viewing)
+     ========================================================================= */
+  initVisibilityListeners() {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    // 1. Page Visibility API (Switching tabs, minimizing browser, screen lock)
+    document.addEventListener('visibilitychange', () => {
+      const isVisible = !document.hidden && document.visibilityState === 'visible';
+      this.setTabVisible(isVisible);
+    });
+
+    // 2. Mobile / Desktop Page Lifecycle
+    window.addEventListener('pagehide', () => {
+      this.setTabVisible(false);
+    });
+
+    window.addEventListener('pageshow', () => {
+      const isVisible = !document.hidden && document.visibilityState === 'visible';
+      this.setTabVisible(isVisible);
+    });
+
+    // 3. Window Focus / Blur (Switching applications or losing window focus)
+    window.addEventListener('blur', () => {
+      this.isWindowFocused = false;
+      this.handleViewingStateChange();
+    });
+
+    window.addEventListener('focus', () => {
+      this.isWindowFocused = true;
+      this.handleViewingStateChange();
+    });
+  }
+
+  // Returns true only if the user is actively viewing the web application tab
+  isUserViewingApp() {
+    return this.isTabVisible && this.isWindowFocused;
+  }
+
+  // Returns true only if the user is actively viewing the Aviator flight game view
+  isUserViewingGame() {
+    return this.isUserViewingApp() && this.isAviatorViewActive;
+  }
+
+  setTabVisible(isVisible) {
+    this.isTabVisible = !!isVisible;
+    this.handleViewingStateChange();
+  }
+
+  setWindowFocused(isFocused) {
+    this.isWindowFocused = !!isFocused;
+    this.handleViewingStateChange();
+  }
+
+  setAviatorViewActive(isActive) {
+    this.isAviatorViewActive = !!isActive;
+    this.handleViewingStateChange();
+  }
+
+  handleViewingStateChange() {
+    const viewingApp = this.isUserViewingApp();
+    const viewingGame = this.isUserViewingGame();
+
+    if (!viewingApp) {
+      // User is NOT viewing the app at all (another tab, minimized, or backgrounded)
+      // Instantly silence all audio output
+      if (this.masterGain && this.ctx) {
+        try {
+          this.masterGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.015);
+        } catch (e) {}
+      }
+      this.stopEngineAudioNodes();
+      if (this.isPlayingMusic) {
+        this.stopAmbientMusic();
+        this.wasPlayingMusicBeforeHidden = true;
+      }
+    } else if (!viewingGame) {
+      // User is viewing the app, but navigated to Home (Account), Sports, or Casino
+      // Restore master gain for local UI interactions (like clicking deposit)
+      if (this.masterGain && this.ctx) {
+        try {
+          this.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.02);
+        } catch (e) {}
+      }
+      // But silence and stop Aviator engine hum and game flight audio
+      this.stopEngineAudioNodes();
+    } else {
+      // User is actively viewing the Aviator flight terminal!
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      if (this.masterGain && this.ctx) {
+        try {
+          this.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.02);
+        } catch (e) {}
+      }
+      // If a flight is active, restore engine drone smoothly
+      if (this.isFlightActive && !this.soundMuted && !this.isPlayingEngine) {
+        this.startEngineAudioNodes();
+        if (this.lastMultiplier) {
+          this.updateEnginePitch(this.lastMultiplier);
+        }
+      }
+      // If ambient music was suspended, restore it
+      if (this.wasPlayingMusicBeforeHidden && !this.musicMuted && !this.isPlayingMusic) {
+        this.wasPlayingMusicBeforeHidden = false;
         this.startAmbientMusic();
       }
-      unlockEvents.forEach(evt => window.removeEventListener(evt, unlockAudio));
-    };
-
-    unlockEvents.forEach(evt => window.addEventListener(evt, unlockAudio, { passive: true }));
+    }
   }
 
   initContext() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const AudioCtx = typeof window !== 'undefined'
+        ? (window.AudioContext || window.webkitAudioContext)
+        : (typeof globalThis !== 'undefined' ? (globalThis.AudioContext || globalThis.webkitAudioContext) : null);
       if (AudioCtx) {
         this.ctx = new AudioCtx();
 
         // Build Master & Sub-buses
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+        const initialVol = this.isUserViewingApp() ? this.masterVolume : 0.0;
+        this.masterGain.gain.setValueAtTime(initialVol, this.ctx.currentTime);
         this.masterGain.connect(this.ctx.destination);
 
         this.sfxGain = this.ctx.createGain();
@@ -75,11 +206,11 @@ export class SoundEngine {
         this.sfxGain.connect(this.masterGain);
 
         this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.setValueAtTime(this.musicMuted ? 0.0 : 0.45, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(this.musicMuted ? 0.0 : 0.20, this.ctx.currentTime);
         this.musicGain.connect(this.masterGain);
       }
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
+    if (this.ctx && this.ctx.state === 'suspended' && this.isUserViewingApp()) {
       this.ctx.resume().catch(() => {});
     }
   }
@@ -98,11 +229,11 @@ export class SoundEngine {
   toggleMusic() {
     this.musicMuted = !this.musicMuted;
     if (this.musicGain && this.ctx) {
-      this.musicGain.gain.setTargetAtTime(this.musicMuted ? 0.0 : 0.45, this.ctx.currentTime, 0.05);
+      this.musicGain.gain.setTargetAtTime(this.musicMuted ? 0.0 : 0.20, this.ctx.currentTime, 0.05);
     }
     if (this.musicMuted) {
       this.stopAmbientMusic();
-    } else {
+    } else if (this.isUserViewingApp()) {
       this.startAmbientMusic();
     }
     return this.musicMuted;
@@ -117,11 +248,17 @@ export class SoundEngine {
      Warm twin-cylinder hum + aero blade chop + dynamic tension pitch climb
      ========================================================================= */
   startEngine() {
-    if (this.soundMuted) return;
+    this.isFlightActive = true;
+    if (this.soundMuted || !this.isUserViewingGame()) return;
+    this.startEngineAudioNodes();
+  }
+
+  startEngineAudioNodes() {
+    if (this.soundMuted || !this.isUserViewingGame()) return;
     this.initContext();
     if (!this.ctx) return;
 
-    this.stopEngine();
+    this.stopEngineAudioNodes();
     this.lastMilestonePassed = 1.0;
     const t = this.ctx.currentTime;
 
@@ -168,7 +305,7 @@ export class SoundEngine {
     this.bladeNoiseSource.connect(this.bladeFilter);
     this.bladeFilter.connect(this.bladeGain);
 
-    // 5. Rotor Blade Tremolo (LFO modulating gain smoothly between 0.40 and 1.0 without phase distortion)
+    // 5. Rotor Blade Tremolo (LFO modulating gain smoothly without phase distortion)
     this.tremoloGain = this.ctx.createGain();
     this.tremoloGain.gain.setValueAtTime(0.70, t);
 
@@ -208,7 +345,8 @@ export class SoundEngine {
 
   // Accelerates pitch and blade chop as multiplier climbs
   updateEnginePitch(multiplier) {
-    if (!this.isPlayingEngine || !this.ctx || this.soundMuted) return;
+    this.lastMultiplier = multiplier;
+    if (!this.isPlayingEngine || !this.ctx || this.soundMuted || !this.isUserViewingGame()) return;
     const t = this.ctx.currentTime;
 
     // Logarithmic curve: 1.00x -> 100.00x smoothly maps 84Hz -> 420Hz
@@ -244,25 +382,39 @@ export class SoundEngine {
   }
 
   stopEngine() {
+    this.isFlightActive = false;
+    this.stopEngineAudioNodes();
+  }
+
+  stopEngineAudioNodes() {
     if (!this.isPlayingEngine || !this.ctx) return;
     try {
-      const t = this.ctx.currentTime;
-      if (this.engineGain) {
-        this.engineGain.gain.setTargetAtTime(0.0001, t, 0.03);
+      const oldGain = this.engineGain;
+      const oldOsc1 = this.engineOsc1;
+      const oldOsc2 = this.engineOsc2;
+      const oldSub = this.engineSub;
+      const oldNoise = this.bladeNoiseSource;
+      const oldLfo = this.rotorLFO;
+
+      this.isPlayingEngine = false;
+      this.engineGain = null;
+      this.engineOsc1 = null;
+      this.engineOsc2 = null;
+      this.engineSub = null;
+      this.bladeNoiseSource = null;
+      this.rotorLFO = null;
+
+      if (oldGain && this.ctx) {
+        oldGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.02);
       }
+
       setTimeout(() => {
-        if (this.engineOsc1) { try { this.engineOsc1.stop(); this.engineOsc1.disconnect(); } catch (e) {} }
-        if (this.engineOsc2) { try { this.engineOsc2.stop(); this.engineOsc2.disconnect(); } catch (e) {} }
-        if (this.engineSub) { try { this.engineSub.stop(); this.engineSub.disconnect(); } catch (e) {} }
-        if (this.bladeNoiseSource) { try { this.bladeNoiseSource.stop(); this.bladeNoiseSource.disconnect(); } catch (e) {} }
-        if (this.rotorLFO) { try { this.rotorLFO.stop(); this.rotorLFO.disconnect(); } catch (e) {} }
-        this.engineOsc1 = null;
-        this.engineOsc2 = null;
-        this.engineSub = null;
-        this.bladeNoiseSource = null;
-        this.rotorLFO = null;
-        this.isPlayingEngine = false;
-      }, 50);
+        try { oldOsc1?.stop(); oldOsc1?.disconnect(); } catch (e) {}
+        try { oldOsc2?.stop(); oldOsc2?.disconnect(); } catch (e) {}
+        try { oldSub?.stop(); oldSub?.disconnect(); } catch (e) {}
+        try { oldNoise?.stop(); oldNoise?.disconnect(); } catch (e) {}
+        try { oldLfo?.stop(); oldLfo?.disconnect(); } catch (e) {}
+      }, 40);
     } catch (e) {
       this.isPlayingEngine = false;
     }
@@ -273,8 +425,9 @@ export class SoundEngine {
      Iconic jet aerodynamic fly-away whoosh with stereo trajectory pan
      ========================================================================= */
   playFlewAway() {
+    this.isFlightActive = false;
     this.stopEngine();
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingGame()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -356,7 +509,7 @@ export class SoundEngine {
      Signature Spribe Aviator cashout: Ding-Ding! at 1480Hz & 2217Hz
      ========================================================================= */
   playCashout() {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingApp()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -422,7 +575,7 @@ export class SoundEngine {
      4. COUNTDOWN TICKS & TAKEOFF REV
      ========================================================================= */
   playCountdownTick(secondsLeft = 5) {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingGame()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -473,7 +626,7 @@ export class SoundEngine {
 
   // Jet takeoff throttle rev whoosh as multiplier initiates at 1.00x
   playTakeoff() {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingGame()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -506,7 +659,7 @@ export class SoundEngine {
      5. MECHANICAL BET CLICK & MILESTONE CHIMES
      ========================================================================= */
   playBetPlaced() {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingApp()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -538,7 +691,7 @@ export class SoundEngine {
   }
 
   playMilestone(tier) {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingGame()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -581,7 +734,7 @@ export class SoundEngine {
 
   // 4-Note coin drop deposit jingle
   playDeposit() {
-    if (this.soundMuted) return;
+    if (this.soundMuted || !this.isUserViewingApp()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -613,7 +766,7 @@ export class SoundEngine {
      Mellow chord progression in Dm9 -> G13 -> Bbmaj7 -> Am7 with sub-bass
      ========================================================================= */
   startAmbientMusic() {
-    if (this.musicMuted || this.isPlayingMusic) return;
+    if (this.musicMuted || this.isPlayingMusic || !this.isUserViewingApp()) return;
     this.initContext();
     if (!this.ctx) return;
 
@@ -630,7 +783,7 @@ export class SoundEngine {
     let chordIdx = 0;
 
     const playNextChord = () => {
-      if (!this.isPlayingMusic || this.musicMuted || !this.ctx) return;
+      if (!this.isPlayingMusic || this.musicMuted || !this.ctx || !this.isUserViewingApp()) return;
 
       const { bass, chord } = progression[chordIdx % progression.length];
       chordIdx++;

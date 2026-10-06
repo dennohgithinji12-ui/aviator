@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Aviator - Spribe Official Simulator & Staking Protocol</title>
-  <meta name="description" content="Spribe Aviator Simulator: Real-time crash flight engine, dual round betting terminals, live stakers, Provably Fair cryptographic verification, and protocol liquidity vaults.">
+  <title>ShiftStack Aviator - Official Spribe Crash Simulator & Phone Authentication</title>
+  <meta name="description" content="ShiftStack Aviator: Real-time crash flight engine, phone number login with Firebase Spark Plan, 49 Bob minimum deposit with PayHero API, dual betting terminals, and live stakers.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
@@ -13,35 +13,37 @@
 <body class="aviator-app">
 
   <!-- ==========================================================================
-       TOP APP NAVIGATION HEADER (Exact Spribe Aviator Style)
+       TOP APP NAVIGATION HEADER (ShiftStack Aviator Platform)
        ========================================================================== -->
   <header class="app-header">
     <div class="header-left">
-      <!-- Authentic Spribe Aviator Brand Logo -->
-      <div class="brand-container" id="brand-home-link" title="Spribe Aviator">
-        <div class="brand-logo-icon">
-          <!-- Red Stylized Aviator Monoplane -->
-          <svg width="34" height="28" viewBox="0 0 40 32" fill="none">
+      <!-- Authentic ShiftStack Brand Logo -->
+      <div class="shiftstack-brand" id="brand-home-link" title="ShiftStack Aviator">
+        <div class="shiftstack-logo-badge">
+          <svg width="22" height="20" viewBox="0 0 40 32" fill="none">
             <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" fill="#ff003b" />
-            <path d="M16 16 L 24 3 L 28 4 L 21 16 Z" fill="#e00030" />
-            <path d="M14 20 L 19 28 L 16 29 L 10 21 Z" fill="#b80026" />
+            <path d="M16 16 L 24 3 L 28 4 L 21 16 Z" fill="#ff3366" />
             <circle cx="36" cy="7.5" r="2.5" fill="#ffffff" />
-            <path d="M37 2 L 35 13" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
           </svg>
         </div>
-        <div class="brand-title">Aviator</div>
+        <div class="shiftstack-logo-text-group">
+          <span class="shiftstack-logo-shift">Shift</span>
+          <span class="shiftstack-logo-stack">Stack</span>
+        </div>
       </div>
 
-      <!-- Spribe "How to Play?" Button -->
-      <button class="header-btn-how-to-play" id="btn-how-to-play" title="How to play Aviator?">
-        <span class="how-icon">?</span>
-        <span class="how-text">How to play?</span>
+      <!-- Header Search Icon Button -->
+      <button class="shiftstack-search-btn" id="btn-header-search" title="Search Games & Sports" aria-label="Search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
       </button>
 
-      <!-- Sub-Nav Mode Tabs (Aviator Game, Liquidity Vault, Rollover) -->
-      <nav class="main-nav-tabs" aria-label="Main Navigation">
+      <!-- Sub-Nav Mode Tabs (Desktop Only: Aviator Game, Liquidity Vault, Rollover) -->
+      <nav class="main-nav-tabs desktop-only" aria-label="Main Navigation">
         <button class="nav-tab-btn active" data-view="terminal" id="nav-btn-terminal">
-          <span>Game</span>
+          <span>Aviator</span>
         </button>
         <button class="nav-tab-btn" data-view="liquidity" id="nav-btn-liquidity">
           <span>Liquidity</span>
@@ -54,53 +56,39 @@
     </div>
 
     <div class="header-right">
-      <!-- Live Protocol TVL Ticker (Desktop only) -->
-      <div class="header-tvl-pill desktop-only">
-        <span class="live-dot pulse"></span>
-        <span class="tvl-label">POOL:</span>
-        <span class="tvl-val">KES 148.7M</span>
+      <!-- User Wallet Balance (Displayed in Bold Green with Mode Indicator) -->
+      <div class="header-balance-card" id="header-balance-card" title="Wallet Balance (Real vs Demo)">
+        <span class="badge-mode-indicator badge-mode-demo" id="header-mode-badge">DEMO</span>
+        <span class="bal-amount user-balance-value">50,000.00 KES</span>
       </div>
 
-      <!-- Provably Fair Shield Button -->
-      <button class="header-btn-pf" id="btn-open-pf" title="Inspect Provably Fair SHA-256 Hash">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span class="desktop-only">Provably Fair</span>
+      <!-- Green Rounded Pill: Login/Register Button (When logged out) -->
+      <button class="header-btn-login-register" id="header-btn-login-register" title="Phone Login & Sign Up (Firebase Spark Plan)">
+        <span>Login/Register</span>
       </button>
 
-      <!-- Sound SFX Toggle -->
-      <button class="header-btn-icon" id="btn-toggle-sound" title="Toggle Sound SFX">
+      <!-- Deposit Button (Min 49 Bob via PayHero API) -->
+      <button class="btn-deposit-header desktop-only" id="btn-open-deposit" title="Deposit Funds (Min 49 Bob via PayHero)">
+        <span class="dep-plus">+</span>
+        <span class="dep-text">DEPOSIT</span>
+      </button>
+
+      <!-- Quick Sound Effects Toggle (Spribe Default) -->
+      <button class="header-btn-icon" id="btn-toggle-sound" title="Toggle Sound Effects (Spribe Default)" aria-label="Toggle Sound">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
         </svg>
       </button>
 
-      <!-- Background Music Toggle -->
-      <button class="header-btn-icon desktop-only" id="btn-toggle-music" title="Toggle Background Music">
+      <!-- Quick Ambient Music Toggle -->
+      <button class="header-btn-icon desktop-only" id="btn-toggle-music" title="Toggle Ambient Music" aria-label="Toggle Music">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 18V5l12-2v13"></path>
           <circle cx="6" cy="18" r="3"></circle>
           <circle cx="18" cy="16" r="3"></circle>
         </svg>
       </button>
-
-      <!-- User Wallet Balance Card -->
-      <div class="header-balance-card" title="Wallet Balance">
-        <span class="bal-amount user-balance-value">50,000.00 KES</span>
-      </div>
-
-      <!-- Spribe Deposit Button (Min 500 KES) -->
-      <button class="btn-deposit-header" id="btn-open-deposit" title="Deposit Funds (Min KES 500.00)">
-        <span class="dep-plus">+</span>
-        <span class="dep-text">DEPOSIT</span>
-      </button>
-
-      <!-- Native Aviator Player Auth Container -->
-      <div id="aviator-auth-container" class="aviator-auth-container puter-auth-container">
-        <!-- Rendered dynamically by AuthManager: Login / Register Button or User Profile Pill -->
-      </div>
 
       <!-- Hamburger Menu Button -->
       <div class="menu-dropdown-wrapper">
@@ -110,65 +98,99 @@
           <span></span>
         </button>
 
-        <!-- Dropdown Popup Menu -->
+        <!-- Dropdown Popup Menu (Matching Screenshot 3 & 4) -->
         <div class="spribe-dropdown-menu" id="spribe-dropdown-menu">
-          <div class="menu-header">
-            <span class="menu-brand">Aviator Settings</span>
+          <!-- Profile Card -->
+          <div class="shiftstack-menu-user-card kessbet-menu-user-card">
+            <div class="user-avatar-circle" id="menu-avatar-circle">
+              ✈️
+            </div>
+            <div class="user-info-text">
+              <span class="user-handle" id="menu-username-display">demo_58232</span>
+              <span class="user-phone-sub" id="menu-phone-display">+254 7•••678</span>
+            </div>
+            <button type="button" class="btn-change-avatar" id="btn-change-avatar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>Change Avatar</span>
+            </button>
           </div>
+
+          <!-- Audio & Animation Toggles -->
           <div class="menu-item-row" id="menu-item-sound">
-            <span>Sound Effects</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:15px;">🔊</span>
+              <span>Sound</span>
+            </div>
             <label class="spribe-switch">
               <input type="checkbox" id="menu-switch-sound" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
           <div class="menu-item-row" id="menu-item-music">
-            <span>Music</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:15px;">🎵</span>
+              <span>Music</span>
+            </div>
             <label class="spribe-switch">
               <input type="checkbox" id="menu-switch-music" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
           <div class="menu-item-row" id="menu-item-anim">
-            <span>Animation</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:15px;">🌀</span>
+              <span>Animation</span>
+            </div>
             <label class="spribe-switch">
               <input type="checkbox" id="menu-switch-anim" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
+
           <div class="menu-divider"></div>
-          <button class="menu-link-btn" id="menu-btn-deposit" style="color: #2ecc71;">
-            <span class="menu-link-icon">💳</span>
-            <span>Deposit Funds (Min 500)</span>
+
+          <!-- Menu Nav Links -->
+          <button type="button" class="menu-link-btn" id="menu-btn-free-bets">
+            <span class="menu-link-icon">⭐</span>
+            <span>Free Bets</span>
           </button>
-          <button class="menu-link-btn" id="menu-btn-how">
-            <span class="menu-link-icon">?</span>
-            <span>How to play?</span>
-          </button>
-          <button class="menu-link-btn" id="menu-btn-history">
+          <button type="button" class="menu-link-btn" id="menu-btn-history">
             <span class="menu-link-icon">🕒</span>
             <span>My Bet History</span>
           </button>
-          <button class="menu-link-btn" id="menu-btn-pf">
+          <button type="button" class="menu-link-btn" id="menu-btn-limits">
+            <span class="menu-link-icon">💵</span>
+            <span>Game Limits</span>
+          </button>
+          <button type="button" class="menu-link-btn" id="menu-btn-how">
+            <span class="menu-link-icon">❓</span>
+            <span>How To Play</span>
+          </button>
+          <button type="button" class="menu-link-btn" id="menu-btn-rules">
+            <span class="menu-link-icon">📄</span>
+            <span>Game Rules</span>
+          </button>
+          <button type="button" class="menu-link-btn" id="menu-btn-pf">
             <span class="menu-link-icon">🛡️</span>
             <span>Provably Fair Settings</span>
           </button>
-          <button class="menu-link-btn menu-reset-btn" id="menu-btn-reset">
-            <span class="menu-link-icon">🔄</span>
-            <span>Reset Demo Balance</span>
-          </button>
-          <div class="menu-divider mobile-only"></div>
-          <button class="menu-link-btn nav-tab-btn mobile-only" data-view="terminal" id="menu-btn-view-terminal">
-            <span class="menu-link-icon">✈️</span>
-            <span>Aviator Game</span>
-          </button>
-          <button class="menu-link-btn nav-tab-btn mobile-only" data-view="liquidity" id="menu-btn-view-liquidity">
-            <span class="menu-link-icon">💎</span>
-            <span>Liquidity Vault (28.4%)</span>
-          </button>
-          <button class="menu-link-btn nav-tab-btn mobile-only" data-view="rollover" id="menu-btn-view-rollover">
+
+          <div class="menu-divider"></div>
+
+          <button type="button" class="menu-link-btn" id="menu-btn-deposit" style="color: #2ecc71;">
             <span class="menu-link-icon">⚡</span>
-            <span>Rollover Mode</span>
+            <span>Deposit Funds (Min 49 Bob)</span>
+          </button>
+          <button type="button" class="menu-link-btn" id="menu-btn-home" style="justify-content: center; font-weight: 700; color: #9aa1ad;">
+            <span class="menu-link-icon">🏠</span>
+            <span>Home</span>
+          </button>
+          <button type="button" class="menu-link-btn text-danger" id="menu-btn-signout" style="justify-content: center; font-weight: 700;">
+            <span class="menu-link-icon">🚪</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </div>
@@ -184,18 +206,6 @@
     <section class="view-section active" id="view-terminal">
       <div class="aviator-console-layout">
 
-        <!-- LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar -->
-        <aside class="console-sidebar" id="console-sidebar">
-          <div class="sidebar-tabs-header">
-            <button class="stakers-tab-btn active" data-tab="all">All Bets</button>
-            <button class="stakers-tab-btn" data-tab="my">My Bets</button>
-            <button class="stakers-tab-btn" data-tab="top">Top Wins</button>
-          </div>
-
-          <!-- Stakers Container (Injected by live-stakers.js) -->
-          <div class="sidebar-feed-container" id="live-stakers-container"></div>
-        </aside>
-
         <!-- RIGHT COLUMN / TOP MOBILE: Main Flight Stage & Dual Betting Terminals -->
         <div class="console-main-stage">
 
@@ -205,31 +215,72 @@
               <!-- Injected by history-bar.js -->
             </div>
 
-            <!-- Detailed Round History Dropdown Button (Spribe Exact) -->
-            <button class="btn-round-history" id="btn-open-round-history" title="Round History & Provably Fair Seeds">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+            <!-- Detailed Round History Dropdown Button (Opens Popup Overlay Matching Screenshot 2) -->
+            <button class="btn-round-history" id="btn-open-round-history" title="Round History & Multipliers">
+              <span>•••</span>
             </button>
           </div>
+
+          <!-- FUN MODE Yellow Top Banner (Demo Mode) -->
+          <div class="shiftstack-fun-banner kessbet-fun-banner">FUN MODE</div>
 
           <!-- Flight Canvas Stage -->
           <div class="flight-canvas-container" id="flight-canvas-container">
             <canvas id="flight-canvas"></canvas>
+
+            <!-- UFC & Aviator Official Partners Overlay (Matching Screenshot 1 & 2) -->
+            <div class="ufc-partners-overlay">
+              <span class="ufc-logo-tag">UFC</span>
+              <span>|</span>
+              <span style="display:inline-flex; align-items:center; gap:3px;">
+                <svg width="14" height="12" viewBox="0 0 40 32" fill="#ff003b">
+                  <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" />
+                </svg>
+                OFFICIAL PARTNERS
+              </span>
+            </div>
+
+            <!-- SPRIBE Official Game Verification Badge (Matching Screenshot 1 & 2) -->
+            <div class="spribe-verified-badge">
+              <div class="spribe-verified-top">
+                <span>SPRIBE</span>
+                <span style="color:#2ecc71;">✓ Official Game</span>
+              </div>
+              <span class="spribe-verified-sub">Since 2019</span>
+            </div>
+
+            <!-- Live Round Stakers Cluster & Count (Matching Screenshot 1 & 2: e.g. 200) -->
+            <div class="canvas-stakers-badge">
+              <div class="avatar-cluster">
+                <span>🍀</span>
+                <span>👑</span>
+                <span>💵</span>
+              </div>
+              <span id="canvas-stakers-count">200</span>
+            </div>
+
+            <!-- Real Mode Badge at Bottom-Left (Matching Screenshot 1) -->
+            <span class="badge-real-mode" id="btn-real-mode-toggle" title="Switch between Fun Mode and Real Mode">Real &gt;</span>
+
+            <!-- Real Money Mode Deposit Request Alert (Appears when Real Balance is 0 or low) -->
+            <div id="real-mode-deposit-alert" class="real-mode-deposit-alert" style="display: none;">
+              <div class="alert-content">
+                <span class="alert-icon">⚡</span>
+                <span class="alert-text"><strong>Real Money Mode:</strong> Balance is 0 KES. Deposit min 49 Bob via PayHero to place real bets!</span>
+              </div>
+              <button type="button" class="btn-alert-deposit" id="btn-quick-deposit-alert">⚡ Deposit 49 Bob+</button>
+            </div>
+
             <div class="canvas-watermark">AVIATOR</div>
             <button id="btn-skip-countdown" class="canvas-skip-btn" title="Skip countdown and take off immediately">
               <span>▶ Take Off</span>
             </button>
           </div>
 
-          <!-- Dual Staking Control Terminals (Side-by-side or Stacked/Toggleable on Mobile) -->
+          <!-- Dual Staking Control Terminals (Side-by-side or Stacked on Mobile) -->
           <div class="dual-betting-terminals" id="dual-terminals-wrapper">
 
-            <!-- TERMINAL 1 -->
+            <!-- TERMINAL 1 (Matching Screenshot 1: 10.00 KES, Chips 100, 200, 500, 10,000) -->
             <div class="betting-terminal" id="terminal-1">
               <!-- Terminal Tab Controls -->
               <div class="terminal-tab-bar">
@@ -245,23 +296,23 @@
 
               <!-- Main Bet Panel Controls -->
               <div class="terminal-grid-content">
-                <!-- Left: Stepper + (Quick Chips OR Auto Controls) -->
+                <!-- Left: Stepper + Quick Chips (100, 200, 500, 10,000) -->
                 <div class="terminal-left-controls">
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="200" min="200" max="100000" step="50">
+                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
                   </div>
 
-                  <!-- Quick Preset Chips Row (Default in Bet mode, min 200) -->
+                  <!-- Quick Preset Chips Row (100, 200, 500, 10,000) -->
                   <div class="quick-chips-grid">
-                    <button class="chip-btn active" data-val="200">200</button>
+                    <button class="chip-btn" data-val="100">100</button>
+                    <button class="chip-btn" data-val="200">200</button>
                     <button class="chip-btn" data-val="500">500</button>
-                    <button class="chip-btn" data-val="1000">1,000</button>
-                    <button class="chip-btn" data-val="2000">2,000</button>
+                    <button class="chip-btn" data-val="10000">10,000</button>
                   </div>
 
                   <!-- Auto Mode Controls (Swapped in Auto mode) -->
@@ -285,17 +336,17 @@
                   </div>
                 </div>
 
-                <!-- Right: Giant Spribe Action Button -->
+                <!-- Right: Giant Action Button (Bet / Cancel / Cash Out) -->
                 <div class="terminal-right-action">
                   <button class="btn-terminal-action state-stake">
-                    <div class="action-btn-main">BET</div>
-                    <div class="action-btn-sub">200.00 KES</div>
+                    <div class="action-btn-main">Bet</div>
+                    <div class="action-btn-sub">100.00 KES</div>
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- TERMINAL 2 -->
+            <!-- TERMINAL 2 (With [-] toggle icon button) -->
             <div class="betting-terminal" id="terminal-2">
               <!-- Terminal Tab Controls -->
               <div class="terminal-tab-bar">
@@ -303,33 +354,33 @@
                   <button class="tab-btn tab-manual active">Bet</button>
                   <button class="tab-btn tab-auto">Auto</button>
                 </div>
-                <!-- Close Button to hide Terminal 2 -->
-                <button class="btn-close-terminal" id="btn-hide-terminal-2" title="Close Second Bet Panel">
-                  ✕
+                <!-- [-] Toggle Collapse Button (Matching Screenshot 1) -->
+                <button class="btn-close-terminal" id="btn-hide-terminal-2" title="Close Second Bet Panel" aria-label="Minimize terminal">
+                  <span style="font-weight:900; font-size:14px;">⊟</span>
                 </button>
               </div>
 
               <!-- Main Bet Panel Controls -->
               <div class="terminal-grid-content">
-                <!-- Left: Stepper + (Quick Chips OR Auto Controls) -->
+                <!-- Left: Stepper + Quick Chips -->
                 <div class="terminal-left-controls">
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="200" min="200" max="100000" step="50">
+                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
                   </div>
 
                   <div class="quick-chips-grid">
-                    <button class="chip-btn active" data-val="200">200</button>
+                    <button class="chip-btn" data-val="100">100</button>
+                    <button class="chip-btn" data-val="200">200</button>
                     <button class="chip-btn" data-val="500">500</button>
-                    <button class="chip-btn" data-val="1000">1,000</button>
-                    <button class="chip-btn" data-val="2000">2,000</button>
+                    <button class="chip-btn" data-val="10000">10,000</button>
                   </div>
 
-                  <!-- Auto Mode Controls (Swapped in Auto mode) -->
+                  <!-- Auto Mode Controls -->
                   <div class="auto-controls-panel" style="display: none;">
                     <label class="auto-toggle-row">
                       <input type="checkbox" class="check-auto-stake">
@@ -350,11 +401,11 @@
                   </div>
                 </div>
 
-                <!-- Right: Giant Spribe Action Button -->
+                <!-- Right: Giant Action Button -->
                 <div class="terminal-right-action">
                   <button class="btn-terminal-action state-stake">
-                    <div class="action-btn-main">BET</div>
-                    <div class="action-btn-sub">200.00 KES</div>
+                    <div class="action-btn-main">Bet</div>
+                    <div class="action-btn-sub">100.00 KES</div>
                   </button>
                 </div>
               </div>
@@ -362,6 +413,18 @@
 
           </div>
         </div>
+
+        <!-- LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar -->
+        <aside class="console-sidebar" id="console-sidebar">
+          <div class="sidebar-tabs-header">
+            <button class="stakers-tab-btn active" data-tab="all">All Bets</button>
+            <button class="stakers-tab-btn" data-tab="my">Previous</button>
+            <button class="stakers-tab-btn" data-tab="top">Top</button>
+          </div>
+
+          <!-- Stakers Container (Injected by live-stakers.js) -->
+          <div class="sidebar-feed-container" id="live-stakers-container"></div>
+        </aside>
 
       </div>
     </section>
@@ -540,6 +603,322 @@
       </div>
     </section>
 
+    <!-- ==========================================================================
+         VIEW 4: SHIFTSTACK ACCOUNT HUB (Account Info & Direct Actions)
+         Accessible via Bottom Nav 'Home' Tab
+         ========================================================================== -->
+    <section class="view-section" id="view-home">
+      <div class="hub-container">
+        <!-- User Profile Hero Summary Card -->
+        <div class="hub-hero">
+          <div class="hub-user-summary-card">
+            <div class="hub-avatar-box">
+              <div class="user-avatar-circle" id="home-avatar-circle" style="font-size: 32px; width: 62px; height: 62px;">✈️</div>
+              <button type="button" class="hub-btn-edit-avatar" id="home-btn-change-avatar" title="Change Pilot Avatar">✎</button>
+            </div>
+            <div class="hub-user-meta">
+              <div class="hub-user-title-row">
+                <h2 id="home-account-name">Guest Pilot (Demo Mode)</h2>
+                <span class="hub-status-pill" id="home-account-status">Free Demo Active</span>
+              </div>
+              <p class="hub-user-phone" id="home-account-phone">Free Demo Session • No Registration Required</p>
+              <div class="hub-balance-dual-grid">
+                <div class="hub-balance-box real-wallet-box">
+                  <div class="hub-bal-title">
+                    <span class="hub-bal-pill real-pill">REAL WALLET</span>
+                    <span class="hub-bal-sub">PayHero M-PESA</span>
+                  </div>
+                  <div class="hub-bal-number user-real-balance-val">0.00 KES</div>
+                  <button type="button" class="btn-micro-deposit" id="hub-btn-quick-deposit">+ Deposit 49 Bob+</button>
+                </div>
+                <div class="hub-balance-box demo-wallet-box">
+                  <div class="hub-bal-title">
+                    <span class="hub-bal-pill demo-pill">DEMO BANKROLL</span>
+                    <span class="hub-bal-sub">Practice Fun Mode</span>
+                  </div>
+                  <div class="hub-bal-number user-demo-balance-val">50,000.00 KES</div>
+                  <button type="button" class="btn-micro-refill" id="hub-btn-quick-refill">↻ Reset 50,000</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Action Cards Grid -->
+        <div class="hub-actions-grid">
+          <!-- Action 1: Deposit via PayHero (Min 49 Bob) -->
+          <div class="hub-action-card highlight" id="home-card-deposit">
+            <div class="hub-card-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">⚡</div>
+            <div class="hub-card-info">
+              <h3>Deposit Funds (PayHero)</h3>
+              <p>Instant M-PESA STK Push via PayHero API • Minimum 49 Bob</p>
+            </div>
+            <button type="button" class="btn-hub-action action-success" id="home-btn-deposit">Deposit 49 Bob+</button>
+          </div>
+
+          <!-- Action 2: Return to Aviator Flight -->
+          <div class="hub-action-card" id="home-card-aviator">
+            <div class="hub-card-icon" style="background: rgba(255, 0, 59, 0.15); color: #ff003b;">✈️</div>
+            <div class="hub-card-info">
+              <h3>Fly Aviator Now</h3>
+              <p>Live 60fps crash multiplier engine • Instant cash out</p>
+            </div>
+            <button type="button" class="btn-hub-action action-fly" id="home-btn-goto-aviator">Fly Aviator</button>
+          </div>
+
+          <!-- Action 3: Phone Authentication (Firebase Spark Plan) -->
+          <div class="hub-action-card" id="home-card-auth">
+            <div class="hub-card-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">📱</div>
+            <div class="hub-card-info">
+              <h3>Phone Account Access</h3>
+              <p>Firebase Spark Plan login & sign-up using phone number</p>
+            </div>
+            <button type="button" class="btn-hub-action action-primary" id="home-btn-auth-action">Login / Register</button>
+          </div>
+
+          <!-- Action 4: Password Reset (Rate limited 2x/week) -->
+          <div class="hub-action-card" id="home-card-reset-pw">
+            <div class="hub-card-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🔒</div>
+            <div class="hub-card-info">
+              <h3>Password Reset</h3>
+              <p>Strictly limited to max 2 resets per rolling week</p>
+            </div>
+            <button type="button" class="btn-hub-action action-amber" id="home-btn-reset-pw">Reset Password</button>
+          </div>
+
+          <!-- Action 5: Refill Demo Bankroll -->
+          <div class="hub-action-card" id="home-card-refill-demo">
+            <div class="hub-card-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">🔄</div>
+            <div class="hub-card-info">
+              <h3>Refill Demo Balance</h3>
+              <p>Instant reload to KES 50,000.00 demo funds for unlimited practice</p>
+            </div>
+            <button type="button" class="btn-hub-action action-purple" id="home-btn-refill-demo">Refill 50,000 KES</button>
+          </div>
+
+          <!-- Action 6: Free Bets & Rain -->
+          <div class="hub-action-card" id="home-card-free-bets">
+            <div class="hub-card-icon" style="background: rgba(234, 179, 8, 0.15); color: #eab308;">⭐</div>
+            <div class="hub-card-info">
+              <h3>Free Bets & Rain</h3>
+              <p>Claim pilot promotional bonus bets & spontaneous rain vouchers</p>
+            </div>
+            <button type="button" class="btn-hub-action" id="home-btn-free-bets">Claim Bonus</button>
+          </div>
+
+          <!-- Action 7: My Bet History -->
+          <div class="hub-action-card" id="home-card-history">
+            <div class="hub-card-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">🕒</div>
+            <div class="hub-card-info">
+              <h3>My Bet History</h3>
+              <p>Review completed round crash multipliers and profit records</p>
+            </div>
+            <button type="button" class="btn-hub-action" id="home-btn-history">View History</button>
+          </div>
+
+          <!-- Action 8: Provably Fair Cryptographic Verifier -->
+          <div class="hub-action-card" id="home-card-pf">
+            <div class="hub-card-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">🛡️</div>
+            <div class="hub-card-info">
+              <h3>Provably Fair Settings</h3>
+              <p>Verify SHA-256 cryptographic hashes and change client seeds</p>
+            </div>
+            <button type="button" class="btn-hub-action" id="home-btn-pf">Verify Seeds</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         VIEW 5: SHIFTSTACK SPORTSBOOK (Coming Soon)
+         Accessible via Bottom Nav 'Sports' Tab
+         ========================================================================== -->
+    <section class="view-section" id="view-sports">
+      <div class="sports-container">
+        <div class="sports-hero">
+          <div class="sports-badge">⚽ SHIFTSTACK SPORTSBOOK</div>
+          <h1>Sports Betting Launching Soon</h1>
+          <p>High-speed in-play betting with competitive live odds on Premier League, Champions League, AFCON 2026, and NBA.</p>
+          <div class="sports-hero-actions">
+            <button type="button" class="btn-sports-notify" id="sports-btn-notify">🔔 Notify Me on Launch</button>
+            <button type="button" class="btn-sports-back" id="sports-btn-goto-aviator">✈️ Return to Aviator Flight</button>
+          </div>
+        </div>
+
+        <!-- Fixture Previews Grid -->
+        <div class="sports-fixtures-grid">
+          <div class="fixture-card">
+            <div class="fixture-header">
+              <span class="league-tag">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</span>
+              <span class="match-time">Coming Soon</span>
+            </div>
+            <div class="match-teams">
+              <div class="team-row"><span>Arsenal</span><strong class="odds-val">2.10</strong></div>
+              <div class="team-row draw"><span>Draw</span><strong class="odds-val">3.40</strong></div>
+              <div class="team-row"><span>Chelsea</span><strong class="odds-val">3.25</strong></div>
+            </div>
+          </div>
+          <div class="fixture-card">
+            <div class="fixture-header">
+              <span class="league-tag">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</span>
+              <span class="match-time">Coming Soon</span>
+            </div>
+            <div class="match-teams">
+              <div class="team-row"><span>Manchester City</span><strong class="odds-val">1.78</strong></div>
+              <div class="team-row draw"><span>Draw</span><strong class="odds-val">3.80</strong></div>
+              <div class="team-row"><span>Liverpool</span><strong class="odds-val">4.10</strong></div>
+            </div>
+          </div>
+          <div class="fixture-card">
+            <div class="fixture-header">
+              <span class="league-tag">🇪🇺 UEFA Champions League</span>
+              <span class="match-time">Coming Soon</span>
+            </div>
+            <div class="match-teams">
+              <div class="team-row"><span>Real Madrid</span><strong class="odds-val">2.05</strong></div>
+              <div class="team-row draw"><span>Draw</span><strong class="odds-val">3.50</strong></div>
+              <div class="team-row"><span>Bayern Munich</span><strong class="odds-val">3.30</strong></div>
+            </div>
+          </div>
+          <div class="fixture-card">
+            <div class="fixture-header">
+              <span class="league-tag">🇰🇪 FKF Premier League</span>
+              <span class="match-time">Coming Soon</span>
+            </div>
+            <div class="match-teams">
+              <div class="team-row"><span>Gor Mahia</span><strong class="odds-val">1.95</strong></div>
+              <div class="team-row draw"><span>Draw</span><strong class="odds-val">3.10</strong></div>
+              <div class="team-row"><span>AFC Leopards</span><strong class="odds-val">3.65</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         VIEW 6: SHIFTSTACK CASINO LOBBY (Other Games Launching Soon)
+         Accessible via Bottom Nav 'Casino' Tab
+         ========================================================================== -->
+    <section class="view-section" id="view-casino">
+      <div class="casino-container">
+        <div class="casino-hero">
+          <div class="casino-badge">🎲 SHIFTSTACK CASINO LOBBY</div>
+          <h1>Next-Gen Provably Fair Games</h1>
+          <p>Explore upcoming instant-win games powered by cryptographic SHA-256 random number generation.</p>
+          <div class="casino-hero-actions">
+            <button type="button" class="btn-casino-back" id="casino-btn-goto-aviator">✈️ Return to Aviator Flight</button>
+          </div>
+        </div>
+
+        <!-- 8 Upcoming Casino Games Grid -->
+        <div class="casino-games-grid">
+          <div class="casino-game-card">
+            <div class="game-card-art art-mines">💣</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">98% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Mines</h3>
+              <p>Navigate a 5x5 grid, reveal sparkling gems, and cash out before detonating hidden explosives.</p>
+              <button type="button" class="btn-game-preview" data-game="Mines">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-plinko">⚪</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">99% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Plinko</h3>
+              <p>Drop the lucky token down the pyramid of pins and target the 1,000x high-multiplier edge buckets.</p>
+              <button type="button" class="btn-game-preview" data-game="Plinko">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-dice">🎲</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">99% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Turbo Dice</h3>
+              <p>Adjust your win probability slider, predict Over or Under, and enjoy instant payouts.</p>
+              <button type="button" class="btn-game-preview" data-game="Turbo Dice">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-crash">🚀</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">97% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Crash X</h3>
+              <p>Hypersonic spacecraft ascent with dual autonomous ejection pods and global live chat.</p>
+              <button type="button" class="btn-game-preview" data-game="Crash X">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-roulette">🎯</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">97.3% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Mini Roulette</h3>
+              <p>Fast-action 12-number wheel. Place inside, corner, or color bets with quick round spins.</p>
+              <button type="button" class="btn-game-preview" data-game="Mini Roulette">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-slots">🎰</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">96.5% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Mega Slots</h3>
+              <p>5-reel video fruit slot featuring scatter symbols, multiplier wilds, and free spin bonus rounds.</p>
+              <button type="button" class="btn-game-preview" data-game="Mega Slots">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-blackjack">🃏</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">99.5% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Blackjack Pro</h3>
+              <p>Classic single-deck table. Hit, Stand, Double Down, or Split against the virtual dealer.</p>
+              <button type="button" class="btn-game-preview" data-game="Blackjack Pro">Notify Me</button>
+            </div>
+          </div>
+
+          <div class="casino-game-card">
+            <div class="game-card-art art-hilo">👑</div>
+            <div class="game-card-content">
+              <div class="game-meta-tags">
+                <span class="rtp-tag">98% RTP</span>
+                <span class="status-tag soon">Launching Soon</span>
+              </div>
+              <h3>Hi-Lo</h3>
+              <p>Guess whether the next playing card is higher or lower. Chain consecutive correct calls for big wins.</p>
+              <button type="button" class="btn-game-preview" data-game="Hi-Lo">Notify Me</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ==========================================================================
@@ -610,39 +989,48 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 2: ROUND HISTORY & PROVABLY FAIR SEEDS
+       MODAL 2: ROUND HISTORY & PROVABLY FAIR SEEDS (Matching Screenshot 2)
        ========================================================================== -->
   <div class="modal-backdrop" id="round-history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
     <div class="modal-dialog history-modal-dialog">
       <div class="modal-header">
         <div class="modal-header-title">
           <span class="history-title-icon">🕒</span>
-          <h2 id="history-modal-title">Game Round History</h2>
+          <h2 id="history-modal-title">Round History</h2>
         </div>
         <button class="btn-modal-close" id="btn-close-round-history" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <p class="modal-desc">
-          Browse all recent game multipliers. Click any round to verify its cryptographic SHA-256 hash and client/server seeds.
+        <p class="modal-desc" style="margin-bottom: 8px;">
+          Previous round crash multipliers. Click any coefficient to inspect its Provably Fair cryptographic SHA-256 seed.
         </p>
 
-        <div class="round-history-table-wrapper">
-          <table class="round-history-table">
-            <thead>
-              <tr>
-                <th>Round</th>
-                <th>Multiplier</th>
-                <th>Time</th>
-                <th>Server Hash</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="round-history-tbody">
-              <!-- Injected by history-bar.js -->
-            </tbody>
-          </table>
+        <!-- Compact Multiplier Grid (Matching Screenshot 2) -->
+        <div class="round-history-popup-grid" id="round-history-grid">
+          <!-- Injected by history-bar.js -->
         </div>
+
+        <!-- Detailed Table Toggle -->
+        <details style="margin-top: 14px; cursor: pointer;">
+          <summary style="font-weight: 700; color: #9aa1ad; font-size: 11px;">View Detailed Cryptographic Hash Table</summary>
+          <div class="round-history-table-wrapper" style="margin-top: 10px;">
+            <table class="round-history-table">
+              <thead>
+                <tr>
+                  <th>Round</th>
+                  <th>Multiplier</th>
+                  <th>Time</th>
+                  <th>Server Hash</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="round-history-tbody">
+                <!-- Injected by history-bar.js -->
+              </tbody>
+            </table>
+          </div>
+        </details>
       </div>
     </div>
   </div>
@@ -719,7 +1107,7 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 4: DEPOSIT FUNDS (M-PESA / AIRTEL / CARD / CRYPTO / DEMO)
+       MODAL 4: DEPOSIT FUNDS (PAYHERO M-PESA STK PUSH - MIN 49 BOB)
        ========================================================================== -->
   <div class="modal-backdrop" id="deposit-modal" role="dialog" aria-modal="true" aria-labelledby="deposit-modal-title">
     <div class="modal-dialog deposit-modal-dialog">
@@ -733,26 +1121,26 @@
           </div>
           <div>
             <h2 id="deposit-modal-title">Deposit Funds</h2>
-            <span class="deposit-subtitle">Instant wallet funding • Min KES 500.00</span>
+            <span class="deposit-subtitle">Instant PayHero M-PESA STK Push • Min 49 Bob</span>
           </div>
         </div>
         <button class="btn-modal-close" id="btn-close-deposit" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <!-- Minimum Deposit Notice Banner -->
+        <!-- Minimum Deposit Notice Banner (Strict 49 Bob) -->
         <div class="deposit-notice-banner">
-          <span class="notice-icon">🛡️</span>
+          <span class="notice-icon">⚡</span>
           <div class="notice-text">
-            <strong>Minimum Deposit: KES 500.00</strong>
-            <p>Deposited funds are credited instantly to your Aviator account wallet balance.</p>
+            <strong>Minimum Deposit: KES 49.00 (49 Bob)</strong>
+            <p>Powered by PayHero API. You will receive an instant M-PESA STK Push PIN prompt on your phone.</p>
           </div>
         </div>
 
         <!-- Payment Method Selector -->
         <div class="deposit-methods-bar">
           <button type="button" class="deposit-method-btn active" data-method="mpesa">
-            <span class="method-badge">LIPA NA</span>
+            <span class="method-badge">PAYHERO</span>
             <span class="method-name">M-PESA</span>
           </button>
           <button type="button" class="deposit-method-btn" data-method="airtel">
@@ -769,7 +1157,7 @@
           </button>
         </div>
 
-        <!-- Amount Selection -->
+        <!-- Amount Selection (With 49 Bob Highlighted) -->
         <div class="deposit-section">
           <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
           <div class="deposit-input-wrapper">
@@ -778,66 +1166,79 @@
               type="number" 
               id="deposit-amount-input" 
               class="deposit-amount-input" 
-              value="1000" 
-              min="500" 
-              step="100" 
-              placeholder="500" 
+              value="49" 
+              min="49" 
+              step="1" 
+              placeholder="49" 
             />
           </div>
 
-          <!-- Quick Presets -->
+          <!-- Quick Presets (Starting at 49 Bob) -->
           <div class="deposit-presets-grid">
+            <button type="button" class="btn-deposit-chip active" data-amount="49">KES 49 (49 Bob)</button>
+            <button type="button" class="btn-deposit-chip" data-amount="100">KES 100</button>
+            <button type="button" class="btn-deposit-chip" data-amount="200">KES 200</button>
             <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
-            <button type="button" class="btn-deposit-chip active" data-amount="1000">KES 1,000</button>
+            <button type="button" class="btn-deposit-chip" data-amount="1000">KES 1,000</button>
             <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
-            <button type="button" class="btn-deposit-chip" data-amount="5000">KES 5,000</button>
-            <button type="button" class="btn-deposit-chip" data-amount="10000">KES 10,000</button>
           </div>
         </div>
 
         <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
         <div class="deposit-section" id="deposit-phone-container">
-          <label class="deposit-label" for="deposit-phone-input">M-PESA Phone Number (STK Push):</label>
+          <label class="deposit-label" for="deposit-phone-input">M-PESA Phone Number (PayHero STK Push):</label>
           <div class="deposit-input-wrapper">
             <span class="deposit-currency-tag">🇰🇪</span>
             <input 
               type="tel" 
               id="deposit-phone-input" 
               class="deposit-amount-input" 
-              value="+254 7" 
-              placeholder="+254 7XX XXX XXX" 
+              value="0712345678" 
+              placeholder="07XX XXX XXX or 01XX XXX XXX" 
             />
           </div>
-          <span class="deposit-hint-text">You will receive an M-PESA PIN prompt on your phone for verification.</span>
+          <span class="deposit-hint-text">You will receive an M-PESA PIN prompt on this phone to authorize the deposit.</span>
+        </div>
+
+        <!-- PayHero STK Waiting Card (Shown during STK Push) -->
+        <div id="payhero-stk-waiting" class="payhero-stk-waiting-card" style="display: none;">
+          <div style="font-size: 26px; margin-bottom: 4px;">📲</div>
+          <strong style="color: #00e676; font-size: 13px;">M-PESA STK Push Sent to Your Phone!</strong>
+          <p style="font-size: 11px; color: #d1d5db; margin-top: 4px;">
+            Please enter your M-PESA PIN on your mobile phone to complete payment of <span id="stk-prompt-amount" style="color: #ffffff; font-weight: 800;">KES 49.00</span>.
+          </p>
+          <div style="font-size: 10px; color: #9aa1ad; margin-top: 6px;">
+            Transaction Ref: <span id="stk-prompt-ref" style="font-family: monospace;">PH_...</span>
+          </div>
         </div>
 
         <!-- Status / Error Feedback -->
-        <div id="deposit-status-msg" class="deposit-status-msg">
-          Minimum deposit allowed is KES 500.00.
-        </div>
+        <div id="deposit-status-msg" class="deposit-status-msg" style="display: none;"></div>
 
         <!-- Confirm Deposit Action -->
         <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
           <span class="btn-dep-icon">⚡</span>
-          <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 1,000.00</span>
+          <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 49.00 via PayHero</span>
         </button>
 
         <div class="deposit-security-footer">
-          <span>🔒 256-Bit SSL Encrypted • Instant Processing • Provably Fair Guaranteed</span>
+          <span>🔒 PayHero API Protected • 256-Bit SSL • Instant M-PESA Crediting</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ==========================================================================
-       MODAL 5: AVIATOR PHONE LOGIN & SIGN UP (100% FREE)
+       MODAL 5: PHONE AUTH & SESSION MANAGER (FIREBASE SPARK PLAN ONLY)
+       - Strictly Phone Number Login & Registration
+       - Password Reset strictly limited to 2 times a week
        ========================================================================== -->
   <div class="modal-backdrop" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <div class="modal-dialog auth-modal-dialog">
       <div class="modal-header">
         <div class="modal-header-title">
           <div class="auth-header-icon-box">
-            <!-- Red Stylized Aviator Monoplane -->
+            <!-- Stylized ShiftStack / Aviator Icon -->
             <svg width="24" height="20" viewBox="0 0 40 32" fill="none">
               <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" fill="#ff003b" />
               <path d="M16 16 L 24 3 L 28 4 L 21 16 Z" fill="#e00030" />
@@ -846,97 +1247,389 @@
             </svg>
           </div>
           <div>
-            <h2 id="auth-modal-title">Phone Login & Sign Up</h2>
-            <span class="auth-subtitle">100% Free • Enter phone number to play</span>
+            <h2 id="auth-modal-title">Phone Authentication</h2>
+            <span class="auth-subtitle">Firebase Spark Plan • Phone Number Access Only</span>
           </div>
         </div>
         <button class="btn-modal-close" id="btn-close-auth" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <!-- Free Bonus Notice -->
-        <div class="auth-phone-banner">
-          <span class="phone-banner-icon">🎁</span>
-          <div class="phone-banner-text">
-            <strong>Free 50,000 KES Instant Bankroll</strong>
-            <p>Enter your phone number to login or register automatically with 0 fees.</p>
-          </div>
+        <!-- Auth View Tabs: Login vs Register vs Reset Password -->
+        <div class="auth-tabs-row">
+          <button type="button" class="auth-tab-btn active" data-tab="login">Login</button>
+          <button type="button" class="auth-tab-btn" data-tab="register">Register</button>
+          <button type="button" class="auth-tab-btn" data-tab="reset">Reset Password</button>
         </div>
 
         <!-- Feedback Alert Banner -->
         <div id="auth-status-msg" class="auth-status-msg" style="display: none;"></div>
 
-        <!-- Phone Number Input Form -->
-        <div class="auth-phone-form">
+        <!-- TAB 1: PHONE LOGIN -->
+        <div id="auth-view-login" class="auth-tab-view">
           <div class="auth-form-group">
-            <label class="auth-label" for="auth-phone-input">Mobile Phone Number (M-PESA / Airtel):</label>
+            <label class="auth-label" for="auth-login-phone">Mobile Phone Number:</label>
             <div class="auth-phone-wrapper">
               <span class="auth-flag">🇰🇪</span>
               <input 
                 type="tel" 
-                id="auth-phone-input" 
+                id="auth-login-phone" 
                 class="auth-phone-field" 
-                value="+254 7" 
-                placeholder="+254 7XX XXX XXX or 07XX XXX XXX" 
+                value="0712345678" 
+                placeholder="07XX XXX XXX or +254 7XX XXX XXX" 
                 autocomplete="tel"
               />
             </div>
-            <span class="auth-hint">Enter your phone number. New numbers receive +KES 50,000 automatically.</span>
+          </div>
+
+          <div class="auth-form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label class="auth-label" for="auth-login-password" style="margin-bottom: 0;">Password / Security PIN:</label>
+              <a href="#" id="link-forgot-password" style="color: #00e676; font-size: 11px; text-decoration: none; font-weight: 600;">Forgot Password?</a>
+            </div>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="auth-login-password" 
+                class="auth-input" 
+                value="admin" 
+                placeholder="Enter your password" 
+                autocomplete="current-password"
+              />
+            </div>
           </div>
 
           <!-- Quick Test Numbers -->
           <div class="auth-quick-numbers">
-            <span class="quick-lbl">⚡ Quick Free Demo Accounts:</span>
+            <span class="quick-lbl">⚡ Quick Demo Accounts:</span>
             <div class="quick-chips-row">
-              <button type="button" class="btn-quick-phone-chip" data-phone="+254712345678">🇰🇪 0712 345 678 (VIP)</button>
-              <button type="button" class="btn-quick-phone-chip" data-phone="+254798765432">🇰🇪 0798 765 432 (Cadet)</button>
+              <button type="button" class="btn-quick-login-chip" data-phone="0712345678" data-pass="admin">🇰🇪 0712 345 678 (VIP Pilot)</button>
+              <button type="button" class="btn-quick-login-chip" data-phone="0798765432" data-pass="admin">🇰🇪 0798 765 432 (Cadet)</button>
             </div>
           </div>
 
-          <!-- Optional Free SMS Verification Toggle -->
-          <div class="auth-otp-section" id="auth-otp-section" style="display: none;">
-            <div class="auth-simulated-sms-card" id="auth-simulated-sms-card">
+          <button type="button" class="btn-auth-submit" id="btn-submit-phone-login">
+            <span class="btn-text">⚡ Login with Phone Number</span>
+          </button>
+
+          <div class="auth-form-links" style="justify-content: center; margin-top: 14px;">
+            <span>Don't have an account? <a href="#" class="link-go-to-register">Create Account</a></span>
+          </div>
+        </div>
+
+        <!-- TAB 2: PHONE REGISTRATION -->
+        <div id="auth-view-register" class="auth-tab-view" style="display: none;">
+          <div class="auth-phone-banner" style="margin-bottom: 12px;">
+            <span class="phone-banner-icon">🎁</span>
+            <div class="phone-banner-text">
+              <strong>Free KES 49,980 Starting Bankroll</strong>
+              <p>Register with your Kenyan phone number to receive instant demo bankroll.</p>
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-phone">Mobile Phone Number:</label>
+            <div class="auth-phone-wrapper">
+              <span class="auth-flag">🇰🇪</span>
+              <input 
+                type="tel" 
+                id="auth-reg-phone" 
+                class="auth-phone-field" 
+                placeholder="07XX XXX XXX or 01XX XXX XXX" 
+                autocomplete="tel"
+              />
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-password">Create Password (min 4 characters):</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔑</span>
+              <input 
+                type="password" 
+                id="auth-reg-password" 
+                class="auth-input" 
+                placeholder="Choose a password" 
+                autocomplete="new-password"
+              />
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-confirm-password">Confirm Password:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="auth-reg-confirm-password" 
+                class="auth-input" 
+                placeholder="Re-enter password" 
+                autocomplete="new-password"
+              />
+            </div>
+          </div>
+
+          <button type="button" class="btn-auth-submit" id="btn-submit-phone-register">
+            <span class="btn-text">🚀 Register Account & Start Playing</span>
+          </button>
+
+          <div class="auth-form-links" style="justify-content: center; margin-top: 14px;">
+            <span>Already registered? <a href="#" class="link-back-to-login">Login with Phone</a></span>
+          </div>
+        </div>
+
+        <!-- TAB 3: PASSWORD RESET (STRICT MAX 2x PER WEEK LIMIT) -->
+        <div id="auth-view-reset" class="auth-tab-view" style="display: none;">
+          <!-- Weekly Reset Rate Limit Info Box -->
+          <div class="reset-rate-limit-card">
+            <span class="reset-limit-badge badge-active" id="reset-limit-badge">Weekly Limit: Max 2 Resets</span>
+            <div class="reset-limit-desc" id="reset-limit-info-text">
+              Firebase Spark Plan Security: Password resets are strictly limited to <strong>2 times per rolling week</strong> per phone number.
+            </div>
+          </div>
+
+          <!-- Step 1: Enter Phone Number -->
+          <div id="reset-step-1">
+            <div class="auth-form-group">
+              <label class="auth-label" for="auth-reset-phone">Registered Phone Number:</label>
+              <div class="auth-phone-wrapper">
+                <span class="auth-flag">🇰🇪</span>
+                <input 
+                  type="tel" 
+                  id="auth-reset-phone" 
+                  class="auth-phone-field" 
+                  placeholder="07XX XXX XXX" 
+                  autocomplete="tel"
+                />
+              </div>
+              <span class="auth-hint">Enter your phone number to verify remaining weekly reset quota.</span>
+            </div>
+
+            <button type="button" class="btn-auth-submit" id="btn-request-reset-code">
+              <span>Verify Quota & Send Reset Code</span>
+            </button>
+          </div>
+
+          <!-- Step 2: Verification Code & New Password -->
+          <div id="reset-step-2" style="display: none;">
+            <div class="auth-simulated-sms-card" style="margin-bottom: 12px;">
               <div class="sms-card-header">
-                <span class="sms-badge">FREE SMS GATEWAY</span>
+                <span class="sms-badge">SECURITY VERIFICATION CODE</span>
                 <span class="sms-time">Just Now</span>
               </div>
-              <p class="sms-body">Your Aviator Verification Code is: <strong id="simulated-otp-code">----</strong></p>
-              <button type="button" class="btn-autofill-otp" id="btn-autofill-otp">⚡ Auto-Fill Code</button>
+              <p class="sms-body">Your Password Reset Code is: <strong id="simulated-reset-otp-code">----</strong></p>
+              <button type="button" class="btn-autofill-otp" id="btn-autofill-reset-otp">⚡ Auto-Fill Code</button>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="auth-otp-input">Enter 4-Digit Verification Code:</label>
+              <label class="auth-label" for="auth-reset-otp">Enter 4-Digit Verification Code:</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔑</span>
                 <input 
                   type="text" 
-                  id="auth-otp-input" 
+                  id="auth-reset-otp" 
                   class="auth-input otp-digit-input" 
-                  placeholder="Enter 4-digit code" 
+                  placeholder="4-digit code" 
                   maxlength="4" 
-                  autocomplete="one-time-code"
                 />
               </div>
             </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="auth-reset-new-password">New Password:</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔒</span>
+                <input 
+                  type="password" 
+                  id="auth-reset-new-password" 
+                  class="auth-input" 
+                  placeholder="Enter new password" 
+                />
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="auth-reset-confirm-password">Confirm New Password:</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔒</span>
+                <input 
+                  type="password" 
+                  id="auth-reset-confirm-password" 
+                  class="auth-input" 
+                  placeholder="Re-enter new password" 
+                />
+              </div>
+            </div>
+
+            <button type="button" class="btn-auth-submit" id="btn-complete-password-reset">
+              <span>Set New Password (Uses 1 Weekly Reset)</span>
+            </button>
           </div>
 
-          <!-- Primary Submit Action Button -->
-          <button type="button" class="btn-auth-submit" id="btn-submit-phone-auth">
-            <span class="btn-text">⚡ Continue with Phone (Instant & Free)</span>
-          </button>
-
-          <!-- Free OTP Toggle Button -->
-          <button type="button" class="btn-toggle-free-otp" id="btn-toggle-free-otp">
-            💬 Or verify with Free SMS OTP
-          </button>
+          <div class="auth-form-links" style="justify-content: center; margin-top: 14px;">
+            <a href="#" class="link-back-to-login">← Back to Login</a>
+          </div>
         </div>
 
         <div class="auth-security-footer">
-          <span>🔒 100% Free • No Charges • Provably Fair Guaranteed</span>
+          <span>🔒 Firebase Spark Plan Protected • Rate-Limited Authentication • Free Tier Compliant</span>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- ==========================================================================
+       MODAL 6: GAME LIMITS (From Hamburger Menu)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="game-limits-modal" role="dialog" aria-modal="true" aria-labelledby="limits-modal-title">
+    <div class="modal-dialog" style="max-width: 420px;">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span style="font-size: 20px;">💵</span>
+          <h2 id="limits-modal-title">Game Limits</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-limits" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+            <span style="color: #9aa1ad;">Minimum Bet:</span>
+            <strong style="color: #ffffff;">KES 100.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+            <span style="color: #9aa1ad;">Maximum Bet:</span>
+            <strong style="color: #ffffff;">KES 100,000.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+            <span style="color: #9aa1ad;">Minimum Deposit (PayHero):</span>
+            <strong style="color: #22c55e;">KES 49.00 (49 Bob)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+            <span style="color: #9aa1ad;">Maximum Cashout per Bet:</span>
+            <strong style="color: #ffffff;">KES 10,000,000.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+            <span style="color: #9aa1ad;">Password Reset Frequency:</span>
+            <strong style="color: #f59e0b;">Max 2 times per week</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 7: GAME RULES (From Hamburger Menu)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="game-rules-modal" role="dialog" aria-modal="true" aria-labelledby="rules-modal-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span style="font-size: 20px;">📄</span>
+          <h2 id="rules-modal-title">Game Rules</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-rules" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 12px; line-height: 1.6; color: #d1d5db;">
+        <p><strong>1. Round Progression:</strong> The multiplier coefficient starts at 1.00x and climbs higher until the plane flies away.</p>
+        <p><strong>2. Winnings:</strong> If you cash out before the lucky plane flies away, your payout equals your bet amount multiplied by the exact cashout multiplier.</p>
+        <p><strong>3. Provably Fair:</strong> The crash coefficient for each round is generated using a combination of the server seed and client seeds, cryptographically verified with SHA-256.</p>
+        <p><strong>4. Auto Cash Out:</strong> Players can configure an automatic cash out target from 1.01x up to 10,000x.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 8: FREE BETS (From Hamburger Menu)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="free-bets-modal" role="dialog" aria-modal="true" aria-labelledby="freebets-modal-title">
+    <div class="modal-dialog" style="max-width: 420px;">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span style="font-size: 20px;">⭐</span>
+          <h2 id="freebets-modal-title">Free Bets & Rain</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-free-bets" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 12px;">
+          <strong style="color: #22c55e; font-size: 14px;">Active Pilot Bonus: 2 Free Bets Available</strong>
+          <p style="font-size: 11px; color: #9aa1ad; margin-top: 4px;">Free bets are automatically applied to your next round terminal stake.</p>
+        </div>
+        <button type="button" class="btn-confirm-deposit" id="btn-claim-free-bet" style="margin-top: 6px;">
+          <span>Claim Free Bet Rain</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 9: CHANGE AVATAR (From Hamburger Menu)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="change-avatar-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title">
+    <div class="modal-dialog" style="max-width: 380px;">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span style="font-size: 20px;">👤</span>
+          <h2 id="avatar-modal-title">Choose Your Pilot Avatar</h2>
+        </div>
+        <button class="btn-modal-close" id="btn-close-avatar" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;">
+          <button type="button" class="btn-avatar-choice" data-avatar="✈️" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid #22c55e; border-radius: 10px; cursor: pointer;">✈️</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="🎈" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">🎈</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="👑" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">👑</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="🍀" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">🍀</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="🚀" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">🚀</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="💎" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">💎</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="🦁" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">🦁</button>
+          <button type="button" class="btn-avatar-choice" data-avatar="🦅" style="font-size: 28px; padding: 10px; background: #1e2028; border: 2px solid transparent; border-radius: 10px; cursor: pointer;">🦅</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       FIXED BOTTOM NAVIGATION BAR (ShiftStack Platform)
+       Aviator | Home (Account Info & Actions) | Sports (Soon) | Casino (New)
+       ========================================================================== -->
+  <nav class="shiftstack-bottom-nav kessbet-bottom-nav" id="shiftstack-bottom-nav">
+    <button type="button" class="bottom-nav-item active" id="bnav-aviator" title="Aviator Game">
+      <div class="bnav-badge-pill" id="bnav-live-multiplier">● 25.0x</div>
+      <svg width="22" height="22" viewBox="0 0 40 32" fill="#22c55e">
+        <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" />
+      </svg>
+      <span style="color:#22c55e; font-weight:700;">Aviator</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bnav-home" title="Account Info & Actions">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+      <span>Home</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bnav-sports" title="Sportsbook (Coming Soon)">
+      <span class="bnav-sub-badge">Soon</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+        <path d="M2 12h20"></path>
+      </svg>
+      <span>Sports</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bnav-casino" title="Casino Games (Launching Soon)">
+      <span class="bnav-sub-badge">New</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <circle cx="8" cy="8" r="1.5" fill="currentColor"></circle>
+        <circle cx="16" cy="8" r="1.5" fill="currentColor"></circle>
+        <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+        <circle cx="8" cy="16" r="1.5" fill="currentColor"></circle>
+        <circle cx="16" cy="16" r="1.5" fill="currentColor"></circle>
+      </svg>
+      <span>Casino</span>
+    </button>
+  </nav>
 
   <!-- Main JavaScript App Entry -->
   <script type="module" src="js/app.js"></script>
