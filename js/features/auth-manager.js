@@ -454,7 +454,7 @@ export class AuthManager {
       return false;
     }
 
-    this.setStatus('Creating account and saving to database...', false);
+    this.setStatus('Creating account...', false);
 
     try {
       const hashed = await hashPassword(rawPassword.trim());
@@ -502,7 +502,7 @@ export class AuthManager {
       this.closeAuthModal();
       this.resetRegistrationForm();
       this.soundEngine?.playCashout();
-      this.showToast(`🎉 Welcome ${this.maskPhone(newUser.phone)}! Account registered & saved in database.`);
+      this.showToast(`Welcome ${this.maskPhone(newUser.phone)}!`);
       if (this.onAuthChange) this.onAuthChange(this.user);
       return true;
     } catch (err) {
@@ -512,16 +512,16 @@ export class AuthManager {
   }
 
   /**
-   * Password Reset Flow via Firebase Phone OTP (Strict Max 2 times per week)
+   * Password Reset Flow via Phone OTP
    */
   async requestResetVerification(rawPhone) {
     const normPhone = this.normalizePhoneNumber(rawPhone);
     if (!normPhone || normPhone.length < 10) {
-      this.setStatus('Please enter your registered mobile phone number.');
+      this.setStatus('Please enter your mobile phone number.');
       return false;
     }
 
-    // Check rate limit in SQLite backend
+    // Check rate limit in backend
     try {
       const rateRes = await fetch('/api/auth/reset-password', {
         method: 'POST',
@@ -530,12 +530,7 @@ export class AuthManager {
       });
       const rateData = await rateRes.json();
       if (!rateData.success && rateData.error === 'RATE_LIMIT_EXCEEDED') {
-        this.setStatus(
-          `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
-          `Password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
-          `Attempts in past week: ${rateData.attemptsInPastWeek}/${rateData.maxAllowed}.<br>` +
-          `Please try again later or contact support.`
-        );
+        this.setStatus('Too many reset attempts. Please try again later.');
         this.soundEngine?.playClick();
         return false;
       }
@@ -547,26 +542,18 @@ export class AuthManager {
     if (user) {
       const limitCheck = this.checkResetLimit(user);
       if (!limitCheck.allowed) {
-        const nextDateStr = limitCheck.nextAllowedDate.toLocaleDateString(undefined, {
-          weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
-        this.setStatus(
-          `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
-          `Password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
-          `You have used ${limitCheck.usedCount}/${limitCheck.maxCount} resets.<br>` +
-          `Your next password reset will be available on: <strong>${nextDateStr}</strong>.`
-        );
+        this.setStatus('Too many reset attempts. Please try again later.');
         this.soundEngine?.playClick();
         return false;
       }
     }
 
-    this.setStatus('Sending Firebase verification code (OTP)...', false);
+    this.setStatus('Sending verification code...', false);
 
     try {
       const res = await sendFirebasePhoneOtp(normPhone, 'recaptcha-container-reset');
       if (!res || !res.success) {
-        this.setStatus('Failed to send verification code. Please check your phone number and try again.');
+        this.setStatus('Failed to send verification code. Please check your number.');
         return false;
       }
 
@@ -592,11 +579,11 @@ export class AuthManager {
         if (autofillRow) autofillRow.style.display = 'none';
       }
 
-      this.setStatus(`Firebase OTP code sent to ${this.maskPhone(normPhone)}. Enter the code and your new password below.`, false);
+      this.setStatus(`Verification code sent to ${this.maskPhone(normPhone)}.`, false);
       this.soundEngine?.playClick();
       return true;
     } catch (err) {
-      this.setStatus(`Firebase Auth error: ${err.message}`);
+      this.setStatus(`Error sending code: ${err.message}`);
       return false;
     }
   }
@@ -610,28 +597,28 @@ export class AuthManager {
 
     const code = String(rawOtp || '').trim();
     if (!code || code.length < 4) {
-      this.setStatus('Please enter the verification code received on your phone.');
+      this.setStatus('Please enter the verification code.');
       return false;
     }
 
     if (!newPassword || newPassword.length < 4) {
-      this.setStatus('New password must be at least 4 characters long.');
+      this.setStatus('Password must be at least 4 characters.');
       return false;
     }
 
     if (newPassword !== confirmNewPassword) {
-      this.setStatus('Passwords do not match. Please re-enter your new password to confirm.');
+      this.setStatus('Passwords do not match.');
       return false;
     }
 
-    this.setStatus('Verifying Firebase OTP and updating password in database...', false);
+    this.setStatus('Resetting password...', false);
 
     try {
       // 1. Confirm OTP via Firebase
       if (this.pendingResetConfirmation && typeof this.pendingResetConfirmation.confirm === 'function') {
         await this.pendingResetConfirmation.confirm(code);
       } else if (this.resetOtpCode && code !== this.resetOtpCode) {
-        throw new Error(`Incorrect verification code. Please enter the code received (${this.resetOtpCode}).`);
+        throw new Error(`Incorrect verification code.`);
       }
 
       // 2. Hash new password
@@ -650,10 +637,10 @@ export class AuthManager {
         this.recordPasswordReset(user);
       }
 
-      this.showToast('✅ Password reset successfully via Firebase OTP! You can now log in.');
+      this.showToast('Password reset successfully! You can now log in.');
       this.resetResetForm();
       this.switchTab('login');
-      this.setStatus('Password updated in database! You can now log in with your new password.', false);
+      this.setStatus('Password updated! Please log in with your new password.', false);
       this.soundEngine?.playCashout();
       return true;
     } catch (err) {
