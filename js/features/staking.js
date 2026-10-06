@@ -24,10 +24,12 @@ export class StakingTerminalManager {
     this.demoBalance = savedDemo !== null ? parseFloat(savedDemo) : initialBalance;
     this.realBalance = savedReal !== null ? parseFloat(savedReal) : 0.0;
 
-    // Active user phone for database sync
+    // Active user phone and account tracking for database sync
     this.userPhone = typeof localStorage !== 'undefined'
       ? (localStorage.getItem('shiftstack_user_phone') || '254712345678')
       : '254712345678';
+    this.hasAccount = !!this.userPhone;
+    this.userAccount = null;
 
     this.currentRoundNonce = 0;
 
@@ -121,10 +123,39 @@ export class StakingTerminalManager {
 
   setUserPhone(phone) {
     this.userPhone = phone;
+    this.hasAccount = !!phone;
     if (typeof localStorage !== 'undefined' && phone) {
       localStorage.setItem('shiftstack_user_phone', phone);
     }
     this.syncWalletWithServer();
+  }
+
+  setAccount(user) {
+    if (user) {
+      this.hasAccount = true;
+      this.userAccount = user;
+      if (user.phone) {
+        this.setUserPhone(user.phone);
+      }
+      if (typeof user.balance === 'number' && !isNaN(user.balance)) {
+        this.demoBalance = user.balance;
+      }
+      this.saveBalance();
+    } else {
+      this.clearAccount();
+    }
+  }
+
+  clearAccount() {
+    this.hasAccount = false;
+    this.userAccount = null;
+    this.userPhone = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('shiftstack_user_phone');
+    }
+    if (this.onBalanceChange) {
+      this.onBalanceChange(this.balance, this.gameMode);
+    }
   }
 
   async syncWalletWithServer() {
@@ -261,6 +292,15 @@ export class StakingTerminalManager {
   placeStake(id) {
     const t = this.terminals[id];
     if (!t || t.staked || this.gameState !== 'WAITING') return { success: false, reason: 'NOT_WAITING' };
+
+    // Both Demo and Real Money modes strictly require an active account
+    if (!this.hasAccount || !this.userPhone) {
+      return {
+        success: false,
+        reason: 'ACCOUNT_REQUIRED',
+        message: 'An account is required to play Demo mode. Please login or register with your phone number.'
+      };
+    }
 
     // Minimum bet rule strictly 100 KES
     if (t.amount < 100) {

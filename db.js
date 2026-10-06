@@ -3,7 +3,7 @@
  * Uses Node.js native DatabaseSync (node:sqlite) for zero-dependency,
  * ACID-compliant, persistent storage of:
  * - Users & Auth credentials
- * - Real Money Balances (M-PESA) & Demo Balances (50,000 KES guest)
+ * - Real Money Balances (M-PESA) & Demo Balances (50,000 KES Demo Bankroll per Account)
  * - PayHero M-PESA Deposits Ledger (Min 49 Bob)
  * - Real Money & Demo Game Bets Ledger
  * - Password Reset Rate Limiter (strictly max 2 resets per rolling week)
@@ -131,7 +131,7 @@ const DatabaseService = {
   getBalances(phone) {
     const norm = normalizePhone(phone);
     if (!norm) {
-      return { phone: 'guest', realBalance: 0.0, demoBalance: 50000.0 };
+      return { phone: '', realBalance: 0.0, demoBalance: 50000.0 };
     }
     const user = this.getUser(norm);
     if (user) {

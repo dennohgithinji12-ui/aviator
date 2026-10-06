@@ -428,7 +428,18 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body || '{}');
-        const phone = data.phone || '254712345678';
+        const phone = data.phone ? String(data.phone).trim() : '';
+        if (!phone || phone === 'guest') {
+          res.writeHead(401, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          return res.end(JSON.stringify({
+            success: false,
+            code: 'ACCOUNT_REQUIRED',
+            message: 'An active account is required to place bets in Demo and Real money modes. Please login or register with your phone number.'
+          }));
+        }
         const mode = (data.mode === 'REAL') ? 'REAL' : 'DEMO';
         const amount = Math.max(100, parseFloat(data.amount) || 100);
         const terminalId = parseInt(data.terminalId) || 1;

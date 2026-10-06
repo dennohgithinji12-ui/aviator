@@ -144,25 +144,46 @@ export class AuthManager {
   restoreSession() {
     try {
       const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
+      const explicitlyLoggedOut = localStorage.getItem('aviator_explicit_logout') === 'true';
+      const users = this.getAllUsers();
+      let found = null;
+
       if (sessionId) {
-        const users = this.getAllUsers();
-        const found = users.find(u => String(u.id) === String(sessionId) || u.phone === sessionId);
-        if (found) {
-          this.user = found;
-          if (typeof found.balance === 'number' && !isNaN(found.balance)) {
-            this.stakingManager.balance = found.balance;
-            this.stakingManager.saveBalance();
-          }
-          this.renderLoggedIn();
-          if (this.onAuthChange) this.onAuthChange(this.user);
-          return;
+        found = users.find(u => String(u.id) === String(sessionId) || u.phone === sessionId);
+      }
+
+      // Demo must have an account:
+      // If no saved session exists and the user hasn't explicitly clicked sign out,
+      // automatically activate the primary Demo Account (#849201, +254 712 345 678)
+      // so new and returning pilots always have a registered Demo Account out of the box!
+      if (!found && !explicitlyLoggedOut) {
+        found = users[0] || DEFAULT_DEMO_USERS[0];
+        try {
+          localStorage.setItem(STORAGE_SESSION_KEY, String(found.id));
+        } catch (e) {}
+      }
+
+      if (found) {
+        this.user = found;
+        if (typeof found.balance === 'number' && !isNaN(found.balance)) {
+          this.stakingManager.balance = found.balance;
         }
+        if (this.stakingManager.setAccount) {
+          this.stakingManager.setAccount(this.user);
+        }
+        this.stakingManager.saveBalance();
+        this.renderLoggedIn();
+        if (this.onAuthChange) this.onAuthChange(this.user);
+        return;
       }
     } catch (e) {
       console.warn('[AuthManager] Session restore notice:', e);
     }
 
     this.user = null;
+    if (this.stakingManager.clearAccount) {
+      this.stakingManager.clearAccount();
+    }
     this.renderLoggedOut();
     if (this.onAuthChange) this.onAuthChange(null);
   }
@@ -365,9 +386,13 @@ export class AuthManager {
     user.lastLogin = Date.now();
     this.user = user;
     try {
+      localStorage.removeItem('aviator_explicit_logout');
       localStorage.setItem(STORAGE_SESSION_KEY, String(user.id));
     } catch (e) {}
 
+    if (this.stakingManager.setAccount) {
+      this.stakingManager.setAccount(this.user);
+    }
     if (typeof user.balance === 'number' && !isNaN(user.balance)) {
       this.stakingManager.balance = user.balance;
       this.stakingManager.saveBalance();
@@ -429,9 +454,13 @@ export class AuthManager {
 
     this.user = newUser;
     try {
+      localStorage.removeItem('aviator_explicit_logout');
       localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
     } catch (e) {}
 
+    if (this.stakingManager.setAccount) {
+      this.stakingManager.setAccount(this.user);
+    }
     this.stakingManager.balance = newUser.balance;
     this.stakingManager.saveBalance();
 
@@ -562,12 +591,16 @@ export class AuthManager {
     }
 
     try {
+      localStorage.setItem('aviator_explicit_logout', 'true');
       localStorage.removeItem(STORAGE_SESSION_KEY);
     } catch (e) {}
 
     this.user = null;
+    if (this.stakingManager.clearAccount) {
+      this.stakingManager.clearAccount();
+    }
     this.renderLoggedOut();
-    this.showToast('You have signed out.');
+    this.showToast('You have signed out. An account is required to place bets.');
     if (this.onAuthChange) this.onAuthChange(null);
   }
 
@@ -575,23 +608,24 @@ export class AuthManager {
     const phone = this.user?.phone || '+254712345678';
     const masked = this.maskPhone(phone);
     const username = this.user?.username || 'demo_58232';
+    const userId = this.user?.id || '849201';
 
     // Update hamburger menu user info
     const menuUsername = document.getElementById('menu-username-display');
     if (menuUsername) menuUsername.textContent = username;
 
     const menuPhone = document.getElementById('menu-phone-display');
-    if (menuPhone) menuPhone.textContent = masked;
+    if (menuPhone) menuPhone.textContent = `${masked} • #${userId}`;
 
     // Update Account Hub elements (view-home)
     const homeName = document.getElementById('home-account-name');
-    if (homeName) homeName.textContent = username;
+    if (homeName) homeName.textContent = `${username} (ID #${userId})`;
 
     const homePhone = document.getElementById('home-account-phone');
-    if (homePhone) homePhone.textContent = masked;
+    if (homePhone) homePhone.textContent = `${masked} • Registered Demo Account`;
 
     const homeStatus = document.getElementById('home-account-status');
-    if (homeStatus) homeStatus.textContent = 'Verified ShiftStack Pilot';
+    if (homeStatus) homeStatus.textContent = 'Demo Account Active • Verified';
 
     const homeAuthBtn = document.getElementById('home-btn-auth-action');
     if (homeAuthBtn) {
@@ -614,21 +648,20 @@ export class AuthManager {
     if (userPillWrapper) {
       userPillWrapper.style.display = 'flex';
       userPillWrapper.innerHTML = `
-        <div class="shiftstack-user-pill" id="shiftstack-user-pill" title="ShiftStack Account: ${phone}">
+        <div class="shiftstack-user-pill" id="shiftstack-user-pill" title="Demo Account #${userId} (${phone})">
           <span class="user-avatar-circle">✈️</span>
           <span class="user-name-tag desktop-only">${username}</span>
+          <span class="user-demo-tag">#${userId}</span>
         </div>
       `;
+      userPillWrapper.onclick = () => {
+        const navHome = document.querySelector('[data-view="home"], #nav-btn-home');
+        if (navHome) navHome.click();
+      };
     }
   }
 
   renderLoggedOut() {
-    // Ensure demo clients have KES 50,000.00 ready out of the box
-    if (!this.stakingManager.balance || isNaN(this.stakingManager.balance) || this.stakingManager.balance <= 0) {
-      this.stakingManager.balance = 50000.00;
-      this.stakingManager.saveBalance();
-    }
-
     const loginRegisterBtn = document.getElementById('header-btn-login-register');
     if (loginRegisterBtn) {
       loginRegisterBtn.style.display = 'inline-flex';
@@ -641,23 +674,23 @@ export class AuthManager {
 
     const menuUsername = document.getElementById('menu-username-display');
     if (menuUsername) {
-      menuUsername.textContent = 'Guest Pilot (Demo)';
+      menuUsername.textContent = 'Account Required';
     }
 
     const menuPhone = document.getElementById('menu-phone-display');
     if (menuPhone) {
-      menuPhone.textContent = 'Play Demo • Login to Save';
+      menuPhone.textContent = 'Sign In / Register to Play';
     }
 
     // Update Account Hub elements (view-home)
     const homeName = document.getElementById('home-account-name');
-    if (homeName) homeName.textContent = 'Guest Pilot (Demo Mode)';
+    if (homeName) homeName.textContent = 'Account Required to Play';
 
     const homePhone = document.getElementById('home-account-phone');
-    if (homePhone) homePhone.textContent = 'Free Demo Account • No Registration Required';
+    if (homePhone) homePhone.textContent = 'Login or Register with Phone Number to Play Demo';
 
     const homeStatus = document.getElementById('home-account-status');
-    if (homeStatus) homeStatus.textContent = '🎮 Unregistered Client (Free Demo Active)';
+    if (homeStatus) homeStatus.textContent = '🔒 Account Required';
 
     const homeAuthBtn = document.getElementById('home-btn-auth-action');
     if (homeAuthBtn) {
