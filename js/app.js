@@ -987,7 +987,7 @@ class AviatorApp {
           const res = this.stakingManager.handleActionClick(id);
           if (res && res.success === false) {
             if (res.reason === 'ACCOUNT_REQUIRED') {
-              this.authManager?.showToast('🔒 An account is required to play Demo mode. Please login or register with your phone number.');
+              this.authManager?.showToast('🔒 Login required for Real Money mode. Demo play is free!');
               this.authManager?.openAuthModal('login');
             } else if (res.reason === 'INSUFFICIENT_REAL_FUNDS') {
               this.authManager?.showToast(`⚠️ Insufficient Real Money Balance (KES ${res.balance.toFixed(2)}). Please deposit at least KES 49.00 via PayHero M-PESA to place this KES ${this.stakingManager.getTerminal(id).amount} bet.`);

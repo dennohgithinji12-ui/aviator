@@ -293,12 +293,12 @@ export class StakingTerminalManager {
     const t = this.terminals[id];
     if (!t || t.staked || this.gameState !== 'WAITING') return { success: false, reason: 'NOT_WAITING' };
 
-    // Both Demo and Real Money modes strictly require an active account
-    if (!this.hasAccount || !this.userPhone) {
+    // Real Money mode strictly requires an active account; demo mode is open to all
+    if (this.gameMode === 'REAL' && (!this.hasAccount || !this.userPhone)) {
       return {
         success: false,
         reason: 'ACCOUNT_REQUIRED',
-        message: 'An account is required to play Demo mode. Please login or register with your phone number.'
+        message: 'Please login or register to use Real Money mode.'
       };
     }
 

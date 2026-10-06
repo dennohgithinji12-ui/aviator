@@ -115,6 +115,18 @@ export class AuthManager {
           localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_DEMO_USERS));
         }
       }
+
+      // Clear any old auto-stored demo session from previous build
+      // so users who never explicitly logged in see the Login button
+      const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
+      const hasRealSession = localStorage.getItem('aviator_explicit_login') === 'true';
+      if (sessionId && !hasRealSession) {
+        // Check if this session matches a default demo user id
+        const isDemoDefault = DEFAULT_DEMO_USERS.some(u => String(u.id) === String(sessionId));
+        if (isDemoDefault) {
+          localStorage.removeItem(STORAGE_SESSION_KEY);
+        }
+      }
     } catch (e) {
       console.warn('[AuthManager] Local storage init notice:', e);
     }
@@ -150,23 +162,11 @@ export class AuthManager {
   restoreSession() {
     try {
       const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
-      const explicitlyLoggedOut = localStorage.getItem('aviator_explicit_logout') === 'true';
       const users = this.getAllUsers();
       let found = null;
 
       if (sessionId) {
         found = users.find(u => String(u.id) === String(sessionId) || u.phone === sessionId);
-      }
-
-      // Demo must have an account:
-      // If no saved session exists and the user hasn't explicitly clicked sign out,
-      // automatically activate the primary Demo Account (#849201, +254 712 345 678)
-      // so new and returning pilots always have a registered Demo Account out of the box!
-      if (!found && !explicitlyLoggedOut) {
-        found = users[0] || DEFAULT_DEMO_USERS[0];
-        try {
-          localStorage.setItem(STORAGE_SESSION_KEY, String(found.id));
-        } catch (e) {}
       }
 
       if (found) {
@@ -186,6 +186,7 @@ export class AuthManager {
       console.warn('[AuthManager] Session restore notice:', e);
     }
 
+    // No session found — start as guest (demo play allowed, login button visible)
     this.user = null;
     if (this.stakingManager.clearAccount) {
       this.stakingManager.clearAccount();
@@ -398,6 +399,7 @@ export class AuthManager {
     this.user = user;
     try {
       localStorage.removeItem('aviator_explicit_logout');
+      localStorage.setItem('aviator_explicit_login', 'true');
       localStorage.setItem(STORAGE_SESSION_KEY, String(user.id));
     } catch (e) {}
 
@@ -489,6 +491,7 @@ export class AuthManager {
       this.user = newUser;
       try {
         localStorage.removeItem('aviator_explicit_logout');
+        localStorage.setItem('aviator_explicit_login', 'true');
         localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
       } catch (e) {}
 
@@ -678,6 +681,7 @@ export class AuthManager {
 
     try {
       localStorage.setItem('aviator_explicit_logout', 'true');
+      localStorage.removeItem('aviator_explicit_login');
       localStorage.removeItem(STORAGE_SESSION_KEY);
     } catch (e) {}
 
