@@ -664,7 +664,6 @@ export class AuthManager {
     const p2 = document.getElementById('auth-reset-confirm-password');
     if (p2) p2.value = '';
   }
-  }
 
   logout() {
     this.soundEngine?.playClick();
