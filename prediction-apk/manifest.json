@@ -1,7 +1,7 @@
 {
-  "name": "Aviator Predictor VIP 100% | Exact Crash Stop",
-  "short_name": "Aviator VIP",
-  "description": "High-Precision 100% Accuracy Aviator VIP Crash Stop Radar & Telemetry Signal Engine",
+  "name": "Aviator Predictor VIP v2.0 | Exact Crash Stop Radar",
+  "short_name": "Aviator VIP v2",
+  "description": "High-Precision 100% Accuracy Aviator VIP v2.0 Crash Stop Radar & Telemetry Signal Engine",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

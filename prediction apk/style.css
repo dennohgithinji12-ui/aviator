@@ -49,6 +49,7 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -472,6 +473,7 @@ html, body {
   align-items: center;
   text-align: center;
   background: rgba(5, 6, 8, 0.78);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   padding: 10px 14px;
   border-radius: var(--radius-md);
@@ -992,6 +994,7 @@ html, body {
   max-width: 460px;
   height: 64px;
   background: rgba(8, 10, 15, 0.95);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-top: 1.5px solid var(--gold-border);
   display: flex;
@@ -1042,6 +1045,7 @@ html, body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
