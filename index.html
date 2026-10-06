@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ShiftStack Aviator - Official Spribe Crash Simulator & Phone Authentication</title>
   <meta name="description" content="ShiftStack Aviator: Real-time crash flight engine, phone number login with Firebase Spark Plan, 49 Bob minimum deposit with PayHero API, dual betting terminals, and live stakers.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -127,8 +127,8 @@
               <span style="font-size:15px;">🔊</span>
               <span>Sound</span>
             </div>
-            <label class="spribe-switch">
-              <input type="checkbox" id="menu-switch-sound" checked>
+            <label class="spribe-switch" aria-label="Toggle Sound">
+              <input type="checkbox" id="menu-switch-sound" title="Toggle Sound" aria-label="Toggle Sound" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
@@ -137,8 +137,8 @@
               <span style="font-size:15px;">🎵</span>
               <span>Music</span>
             </div>
-            <label class="spribe-switch">
-              <input type="checkbox" id="menu-switch-music" checked>
+            <label class="spribe-switch" aria-label="Toggle Music">
+              <input type="checkbox" id="menu-switch-music" title="Toggle Music" aria-label="Toggle Music" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
@@ -147,8 +147,8 @@
               <span style="font-size:15px;">🌀</span>
               <span>Animation</span>
             </div>
-            <label class="spribe-switch">
-              <input type="checkbox" id="menu-switch-anim" checked>
+            <label class="spribe-switch" aria-label="Toggle Animation">
+              <input type="checkbox" id="menu-switch-anim" title="Toggle Animation" aria-label="Toggle Animation" checked>
               <span class="switch-slider"></span>
             </label>
           </div>
@@ -304,7 +304,7 @@
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10">
+                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10" title="Stake Amount" aria-label="Stake Amount" placeholder="100">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
@@ -332,7 +332,7 @@
                         <span class="toggle-name">Auto Cash</span>
                       </label>
                       <div class="mult-input-group">
-                        <input type="number" class="input-auto-cashout" value="2.00" min="1.05" step="0.1">
+                        <input type="number" class="input-auto-cashout" value="2.00" min="1.05" step="0.1" title="Auto Cashout Multiplier" aria-label="Auto Cashout Multiplier" placeholder="2.00">
                         <span class="mult-suffix">x</span>
                       </div>
                     </div>
@@ -370,7 +370,7 @@
                   <div class="stepper-row">
                     <button class="btn-step btn-step-minus" title="Decrease stake">−</button>
                     <div class="input-display-box">
-                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10">
+                      <input type="number" class="terminal-stake-input" value="100" min="100" max="100000" step="10" title="Stake Amount" aria-label="Stake Amount" placeholder="100">
                       <span class="currency-tag">KES</span>
                     </div>
                     <button class="btn-step btn-step-plus" title="Increase stake">+</button>
@@ -397,7 +397,7 @@
                         <span class="toggle-name">Auto Cash</span>
                       </label>
                       <div class="mult-input-group">
-                        <input type="number" class="input-auto-cashout" value="1.50" min="1.05" step="0.1">
+                        <input type="number" class="input-auto-cashout" value="1.50" min="1.05" step="0.1" title="Auto Cashout Multiplier" aria-label="Auto Cashout Multiplier" placeholder="1.50">
                         <span class="mult-suffix">x</span>
                       </div>
                     </div>
