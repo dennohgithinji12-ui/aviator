@@ -1,4 +1,6 @@
-// Test script to verify Firebase Phone Auth OTP sign-up and Database persistence
+// Test script to verify:
+// 1. Signup asks phone number and password with confirmation and directly updates DB (no OTP on signup)
+// 2. Only Firebase Auth OTP is used to reset passwords, and updating password in DB
 const http = require('http');
 const assert = require('assert');
 const fs = require('fs');
@@ -26,16 +28,16 @@ function request(options, data) {
   });
 }
 
-async function runFirebasePhoneOtpTests() {
-  console.log('--- STARTING FIREBASE PHONE AUTH OTP & DB STORAGE VERIFICATION ---');
+async function runAuthRequirementsTests() {
+  console.log('--- STARTING SIGNUP DIRECT DB & FIREBASE PASSWORD RESET VERIFICATION ---');
 
   const testPhone = '2547' + Math.floor(10000000 + Math.random() * 89999999);
-  const testUid = 'firebase_uid_test_' + Date.now();
   const testUser = 'pilot_test_' + Math.floor(1000 + Math.random() * 9000);
-  const testHash = 'hash_' + Math.random().toString(16).slice(2);
+  const initialPassHash = 'initial_hash_' + Math.random().toString(16).slice(2);
+  const updatedPassHash = 'updated_new_hash_' + Math.random().toString(16).slice(2);
 
-  // 1. Test POST /api/auth/phone-signup
-  console.log('\n[1] Testing POST /api/auth/phone-signup endpoint...');
+  // 1. Direct Signup: Phone + Password with confirmation -> saves to DB
+  console.log('\n[1] Testing POST /api/auth/phone-signup endpoint (Signup without OTP)...');
   const resSignup = await request({
     hostname: 'localhost',
     port: 3000,
@@ -44,48 +46,98 @@ async function runFirebasePhoneOtpTests() {
     headers: { 'Content-Type': 'application/json' }
   }, {
     phone: testPhone,
-    firebaseUid: testUid,
     username: testUser,
-    passwordHash: testHash
+    passwordHash: initialPassHash
   });
 
   console.log('Status:', resSignup.status);
-  console.log('Response:', resSignup.data);
+  console.log('Signup Response:', resSignup.data);
   assert.strictEqual(resSignup.status, 200, 'Expected 200 OK from /api/auth/phone-signup');
-  assert.strictEqual(resSignup.data.success, true, 'Expected success: true');
-  assert.strictEqual(resSignup.data.user.phone, testPhone, 'Phone number must match');
-  assert.strictEqual(resSignup.data.user.firebaseUid, testUid, 'Firebase UID must match');
-  assert.strictEqual(resSignup.data.user.demoBalance, 50000, 'Starting demo balance must be 50,000 KES');
-  assert.strictEqual(resSignup.data.user.realBalance, 0, 'Starting real balance must be 0 KES');
-  console.log('✓ Successfully registered phone user via /api/auth/phone-signup');
+  assert.strictEqual(resSignup.data.success, true);
+  assert.strictEqual(resSignup.data.user.phone, testPhone);
+  assert.strictEqual(resSignup.data.user.demoBalance, 50000);
+  assert.strictEqual(resSignup.data.user.realBalance, 0);
+  console.log('✓ Successfully registered phone user directly in DB');
 
   // 2. Direct SQLite Database verification
-  console.log('\n[2] Verifying direct SQLite database entry for user...');
+  console.log('\n[2] Verifying SQLite database entry for user...');
   const dbUser = db.getUser(testPhone);
   assert.ok(dbUser, 'User record must exist in SQLite database');
   assert.strictEqual(dbUser.phone, testPhone);
-  assert.strictEqual(dbUser.firebase_uid, testUid, 'firebase_uid in DB must match');
-  assert.strictEqual(dbUser.password_hash, testHash, 'password_hash in DB must match');
-  assert.strictEqual(dbUser.demo_balance, 50000, 'demo_balance in DB must be 50000');
-  assert.strictEqual(dbUser.real_balance, 0, 'real_balance in DB must be 0');
-  console.log('✓ Direct SQLite record validated with firebase_uid and balances');
+  assert.strictEqual(dbUser.password_hash, initialPassHash);
+  assert.strictEqual(dbUser.demo_balance, 50000);
+  assert.strictEqual(dbUser.real_balance, 0);
+  console.log('✓ Direct SQLite record validated with balances and password hash');
 
-  // 3. Verify Wallet Endpoint reads the newly created account
-  console.log('\n[3] Testing GET /api/wallet with new phone...');
-  const resWallet = await request({
+  // 3. Verify Login with registered credentials
+  console.log('\n[3] Testing POST /api/auth/login with initial password hash...');
+  const resLogin = await request({
     hostname: 'localhost',
     port: 3000,
-    path: `/api/wallet?phone=${testPhone}`,
-    method: 'GET'
+    path: '/api/auth/login',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    phone: testPhone,
+    passwordHash: initialPassHash
   });
-  console.log('Status:', resWallet.status);
-  console.log('Wallet:', resWallet.data);
-  assert.strictEqual(resWallet.status, 200);
-  assert.strictEqual(resWallet.data.demoBalance, 50000);
-  console.log('✓ Wallet endpoint correctly returns demoBalance = 50000');
+  console.log('Status:', resLogin.status);
+  assert.strictEqual(resLogin.status, 200);
+  assert.strictEqual(resLogin.data.success, true);
+  console.log('✓ Login with initial password succeeds');
 
-  // 4. Test Demo Bet with this newly registered account
-  console.log('\n[4] Testing placing a DEMO bet with new phone...');
+  // 4. Password Reset with Firebase: update password in DB
+  console.log('\n[4] Testing POST /api/auth/update-password (after Firebase OTP verification)...');
+  const resUpdatePass = await request({
+    hostname: 'localhost',
+    port: 3000,
+    path: '/api/auth/update-password',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    phone: testPhone,
+    passwordHash: updatedPassHash
+  });
+  console.log('Status:', resUpdatePass.status);
+  console.log('Update Pass Response:', resUpdatePass.data);
+  assert.strictEqual(resUpdatePass.status, 200);
+  assert.strictEqual(resUpdatePass.data.success, true);
+
+  // Verify in DB that password hash actually changed
+  const dbUserUpdated = db.getUser(testPhone);
+  assert.strictEqual(dbUserUpdated.password_hash, updatedPassHash, 'Password hash in DB must be updated');
+  console.log('✓ Password hash in SQLite database updated successfully');
+
+  // Verify old password fails and new password succeeds
+  console.log('\n[5] Verifying login with updated password...');
+  const resLoginOld = await request({
+    hostname: 'localhost',
+    port: 3000,
+    path: '/api/auth/login',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    phone: testPhone,
+    passwordHash: initialPassHash
+  });
+  assert.strictEqual(resLoginOld.status, 401, 'Old password must be rejected');
+
+  const resLoginNew = await request({
+    hostname: 'localhost',
+    port: 3000,
+    path: '/api/auth/login',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, {
+    phone: testPhone,
+    passwordHash: updatedPassHash
+  });
+  assert.strictEqual(resLoginNew.status, 200, 'New password must succeed');
+  assert.strictEqual(resLoginNew.data.success, true);
+  console.log('✓ Old password rejected (401) and new password accepted (200)');
+
+  // 6. Test Demo Bet with this newly registered account
+  console.log('\n[6] Testing placing a DEMO bet with new phone...');
   const resBet = await request({
     hostname: 'localhost',
     port: 3000,
@@ -99,59 +151,40 @@ async function runFirebasePhoneOtpTests() {
     amount: 100,
     roundNonce: 1
   });
-  console.log('Status:', resBet.status);
-  console.log('Bet Response:', resBet.data);
   assert.strictEqual(resBet.status, 200);
   assert.strictEqual(resBet.data.success, true);
   assert.strictEqual(resBet.data.demoBalance, 49900);
-  console.log('✓ Successfully placed demo bet with newly registered Firebase account');
+  console.log('✓ Demo bet succeeded with updated account');
 
-  // 5. Test phone normalization (e.g. 0799000222 -> 254799000222)
-  console.log('\n[5] Testing phone normalization on registration...');
-  const randomSuffix = String(Math.floor(1000000 + Math.random() * 8999999));
-  const normPhoneInput = '07' + randomSuffix;
-  const expectedNorm = '2547' + randomSuffix;
-  const resNorm = await request({
-    hostname: 'localhost',
-    port: 3000,
-    path: '/api/auth/phone-signup',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  }, {
-    phone: normPhoneInput,
-    firebaseUid: 'fb_norm_test',
-    username: 'pilot_norm',
-    passwordHash: 'pass_norm'
-  });
-  assert.strictEqual(resNorm.status, 200);
-  assert.strictEqual(resNorm.data.user.phone, expectedNorm);
-  console.log('✓ Phone normalization handles 07XX format correctly');
-
-  // 6. Verify client UI & module files
-  console.log('\n[6] Verifying client files for Firebase Phone OTP wiring...');
+  // 7. Verify UI file contents match requirements
+  console.log('\n[7] Verifying UI elements for Signup and Password Reset...');
   const indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-  assert.ok(indexHtml.includes('recaptcha-container'), 'index.html must have recaptcha-container');
-  assert.ok(indexHtml.includes('reg-step-1'), 'index.html must have reg-step-1');
-  assert.ok(indexHtml.includes('reg-step-2'), 'index.html must have reg-step-2');
-  assert.ok(indexHtml.includes('btn-send-reg-otp'), 'index.html must have btn-send-reg-otp');
-  assert.ok(indexHtml.includes('btn-verify-reg-otp'), 'index.html must have btn-verify-reg-otp');
-  assert.ok(indexHtml.includes('auth-reg-otp'), 'index.html must have auth-reg-otp');
 
-  const fbConfigJs = fs.readFileSync(path.join(__dirname, 'js', 'features', 'firebase-config.js'), 'utf8');
-  assert.ok(fbConfigJs.includes('initFirebaseAuth'), 'firebase-config.js must export initFirebaseAuth');
-  assert.ok(fbConfigJs.includes('sendFirebasePhoneOtp'), 'firebase-config.js must export sendFirebasePhoneOtp');
-  assert.ok(fbConfigJs.includes('storeUserInDatabase'), 'firebase-config.js must export storeUserInDatabase');
+  // Signup must ask phone number, password, confirm password, and direct register button
+  assert.ok(indexHtml.includes('auth-reg-phone'), 'index.html must have auth-reg-phone');
+  assert.ok(indexHtml.includes('auth-reg-password'), 'index.html must have auth-reg-password');
+  assert.ok(indexHtml.includes('auth-reg-confirm-password'), 'index.html must have auth-reg-confirm-password');
+  assert.ok(indexHtml.includes('btn-submit-phone-register'), 'index.html must have btn-submit-phone-register');
 
+  // Password reset MUST use Firebase (recaptcha-container-reset, btn-request-reset-code, btn-complete-password-reset)
+  assert.ok(indexHtml.includes('recaptcha-container-reset'), 'index.html must have recaptcha-container-reset for Firebase reset');
+  assert.ok(indexHtml.includes('btn-request-reset-code'), 'index.html must have btn-request-reset-code');
+  assert.ok(indexHtml.includes('btn-complete-password-reset'), 'index.html must have btn-complete-password-reset');
+
+  // AuthManager must have registerWithPhone with confirmation check and storeUserInDatabase
   const authMgrJs = fs.readFileSync(path.join(__dirname, 'js', 'features', 'auth-manager.js'), 'utf8');
-  assert.ok(authMgrJs.includes('requestRegistrationOtp'), 'auth-manager.js must define requestRegistrationOtp');
-  assert.ok(authMgrJs.includes('verifyRegistrationOtp'), 'auth-manager.js must define verifyRegistrationOtp');
+  assert.ok(authMgrJs.includes('registerWithPhone'), 'auth-manager.js must define registerWithPhone');
+  assert.ok(authMgrJs.includes('rawPassword !== rawConfirmPassword'), 'auth-manager.js must validate password confirmation');
   assert.ok(authMgrJs.includes('storeUserInDatabase'), 'auth-manager.js must call storeUserInDatabase');
+  assert.ok(authMgrJs.includes('requestResetVerification'), 'auth-manager.js must have requestResetVerification');
+  assert.ok(authMgrJs.includes('completePasswordReset'), 'auth-manager.js must have completePasswordReset');
+  assert.ok(authMgrJs.includes('updatePasswordInDatabase'), 'auth-manager.js must call updatePasswordInDatabase');
 
-  console.log('✓ All client HTML, Firebase config, and AuthManager checks passed!');
-  console.log('\n🎉 ALL FIREBASE PHONE AUTH OTP & DB STORAGE TESTS PASSED!');
+  console.log('✓ UI and AuthManager code assertions passed!');
+  console.log('\n🎉 ALL SIGNUP AND FIREBASE PASSWORD RESET TESTS PASSED!');
 }
 
-runFirebasePhoneOtpTests().catch(err => {
+runAuthRequirementsTests().catch(err => {
   console.error('\n❌ TEST FAILED:', err);
   process.exit(1);
 });

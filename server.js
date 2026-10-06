@@ -506,6 +506,77 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Auth API: Update password in SQLite database (after Firebase OTP verification)
+  if (pathname === '/api/auth/update-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone;
+        const passwordHash = data.passwordHash;
+
+        if (!phone || !passwordHash) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'Phone and passwordHash are required.' }));
+        }
+
+        const updated = db.updatePassword(phone, passwordHash);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: Boolean(updated) }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Auth API: Verify login credentials against SQLite database
+  if (pathname === '/api/auth/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone;
+        const passwordHash = data.passwordHash;
+
+        if (!phone) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'Phone number is required.' }));
+        }
+
+        const user = db.getUser(phone);
+        if (!user) {
+          res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'User not found in database.' }));
+        }
+
+        if (user.password_hash && passwordHash && user.password_hash !== passwordHash) {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'Incorrect password.' }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({
+          success: true,
+          user: {
+            id: user.id,
+            phone: user.phone,
+            username: user.username,
+            demoBalance: user.demo_balance,
+            realBalance: user.real_balance
+          }
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // Wallet API: Place Bet with server-side balance & real money verification
   if (pathname === '/api/wallet/bet' && req.method === 'POST') {
     let body = '';

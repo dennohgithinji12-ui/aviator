@@ -1321,123 +1321,74 @@
           </div>
         </div>
 
-        <!-- TAB 2: PHONE REGISTRATION WITH FIREBASE OTP -->
+        <!-- TAB 2: PHONE REGISTRATION (DIRECT DB UPDATE WITH CONFIRMATION) -->
         <div id="auth-view-register" class="auth-tab-view" style="display: none;">
           <div class="auth-phone-banner" style="margin-bottom: 12px;">
             <span class="phone-banner-icon">🎁</span>
             <div class="phone-banner-text">
               <strong>Free KES 50,000 Starting Bankroll</strong>
-              <p>Firebase Phone Authentication with SMS OTP verification.</p>
+              <p>Register with your Kenyan phone number and password to start playing instantly.</p>
             </div>
           </div>
 
-          <!-- Step 1: Phone and Password Entry -->
-          <div id="reg-step-1">
-            <div class="auth-form-group">
-              <label class="auth-label" for="auth-reg-phone">Mobile Phone Number:</label>
-              <div class="auth-phone-wrapper">
-                <span class="auth-flag">🇰🇪</span>
-                <input 
-                  type="tel" 
-                  id="auth-reg-phone" 
-                  class="auth-phone-field" 
-                  placeholder="07XX XXX XXX or 01XX XXX XXX" 
-                  autocomplete="tel"
-                />
-              </div>
-            </div>
-
-            <div class="auth-form-group">
-              <label class="auth-label" for="auth-reg-password">Create Password (min 4 characters):</label>
-              <div class="auth-input-wrapper">
-                <span class="auth-input-icon">🔑</span>
-                <input 
-                  type="password" 
-                  id="auth-reg-password" 
-                  class="auth-input" 
-                  placeholder="Choose a password" 
-                  autocomplete="new-password"
-                />
-              </div>
-            </div>
-
-            <div class="auth-form-group">
-              <label class="auth-label" for="auth-reg-confirm-password">Confirm Password:</label>
-              <div class="auth-input-wrapper">
-                <span class="auth-input-icon">🔒</span>
-                <input 
-                  type="password" 
-                  id="auth-reg-confirm-password" 
-                  class="auth-input" 
-                  placeholder="Re-enter password" 
-                  autocomplete="new-password"
-                />
-              </div>
-            </div>
-
-            <!-- Firebase invisible reCAPTCHA container -->
-            <div id="recaptcha-container" style="margin-bottom: 8px;"></div>
-
-            <button type="button" class="btn-auth-submit" id="btn-send-reg-otp">
-              <span class="btn-text">📲 Send Firebase Verification Code (OTP)</span>
-            </button>
-          </div>
-
-          <!-- Step 2: Verification Code (OTP) Entry -->
-          <div id="reg-step-2" style="display: none;">
-            <div class="auth-simulated-sms-card" id="reg-sms-card" style="margin-bottom: 12px;">
-              <div class="sms-card-header">
-                <span class="sms-badge">FIREBASE SMS OTP DISPATCHED</span>
-                <span class="sms-time">Just Now</span>
-              </div>
-              <p class="sms-body">Sent to <strong id="reg-otp-target-phone">+254 7XX XXX XXX</strong></p>
-              <p class="sms-sub" id="reg-otp-code-hint" style="font-size: 13px; color: #a0aec0; margin-top: 4px;">
-                Enter the 6-digit code received on your phone.
-              </p>
-              <div id="reg-sandbox-autofill-row" style="margin-top: 6px; display: none;">
-                <span style="font-size: 12px; color: #ffd600;">Verification Code: <strong id="reg-simulated-otp-code">------</strong></span>
-                <button type="button" class="btn-autofill-otp" id="btn-autofill-reg-otp" style="margin-left: 8px;">⚡ Auto-Fill Code</button>
-              </div>
-            </div>
-
-            <div class="auth-form-group">
-              <label class="auth-label" for="auth-reg-otp">Enter 6-Digit Verification Code:</label>
-              <div class="auth-input-wrapper">
-                <span class="auth-input-icon">🔢</span>
-                <input 
-                  type="text" 
-                  id="auth-reg-otp" 
-                  class="auth-input otp-field" 
-                  placeholder="e.g. 123456" 
-                  maxlength="6"
-                  inputmode="numeric"
-                  autocomplete="one-time-code"
-                />
-              </div>
-            </div>
-
-            <button type="button" class="btn-auth-submit" id="btn-verify-reg-otp">
-              <span class="btn-text">✅ Verify OTP & Save Account to Database</span>
-            </button>
-
-            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-              <button type="button" class="btn-text-link" id="btn-change-reg-phone" style="background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; text-decoration: underline;">← Change Phone Number</button>
-              <button type="button" class="btn-text-link" id="btn-resend-reg-otp" style="background: none; border: none; color: #00e676; font-size: 12px; cursor: pointer;">↻ Resend Code</button>
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-phone">Mobile Phone Number:</label>
+            <div class="auth-phone-wrapper">
+              <span class="auth-flag">🇰🇪</span>
+              <input 
+                type="tel" 
+                id="auth-reg-phone" 
+                class="auth-phone-field" 
+                placeholder="07XX XXX XXX or 01XX XXX XXX" 
+                autocomplete="tel"
+              />
             </div>
           </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-password">Create Password (min 4 characters):</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔑</span>
+              <input 
+                type="password" 
+                id="auth-reg-password" 
+                class="auth-input" 
+                placeholder="Choose a password" 
+                autocomplete="new-password"
+              />
+            </div>
+          </div>
+
+          <div class="auth-form-group">
+            <label class="auth-label" for="auth-reg-confirm-password">Confirm Password:</label>
+            <div class="auth-input-wrapper">
+              <span class="auth-input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="auth-reg-confirm-password" 
+                class="auth-input" 
+                placeholder="Re-enter password to confirm" 
+                autocomplete="new-password"
+              />
+            </div>
+          </div>
+
+          <button type="button" class="btn-auth-submit" id="btn-submit-phone-register">
+            <span class="btn-text">🚀 Register Account & Start Playing</span>
+          </button>
 
           <div class="auth-form-links" style="justify-content: center; margin-top: 14px;">
             <span>Already registered? <a href="#" class="link-back-to-login">Login with Phone</a></span>
           </div>
         </div>
 
-        <!-- TAB 3: PASSWORD RESET (STRICT MAX 2x PER WEEK LIMIT) -->
+        <!-- TAB 3: PASSWORD RESET (FIREBASE AUTH OTP & 2x/WEEK LIMIT) -->
         <div id="auth-view-reset" class="auth-tab-view" style="display: none;">
           <!-- Weekly Reset Rate Limit Info Box -->
           <div class="reset-rate-limit-card">
             <span class="reset-limit-badge badge-active" id="reset-limit-badge">Weekly Limit: Max 2 Resets</span>
             <div class="reset-limit-desc" id="reset-limit-info-text">
-              Firebase Spark Plan Security: Password resets are strictly limited to <strong>2 times per rolling week</strong> per phone number.
+              Firebase Phone Authentication: Password resets are verified via Firebase SMS OTP and strictly limited to <strong>2 times per rolling week</strong>.
             </div>
           </div>
 
@@ -1451,45 +1402,52 @@
                   type="tel" 
                   id="auth-reset-phone" 
                   class="auth-phone-field" 
-                  placeholder="07XX XXX XXX" 
+                  placeholder="07XX XXX XXX or +254..." 
                   autocomplete="tel"
                 />
               </div>
-              <span class="auth-hint">Enter your phone number to verify remaining weekly reset quota.</span>
+              <span class="auth-hint">We will dispatch a Firebase SMS verification code to your phone.</span>
             </div>
 
+            <!-- Firebase invisible reCAPTCHA container for password reset -->
+            <div id="recaptcha-container-reset" style="margin-bottom: 8px;"></div>
+
             <button type="button" class="btn-auth-submit" id="btn-request-reset-code">
-              <span>Verify Quota & Send Reset Code</span>
+              <span>📲 Send Firebase Verification Code (OTP)</span>
             </button>
           </div>
 
           <!-- Step 2: Verification Code & New Password -->
           <div id="reset-step-2" style="display: none;">
-            <div class="auth-simulated-sms-card" style="margin-bottom: 12px;">
+            <div class="auth-simulated-sms-card" id="reset-sms-card" style="margin-bottom: 12px;">
               <div class="sms-card-header">
-                <span class="sms-badge">SECURITY VERIFICATION CODE</span>
+                <span class="sms-badge">FIREBASE SMS OTP DISPATCHED</span>
                 <span class="sms-time">Just Now</span>
               </div>
-              <p class="sms-body">Your Password Reset Code is: <strong id="simulated-reset-otp-code">----</strong></p>
-              <button type="button" class="btn-autofill-otp" id="btn-autofill-reset-otp">⚡ Auto-Fill Code</button>
+              <p class="sms-body">Sent to <strong id="reset-otp-target-phone">+254 7XX XXX XXX</strong></p>
+              <div id="reset-sandbox-autofill-row" style="margin-top: 6px; display: none;">
+                <span style="font-size: 12px; color: #ffd600;">Verification Code: <strong id="simulated-reset-otp-code">------</strong></span>
+                <button type="button" class="btn-autofill-otp" id="btn-autofill-reset-otp" style="margin-left: 8px;">⚡ Auto-Fill Code</button>
+              </div>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="auth-reset-otp">Enter 4-Digit Verification Code:</label>
+              <label class="auth-label" for="auth-reset-otp">Enter 6-Digit Verification Code (OTP):</label>
               <div class="auth-input-wrapper">
-                <span class="auth-input-icon">🔑</span>
+                <span class="auth-input-icon">🔢</span>
                 <input 
                   type="text" 
                   id="auth-reset-otp" 
                   class="auth-input otp-digit-input" 
-                  placeholder="4-digit code" 
-                  maxlength="4" 
+                  placeholder="6-digit code" 
+                  maxlength="6"
+                  inputmode="numeric" 
                 />
               </div>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="auth-reset-new-password">New Password:</label>
+              <label class="auth-label" for="auth-reset-new-password">New Password (min 4 characters):</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
                 <input 
@@ -1509,14 +1467,19 @@
                   type="password" 
                   id="auth-reset-confirm-password" 
                   class="auth-input" 
-                  placeholder="Re-enter new password" 
+                  placeholder="Re-enter new password to confirm" 
                 />
               </div>
             </div>
 
             <button type="button" class="btn-auth-submit" id="btn-complete-password-reset">
-              <span>Set New Password (Uses 1 Weekly Reset)</span>
+              <span>✅ Verify Firebase OTP & Update Password in DB</span>
             </button>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+              <button type="button" class="btn-text-link" id="btn-change-reset-phone" style="background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; text-decoration: underline;">← Change Phone Number</button>
+              <button type="button" class="btn-text-link" id="btn-resend-reset-otp" style="background: none; border: none; color: #00e676; font-size: 12px; cursor: pointer;">↻ Resend OTP</button>
+            </div>
           </div>
 
           <div class="auth-form-links" style="justify-content: center; margin-top: 14px;">

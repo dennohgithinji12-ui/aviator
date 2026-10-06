@@ -7,7 +7,7 @@
  * - Full Kenyan (+254) and International mobile normalization
  */
 
-import { hashPassword, sendFirebasePhoneOtp, storeUserInDatabase } from './firebase-config.js';
+import { hashPassword, sendFirebasePhoneOtp, storeUserInDatabase, updatePasswordInDatabase } from './firebase-config.js';
 
 const STORAGE_USERS_KEY = 'aviator_registered_users_spark';
 const STORAGE_SESSION_KEY = 'aviator_active_session_spark';
@@ -418,25 +418,19 @@ export class AuthManager {
   }
 
   resetRegistrationForm() {
-    this.pendingRegPhone = null;
-    this.pendingRegPassword = null;
-    this.pendingRegConfirmation = null;
-    this.pendingRegOtpCode = null;
-    const step1 = document.getElementById('reg-step-1');
-    const step2 = document.getElementById('reg-step-2');
-    if (step1) step1.style.display = 'block';
-    if (step2) step2.style.display = 'none';
-    const otpInp = document.getElementById('auth-reg-otp');
-    if (otpInp) otpInp.value = '';
-    const autofillRow = document.getElementById('reg-sandbox-autofill-row');
-    if (autofillRow) autofillRow.style.display = 'none';
+    const phoneInp = document.getElementById('auth-reg-phone');
+    const passInp = document.getElementById('auth-reg-password');
+    const pass2Inp = document.getElementById('auth-reg-confirm-password');
+    if (phoneInp) phoneInp.value = '';
+    if (passInp) passInp.value = '';
+    if (pass2Inp) pass2Inp.value = '';
   }
 
   /**
-   * Phone Number + Password Registration with Firebase OTP Verification
-   * Step 1: Send SMS OTP
+   * Phone Number + Password Registration with Confirmation & Direct DB Persistence
+   * Asks phone number, password, confirm password, validates confirmation and updates DB.
    */
-  async requestRegistrationOtp(rawPhone, rawPassword, rawConfirmPassword) {
+  async registerWithPhone(rawPhone, rawPassword, rawConfirmPassword) {
     const normPhone = this.normalizePhoneNumber(rawPhone);
     if (!normPhone || normPhone.length < 10) {
       this.setStatus('Please enter a valid mobile phone number (min 9 digits, e.g. 0712 345 678).');
@@ -449,7 +443,7 @@ export class AuthManager {
     }
 
     if (rawPassword !== rawConfirmPassword) {
-      this.setStatus('Passwords do not match. Please re-enter.');
+      this.setStatus('Passwords do not match. Please re-enter your password to confirm.');
       return false;
     }
 
@@ -460,77 +454,16 @@ export class AuthManager {
       return false;
     }
 
-    this.setStatus('Initiating Firebase Phone Verification & dispatching OTP...', false);
+    this.setStatus('Creating account and saving to database...', false);
 
     try {
-      const res = await sendFirebasePhoneOtp(normPhone, 'recaptcha-container');
-      if (!res || !res.success) {
-        this.setStatus('Failed to send verification code. Please check your phone number and try again.');
-        return false;
-      }
-
-      this.pendingRegPhone = normPhone;
-      this.pendingRegPassword = rawPassword;
-      this.pendingRegConfirmation = res.confirmationResult;
-      this.pendingRegOtpCode = res.otpCode || null;
-
-      const step1 = document.getElementById('reg-step-1');
-      const step2 = document.getElementById('reg-step-2');
-      if (step1) step1.style.display = 'none';
-      if (step2) step2.style.display = 'block';
-
-      const targetPhoneEl = document.getElementById('reg-otp-target-phone');
-      if (targetPhoneEl) targetPhoneEl.textContent = this.maskPhone(normPhone);
-
-      const simCodeEl = document.getElementById('reg-simulated-otp-code');
-      const autofillRow = document.getElementById('reg-sandbox-autofill-row');
-      if (this.pendingRegOtpCode) {
-        if (simCodeEl) simCodeEl.textContent = this.pendingRegOtpCode;
-        if (autofillRow) autofillRow.style.display = 'block';
-      } else {
-        if (autofillRow) autofillRow.style.display = 'none';
-      }
-
-      this.setStatus(`Verification code sent to ${this.maskPhone(normPhone)}. Enter the 6-digit OTP code below.`, false);
-      this.soundEngine?.playClick();
-      return true;
-    } catch (err) {
-      this.setStatus(`Firebase Auth error: ${err.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Step 2: Confirm OTP, create Firebase user, and store in SQLite database
-   */
-  async verifyRegistrationOtp(rawOtp) {
-    if (!this.pendingRegConfirmation) {
-      this.setStatus('Session expired. Please request a new verification code.');
-      this.resetRegistrationForm();
-      return false;
-    }
-
-    const code = String(rawOtp || '').trim();
-    if (!code || code.length < 4) {
-      this.setStatus('Please enter the 6-digit verification code.');
-      return false;
-    }
-
-    this.setStatus('Verifying OTP code and registering account in database...', false);
-
-    try {
-      const userCredential = await this.pendingRegConfirmation.confirm(code);
-      const firebaseUser = userCredential.user;
-      const firebaseUid = firebaseUser?.uid || ('fb_' + Date.now());
-
-      const hashed = await hashPassword(this.pendingRegPassword.trim());
+      const hashed = await hashPassword(rawPassword.trim());
       const randomDigits = Math.floor(10000 + Math.random() * 90000);
       const username = `pilot_${randomDigits}`;
 
-      // Persist in SQLite database via REST API
+      // Persist directly in SQLite database via REST API
       const dbRes = await storeUserInDatabase({
-        phone: this.pendingRegPhone,
-        firebaseUid: firebaseUid,
+        phone: normPhone,
         username: username,
         passwordHash: hashed
       });
@@ -538,8 +471,7 @@ export class AuthManager {
       const assignedId = dbRes?.user?.id ? String(dbRes.user.id) : String(Math.floor(100000 + Math.random() * 900000));
       const newUser = {
         id: assignedId,
-        phone: this.pendingRegPhone,
-        firebaseUid: firebaseUid,
+        phone: normPhone,
         username: dbRes?.user?.username || username,
         passwordHash: hashed,
         balance: 50000.00,
@@ -570,21 +502,17 @@ export class AuthManager {
       this.closeAuthModal();
       this.resetRegistrationForm();
       this.soundEngine?.playCashout();
-      this.showToast(`🎉 Phone verified with Firebase OTP & stored in database! Welcome ${this.maskPhone(newUser.phone)}!`);
+      this.showToast(`🎉 Welcome ${this.maskPhone(newUser.phone)}! Account registered & saved in database.`);
       if (this.onAuthChange) this.onAuthChange(this.user);
       return true;
     } catch (err) {
-      this.setStatus(`Verification failed: ${err.message}`);
+      this.setStatus(`Registration error: ${err.message}`);
       return false;
     }
   }
 
-  async registerWithPhone(rawPhone, rawPassword, rawConfirmPassword) {
-    return this.requestRegistrationOtp(rawPhone, rawPassword, rawConfirmPassword);
-  }
-
   /**
-   * Password Reset Flow (Limited to 2 times a week)
+   * Password Reset Flow via Firebase Phone OTP (Strict Max 2 times per week)
    */
   async requestResetVerification(rawPhone) {
     const normPhone = this.normalizePhoneNumber(rawPhone);
@@ -593,45 +521,84 @@ export class AuthManager {
       return false;
     }
 
-    const user = this.findUserByPhone(normPhone);
-    if (!user) {
-      this.setStatus(`No account registered with phone number ${normPhone}.`);
-      return false;
-    }
-
-    // Check rate limit: Strictly Max 2 times per 7 days
-    const limitCheck = this.checkResetLimit(user);
-    if (!limitCheck.allowed) {
-      const nextDateStr = limitCheck.nextAllowedDate.toLocaleDateString(undefined, {
-        weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    // Check rate limit in SQLite backend
+    try {
+      const rateRes = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normPhone })
       });
-      this.setStatus(
-        `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
-        `On the Firebase Spark Plan, password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
-        `You have used ${limitCheck.usedCount}/${limitCheck.maxCount} resets.<br>` +
-        `Your next password reset will be available on: <strong>${nextDateStr}</strong>.`
-      );
-      this.soundEngine?.playClick();
-      return false;
+      const rateData = await rateRes.json();
+      if (!rateData.success && rateData.error === 'RATE_LIMIT_EXCEEDED') {
+        this.setStatus(
+          `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
+          `Password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
+          `Attempts in past week: ${rateData.attemptsInPastWeek}/${rateData.maxAllowed}.<br>` +
+          `Please try again later or contact support.`
+        );
+        this.soundEngine?.playClick();
+        return false;
+      }
+    } catch (e) {
+      console.warn('Backend reset rate limit notice:', e);
     }
 
-    this.pendingResetPhone = normPhone;
-    this.resetOtpCode = String(Math.floor(1000 + Math.random() * 9000));
+    const user = this.findUserByPhone(normPhone);
+    if (user) {
+      const limitCheck = this.checkResetLimit(user);
+      if (!limitCheck.allowed) {
+        const nextDateStr = limitCheck.nextAllowedDate.toLocaleDateString(undefined, {
+          weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        this.setStatus(
+          `⛔ <strong>Password Reset Limit Reached!</strong><br>` +
+          `Password resets are restricted to a maximum of <strong>2 times per week</strong>.<br>` +
+          `You have used ${limitCheck.usedCount}/${limitCheck.maxCount} resets.<br>` +
+          `Your next password reset will be available on: <strong>${nextDateStr}</strong>.`
+        );
+        this.soundEngine?.playClick();
+        return false;
+      }
+    }
 
-    // Show step 2 of reset (OTP + New Password)
-    const step1 = document.getElementById('reset-step-1');
-    const step2 = document.getElementById('reset-step-2');
-    if (step1) step1.style.display = 'none';
-    if (step2) step2.style.display = 'block';
+    this.setStatus('Sending Firebase verification code (OTP)...', false);
 
-    const simCode = document.getElementById('simulated-reset-otp-code');
-    if (simCode) simCode.textContent = this.resetOtpCode;
+    try {
+      const res = await sendFirebasePhoneOtp(normPhone, 'recaptcha-container-reset');
+      if (!res || !res.success) {
+        this.setStatus('Failed to send verification code. Please check your phone number and try again.');
+        return false;
+      }
 
-    this.setStatus(
-      `Verification code sent to ${normPhone}. Weekly reset limit: Used ${limitCheck.usedCount} of ${limitCheck.maxCount}.`,
-      false
-    );
-    return true;
+      this.pendingResetPhone = normPhone;
+      this.pendingResetConfirmation = res.confirmationResult;
+      this.resetOtpCode = res.otpCode || null;
+
+      // Show step 2 of reset (OTP + New Password)
+      const step1 = document.getElementById('reset-step-1');
+      const step2 = document.getElementById('reset-step-2');
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+
+      const targetPhoneEl = document.getElementById('reset-otp-target-phone');
+      if (targetPhoneEl) targetPhoneEl.textContent = this.maskPhone(normPhone);
+
+      const simCode = document.getElementById('simulated-reset-otp-code');
+      const autofillRow = document.getElementById('reset-sandbox-autofill-row');
+      if (this.resetOtpCode) {
+        if (simCode) simCode.textContent = this.resetOtpCode;
+        if (autofillRow) autofillRow.style.display = 'block';
+      } else {
+        if (autofillRow) autofillRow.style.display = 'none';
+      }
+
+      this.setStatus(`Firebase OTP code sent to ${this.maskPhone(normPhone)}. Enter the code and your new password below.`, false);
+      this.soundEngine?.playClick();
+      return true;
+    } catch (err) {
+      this.setStatus(`Firebase Auth error: ${err.message}`);
+      return false;
+    }
   }
 
   async completePasswordReset(rawOtp, newPassword, confirmNewPassword) {
@@ -641,8 +608,9 @@ export class AuthManager {
       return false;
     }
 
-    if (!rawOtp || rawOtp.trim() !== this.resetOtpCode) {
-      this.setStatus(`Incorrect verification code. Please enter the code shown (${this.resetOtpCode}).`);
+    const code = String(rawOtp || '').trim();
+    if (!code || code.length < 4) {
+      this.setStatus('Please enter the verification code received on your phone.');
       return false;
     }
 
@@ -652,42 +620,63 @@ export class AuthManager {
     }
 
     if (newPassword !== confirmNewPassword) {
-      this.setStatus('Passwords do not match. Please re-enter.');
+      this.setStatus('Passwords do not match. Please re-enter your new password to confirm.');
       return false;
     }
 
-    const user = this.findUserByPhone(this.pendingResetPhone);
-    if (!user) {
-      this.setStatus('User account not found.');
+    this.setStatus('Verifying Firebase OTP and updating password in database...', false);
+
+    try {
+      // 1. Confirm OTP via Firebase
+      if (this.pendingResetConfirmation && typeof this.pendingResetConfirmation.confirm === 'function') {
+        await this.pendingResetConfirmation.confirm(code);
+      } else if (this.resetOtpCode && code !== this.resetOtpCode) {
+        throw new Error(`Incorrect verification code. Please enter the code received (${this.resetOtpCode}).`);
+      }
+
+      // 2. Hash new password
+      const hashed = await hashPassword(newPassword.trim());
+
+      // 3. Update password in SQLite database
+      await updatePasswordInDatabase({
+        phone: this.pendingResetPhone,
+        passwordHash: hashed
+      });
+
+      // 4. Update local user cache
+      const user = this.findUserByPhone(this.pendingResetPhone);
+      if (user) {
+        user.passwordHash = hashed;
+        this.recordPasswordReset(user);
+      }
+
+      this.showToast('✅ Password reset successfully via Firebase OTP! You can now log in.');
+      this.resetResetForm();
+      this.switchTab('login');
+      this.setStatus('Password updated in database! You can now log in with your new password.', false);
+      this.soundEngine?.playCashout();
+      return true;
+    } catch (err) {
+      this.setStatus(`Password reset failed: ${err.message}`);
       return false;
     }
-
-    // Final rate limit verification
-    const limitCheck = this.checkResetLimit(user);
-    if (!limitCheck.allowed) {
-      this.setStatus('Weekly password reset limit exceeded. Reset blocked.');
-      return false;
-    }
-
-    // Update password & record reset timestamp
-    const hashed = await hashPassword(newPassword.trim());
-    user.passwordHash = hashed;
-    this.recordPasswordReset(user);
-
-    this.showToast(`Password reset successfully! (Used ${limitCheck.usedCount + 1} of 2 resets allowed this week)`);
-    this.resetResetForm();
-    this.switchTab('login');
-    this.setStatus('Password reset successfully! You can now log in with your new password.', false);
-    return true;
   }
 
   resetResetForm() {
     this.pendingResetPhone = null;
+    this.pendingResetConfirmation = null;
     this.resetOtpCode = null;
     const step1 = document.getElementById('reset-step-1');
     const step2 = document.getElementById('reset-step-2');
     if (step1) step1.style.display = 'block';
     if (step2) step2.style.display = 'none';
+    const otpInp = document.getElementById('auth-reset-otp');
+    if (otpInp) otpInp.value = '';
+    const p1 = document.getElementById('auth-reset-new-password');
+    if (p1) p1.value = '';
+    const p2 = document.getElementById('auth-reset-confirm-password');
+    if (p2) p2.value = '';
+  }
   }
 
   logout() {
@@ -876,68 +865,18 @@ export class AuthManager {
       };
     }
 
-    // Submit Register Step 1 (Send OTP)
-    const sendRegOtpBtn = document.getElementById('btn-send-reg-otp');
-    if (sendRegOtpBtn) {
-      sendRegOtpBtn.onclick = () => {
-        const phone = document.getElementById('auth-reg-phone')?.value;
-        const pass = document.getElementById('auth-reg-password')?.value;
-        const pass2 = document.getElementById('auth-reg-confirm-password')?.value;
-        this.requestRegistrationOtp(phone, pass, pass2);
-      };
-    }
-
-    // Submit Register Step 2 (Verify OTP & Complete Sign Up)
-    const verifyRegOtpBtn = document.getElementById('btn-verify-reg-otp');
-    if (verifyRegOtpBtn) {
-      verifyRegOtpBtn.onclick = () => {
-        const otp = document.getElementById('auth-reg-otp')?.value;
-        this.verifyRegistrationOtp(otp);
-      };
-    }
-
-    // Auto-fill Registration OTP
-    const autofillRegOtpBtn = document.getElementById('btn-autofill-reg-otp');
-    if (autofillRegOtpBtn) {
-      autofillRegOtpBtn.onclick = () => {
-        const otpInp = document.getElementById('auth-reg-otp');
-        if (otpInp && this.pendingRegOtpCode) {
-          otpInp.value = this.pendingRegOtpCode;
-        }
-      };
-    }
-
-    // Change Registration Phone
-    const changeRegPhoneBtn = document.getElementById('btn-change-reg-phone');
-    if (changeRegPhoneBtn) {
-      changeRegPhoneBtn.onclick = () => {
-        this.resetRegistrationForm();
-      };
-    }
-
-    // Resend Registration OTP
-    const resendRegOtpBtn = document.getElementById('btn-resend-reg-otp');
-    if (resendRegOtpBtn) {
-      resendRegOtpBtn.onclick = () => {
-        const phone = document.getElementById('auth-reg-phone')?.value || this.pendingRegPhone;
-        const pass = document.getElementById('auth-reg-password')?.value || this.pendingRegPassword;
-        const pass2 = document.getElementById('auth-reg-confirm-password')?.value || this.pendingRegPassword;
-        this.requestRegistrationOtp(phone, pass, pass2);
-      };
-    }
-
-    // Legacy fallback button if present
+    // Submit Register (Direct DB Registration with Password Confirmation)
     const submitRegBtn = document.getElementById('btn-submit-phone-register');
     if (submitRegBtn) {
       submitRegBtn.onclick = () => {
         const phone = document.getElementById('auth-reg-phone')?.value;
         const pass = document.getElementById('auth-reg-password')?.value;
         const pass2 = document.getElementById('auth-reg-confirm-password')?.value;
-        this.requestRegistrationOtp(phone, pass, pass2);
+        this.registerWithPhone(phone, pass, pass2);
       };
     }
 
-    // Submit Reset Step 1 (Request Code)
+    // Submit Reset Step 1 (Request Firebase OTP)
     const requestResetBtn = document.getElementById('btn-request-reset-code');
     if (requestResetBtn) {
       requestResetBtn.onclick = () => {
@@ -946,7 +885,7 @@ export class AuthManager {
       };
     }
 
-    // Submit Reset Step 2 (Complete Reset)
+    // Submit Reset Step 2 (Verify Firebase OTP & Complete Reset in DB)
     const submitResetBtn = document.getElementById('btn-complete-password-reset');
     if (submitResetBtn) {
       submitResetBtn.onclick = () => {
@@ -954,6 +893,23 @@ export class AuthManager {
         const p1 = document.getElementById('auth-reset-new-password')?.value;
         const p2 = document.getElementById('auth-reset-confirm-password')?.value;
         this.completePasswordReset(otp, p1, p2);
+      };
+    }
+
+    // Change Reset Phone
+    const changeResetPhoneBtn = document.getElementById('btn-change-reset-phone');
+    if (changeResetPhoneBtn) {
+      changeResetPhoneBtn.onclick = () => {
+        this.resetResetForm();
+      };
+    }
+
+    // Resend Reset OTP
+    const resendResetOtpBtn = document.getElementById('btn-resend-reset-otp');
+    if (resendResetOtpBtn) {
+      resendResetOtpBtn.onclick = () => {
+        const phone = document.getElementById('auth-reset-phone')?.value || this.pendingResetPhone;
+        this.requestResetVerification(phone);
       };
     }
 

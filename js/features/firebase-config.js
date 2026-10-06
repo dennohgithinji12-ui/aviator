@@ -149,3 +149,22 @@ export async function storeUserInDatabase({ phone, firebaseUid, username, passwo
   }
   return { success: false };
 }
+
+/**
+ * Update user password in SQLite Database backend
+ */
+export async function updatePasswordInDatabase({ phone, passwordHash }) {
+  try {
+    const res = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, passwordHash })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('[DB Password Update Network Notice]:', err.message);
+  }
+  return { success: false };
+}

@@ -163,6 +163,19 @@ const DatabaseService = {
     return user;
   },
 
+  updatePassword(phone, passwordHash) {
+    const norm = normalizePhone(phone);
+    if (!norm) return false;
+    const now = Date.now();
+    const stmt = db.prepare(`
+      UPDATE users 
+      SET password_hash = ?, last_login = ?
+      WHERE phone = ?
+    `);
+    const result = stmt.run(passwordHash, now, norm);
+    return result.changes > 0;
+  },
+
   getBalances(phone) {
     const norm = normalizePhone(phone);
     if (!norm) {
