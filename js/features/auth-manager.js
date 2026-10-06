@@ -7,7 +7,7 @@
  * - Full Kenyan (+254) and International mobile normalization
  */
 
-import { hashPassword } from './firebase-config.js';
+import { hashPassword, sendFirebasePhoneOtp, storeUserInDatabase } from './firebase-config.js';
 
 const STORAGE_USERS_KEY = 'aviator_registered_users_spark';
 const STORAGE_SESSION_KEY = 'aviator_active_session_spark';
@@ -51,6 +51,12 @@ export class AuthManager {
     this.activeTab = 'login'; // 'login' | 'register' | 'reset'
     this.pendingResetPhone = null;
     this.resetOtpCode = null;
+
+    // Firebase Phone Auth OTP Registration State
+    this.pendingRegPhone = null;
+    this.pendingRegPassword = null;
+    this.pendingRegConfirmation = null;
+    this.pendingRegOtpCode = null;
 
     this.init();
   }
@@ -283,7 +289,12 @@ export class AuthManager {
     const resetView = document.getElementById('auth-view-reset');
 
     if (loginView) loginView.style.display = tabName === 'login' ? 'block' : 'none';
-    if (registerView) registerView.style.display = tabName === 'register' ? 'block' : 'none';
+    if (registerView) {
+      registerView.style.display = tabName === 'register' ? 'block' : 'none';
+      if (tabName === 'register') {
+        this.resetRegistrationForm();
+      }
+    }
     if (resetView) {
       resetView.style.display = tabName === 'reset' ? 'block' : 'none';
       if (tabName === 'reset') {
@@ -406,10 +417,26 @@ export class AuthManager {
     return true;
   }
 
+  resetRegistrationForm() {
+    this.pendingRegPhone = null;
+    this.pendingRegPassword = null;
+    this.pendingRegConfirmation = null;
+    this.pendingRegOtpCode = null;
+    const step1 = document.getElementById('reg-step-1');
+    const step2 = document.getElementById('reg-step-2');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
+    const otpInp = document.getElementById('auth-reg-otp');
+    if (otpInp) otpInp.value = '';
+    const autofillRow = document.getElementById('reg-sandbox-autofill-row');
+    if (autofillRow) autofillRow.style.display = 'none';
+  }
+
   /**
-   * Phone Number + Password Registration
+   * Phone Number + Password Registration with Firebase OTP Verification
+   * Step 1: Send SMS OTP
    */
-  async registerWithPhone(rawPhone, rawPassword, rawConfirmPassword) {
+  async requestRegistrationOtp(rawPhone, rawPassword, rawConfirmPassword) {
     const normPhone = this.normalizePhoneNumber(rawPhone);
     if (!normPhone || normPhone.length < 10) {
       this.setStatus('Please enter a valid mobile phone number (min 9 digits, e.g. 0712 345 678).');
@@ -433,43 +460,127 @@ export class AuthManager {
       return false;
     }
 
-    const hashed = await hashPassword(rawPassword.trim());
-    const randomDigits = Math.floor(10000 + Math.random() * 90000);
-    const newUser = {
-      id: String(Math.floor(100000 + Math.random() * 900000)),
-      phone: normPhone,
-      username: `demo_${randomDigits}`,
-      passwordHash: hashed,
-      balance: 49980.00,
-      createdAt: Date.now(),
-      lastLogin: Date.now(),
-      vipLevel: 'Verified Pilot',
-      avatar: 'pilot',
-      passwordResetHistory: []
-    };
+    this.setStatus('Initiating Firebase Phone Verification & dispatching OTP...', false);
 
-    const users = this.getAllUsers();
-    users.push(newUser);
-    this.saveAllUsers(users);
-
-    this.user = newUser;
     try {
-      localStorage.removeItem('aviator_explicit_logout');
-      localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
-    } catch (e) {}
+      const res = await sendFirebasePhoneOtp(normPhone, 'recaptcha-container');
+      if (!res || !res.success) {
+        this.setStatus('Failed to send verification code. Please check your phone number and try again.');
+        return false;
+      }
 
-    if (this.stakingManager.setAccount) {
-      this.stakingManager.setAccount(this.user);
+      this.pendingRegPhone = normPhone;
+      this.pendingRegPassword = rawPassword;
+      this.pendingRegConfirmation = res.confirmationResult;
+      this.pendingRegOtpCode = res.otpCode || null;
+
+      const step1 = document.getElementById('reg-step-1');
+      const step2 = document.getElementById('reg-step-2');
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+
+      const targetPhoneEl = document.getElementById('reg-otp-target-phone');
+      if (targetPhoneEl) targetPhoneEl.textContent = this.maskPhone(normPhone);
+
+      const simCodeEl = document.getElementById('reg-simulated-otp-code');
+      const autofillRow = document.getElementById('reg-sandbox-autofill-row');
+      if (this.pendingRegOtpCode) {
+        if (simCodeEl) simCodeEl.textContent = this.pendingRegOtpCode;
+        if (autofillRow) autofillRow.style.display = 'block';
+      } else {
+        if (autofillRow) autofillRow.style.display = 'none';
+      }
+
+      this.setStatus(`Verification code sent to ${this.maskPhone(normPhone)}. Enter the 6-digit OTP code below.`, false);
+      this.soundEngine?.playClick();
+      return true;
+    } catch (err) {
+      this.setStatus(`Firebase Auth error: ${err.message}`);
+      return false;
     }
-    this.stakingManager.balance = newUser.balance;
-    this.stakingManager.saveBalance();
+  }
 
-    this.renderLoggedIn();
-    this.closeAuthModal();
-    this.soundEngine?.playCashout();
-    this.showToast(`Account registered for ${this.maskPhone(newUser.phone)}! +KES 49,980 Bankroll Credited.`);
-    if (this.onAuthChange) this.onAuthChange(this.user);
-    return true;
+  /**
+   * Step 2: Confirm OTP, create Firebase user, and store in SQLite database
+   */
+  async verifyRegistrationOtp(rawOtp) {
+    if (!this.pendingRegConfirmation) {
+      this.setStatus('Session expired. Please request a new verification code.');
+      this.resetRegistrationForm();
+      return false;
+    }
+
+    const code = String(rawOtp || '').trim();
+    if (!code || code.length < 4) {
+      this.setStatus('Please enter the 6-digit verification code.');
+      return false;
+    }
+
+    this.setStatus('Verifying OTP code and registering account in database...', false);
+
+    try {
+      const userCredential = await this.pendingRegConfirmation.confirm(code);
+      const firebaseUser = userCredential.user;
+      const firebaseUid = firebaseUser?.uid || ('fb_' + Date.now());
+
+      const hashed = await hashPassword(this.pendingRegPassword.trim());
+      const randomDigits = Math.floor(10000 + Math.random() * 90000);
+      const username = `pilot_${randomDigits}`;
+
+      // Persist in SQLite database via REST API
+      const dbRes = await storeUserInDatabase({
+        phone: this.pendingRegPhone,
+        firebaseUid: firebaseUid,
+        username: username,
+        passwordHash: hashed
+      });
+
+      const assignedId = dbRes?.user?.id ? String(dbRes.user.id) : String(Math.floor(100000 + Math.random() * 900000));
+      const newUser = {
+        id: assignedId,
+        phone: this.pendingRegPhone,
+        firebaseUid: firebaseUid,
+        username: dbRes?.user?.username || username,
+        passwordHash: hashed,
+        balance: 50000.00,
+        createdAt: Date.now(),
+        lastLogin: Date.now(),
+        vipLevel: 'Verified Pilot',
+        avatar: 'pilot',
+        passwordResetHistory: []
+      };
+
+      const users = this.getAllUsers();
+      users.push(newUser);
+      this.saveAllUsers(users);
+
+      this.user = newUser;
+      try {
+        localStorage.removeItem('aviator_explicit_logout');
+        localStorage.setItem(STORAGE_SESSION_KEY, String(newUser.id));
+      } catch (e) {}
+
+      if (this.stakingManager.setAccount) {
+        this.stakingManager.setAccount(this.user);
+      }
+      this.stakingManager.balance = newUser.balance;
+      this.stakingManager.saveBalance();
+
+      this.renderLoggedIn();
+      this.closeAuthModal();
+      this.resetRegistrationForm();
+      this.soundEngine?.playCashout();
+      this.showToast(`🎉 Phone verified with Firebase OTP & stored in database! Welcome ${this.maskPhone(newUser.phone)}!`);
+      if (this.onAuthChange) this.onAuthChange(this.user);
+      return true;
+    } catch (err) {
+      this.setStatus(`Verification failed: ${err.message}`);
+      return false;
+    }
+  }
+
+  async registerWithPhone(rawPhone, rawPassword, rawConfirmPassword) {
+    return this.requestRegistrationOtp(rawPhone, rawPassword, rawConfirmPassword);
   }
 
   /**
@@ -765,14 +876,64 @@ export class AuthManager {
       };
     }
 
-    // Submit Register
+    // Submit Register Step 1 (Send OTP)
+    const sendRegOtpBtn = document.getElementById('btn-send-reg-otp');
+    if (sendRegOtpBtn) {
+      sendRegOtpBtn.onclick = () => {
+        const phone = document.getElementById('auth-reg-phone')?.value;
+        const pass = document.getElementById('auth-reg-password')?.value;
+        const pass2 = document.getElementById('auth-reg-confirm-password')?.value;
+        this.requestRegistrationOtp(phone, pass, pass2);
+      };
+    }
+
+    // Submit Register Step 2 (Verify OTP & Complete Sign Up)
+    const verifyRegOtpBtn = document.getElementById('btn-verify-reg-otp');
+    if (verifyRegOtpBtn) {
+      verifyRegOtpBtn.onclick = () => {
+        const otp = document.getElementById('auth-reg-otp')?.value;
+        this.verifyRegistrationOtp(otp);
+      };
+    }
+
+    // Auto-fill Registration OTP
+    const autofillRegOtpBtn = document.getElementById('btn-autofill-reg-otp');
+    if (autofillRegOtpBtn) {
+      autofillRegOtpBtn.onclick = () => {
+        const otpInp = document.getElementById('auth-reg-otp');
+        if (otpInp && this.pendingRegOtpCode) {
+          otpInp.value = this.pendingRegOtpCode;
+        }
+      };
+    }
+
+    // Change Registration Phone
+    const changeRegPhoneBtn = document.getElementById('btn-change-reg-phone');
+    if (changeRegPhoneBtn) {
+      changeRegPhoneBtn.onclick = () => {
+        this.resetRegistrationForm();
+      };
+    }
+
+    // Resend Registration OTP
+    const resendRegOtpBtn = document.getElementById('btn-resend-reg-otp');
+    if (resendRegOtpBtn) {
+      resendRegOtpBtn.onclick = () => {
+        const phone = document.getElementById('auth-reg-phone')?.value || this.pendingRegPhone;
+        const pass = document.getElementById('auth-reg-password')?.value || this.pendingRegPassword;
+        const pass2 = document.getElementById('auth-reg-confirm-password')?.value || this.pendingRegPassword;
+        this.requestRegistrationOtp(phone, pass, pass2);
+      };
+    }
+
+    // Legacy fallback button if present
     const submitRegBtn = document.getElementById('btn-submit-phone-register');
     if (submitRegBtn) {
       submitRegBtn.onclick = () => {
         const phone = document.getElementById('auth-reg-phone')?.value;
         const pass = document.getElementById('auth-reg-password')?.value;
         const pass2 = document.getElementById('auth-reg-confirm-password')?.value;
-        this.registerWithPhone(phone, pass, pass2);
+        this.requestRegistrationOtp(phone, pass, pass2);
       };
     }
 

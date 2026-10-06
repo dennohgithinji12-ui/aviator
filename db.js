@@ -25,6 +25,7 @@ const db = new DatabaseSync(DB_PATH);
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    firebase_uid TEXT,
     phone TEXT UNIQUE NOT NULL,
     username TEXT,
     password_hash TEXT,
@@ -72,6 +73,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_bets_phone ON bets(phone);
   CREATE INDEX IF NOT EXISTS idx_resets_phone_time ON password_resets(phone, timestamp);
 `);
+
+// Safe migration for firebase_uid column if table already exists
+try {
+  db.exec("ALTER TABLE users ADD COLUMN firebase_uid TEXT;");
+} catch (e) {
+  // column already exists
+}
 
 function normalizePhone(raw) {
   if (!raw) return '';
@@ -123,6 +131,33 @@ const DatabaseService = {
       `);
       const now = Date.now();
       stmt.run(norm, uname, password, now, now);
+      user = this.getUser(norm);
+    }
+    return user;
+  },
+
+  registerPhoneUser(phone, firebaseUid = null, username = null, passwordHash = null) {
+    const norm = normalizePhone(phone);
+    if (!norm) return null;
+    let user = this.getUser(norm);
+    const now = Date.now();
+    const uname = username || `pilot_${norm.slice(-4)}`;
+    if (!user) {
+      const stmt = db.prepare(`
+        INSERT INTO users (phone, firebase_uid, username, password_hash, real_balance, demo_balance, created_at, last_login)
+        VALUES (?, ?, ?, ?, 0.0, 50000.0, ?, ?)
+      `);
+      stmt.run(norm, firebaseUid, uname, passwordHash, now, now);
+      user = this.getUser(norm);
+    } else {
+      const stmt = db.prepare(`
+        UPDATE users 
+        SET firebase_uid = COALESCE(?, firebase_uid),
+            password_hash = COALESCE(?, password_hash),
+            last_login = ?
+        WHERE phone = ?
+      `);
+      stmt.run(firebaseUid, passwordHash, now, norm);
       user = this.getUser(norm);
     }
     return user;

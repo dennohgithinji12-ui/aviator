@@ -465,6 +465,47 @@ const server = http.createServer((req, res) => {
     }));
   }
 
+  // Auth API: Store verified phone user with Firebase UID in SQLite database
+  if (pathname === '/api/auth/phone-signup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone;
+        const firebaseUid = data.firebaseUid || null;
+        const username = data.username || null;
+        const passwordHash = data.passwordHash || null;
+
+        if (!phone) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'Phone number is required.' }));
+        }
+
+        const user = db.registerPhoneUser(phone, firebaseUid, username, passwordHash);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: true,
+          user: {
+            id: user.id,
+            phone: user.phone,
+            firebaseUid: user.firebase_uid,
+            username: user.username,
+            demoBalance: user.demo_balance,
+            realBalance: user.real_balance
+          }
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // Wallet API: Place Bet with server-side balance & real money verification
   if (pathname === '/api/wallet/bet' && req.method === 'POST') {
     let body = '';
