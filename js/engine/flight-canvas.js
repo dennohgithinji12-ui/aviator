@@ -6,11 +6,12 @@
  */
 
 export class FlightCanvasEngine {
-  constructor(canvasElement, onMultiplierUpdate, onStateChange) {
+  constructor(canvasElement, onMultiplierUpdate, onStateChange, globalSync = null) {
     this.canvas = canvasElement;
     this.ctx = canvasElement.getContext('2d');
     this.onMultiplierUpdate = onMultiplierUpdate;
     this.onStateChange = onStateChange;
+    this.globalSync = globalSync;
 
     // Dimensions
     this.width = 800;
@@ -215,31 +216,54 @@ export class FlightCanvasEngine {
     this.animFrameId = requestAnimationFrame(loop);
   }
 
+  setGlobalSync(sync) {
+    this.globalSync = sync;
+  }
+
   update(timestamp) {
     this.propellerAngle += (this.state === 'FLYING' ? 0.75 : 0.25);
 
-    if (this.state === 'WAITING') {
-      const elapsed = timestamp - (this.countdownStartTime || timestamp);
-      const remaining = (this.countdownDuration - elapsed) / 1000;
-      this.countdownSeconds = Math.max(0, remaining);
+    if (this.globalSync) {
+      const gState = this.globalSync.getGlobalRoundState();
 
-      if (this.onMultiplierUpdate) {
-        this.onMultiplierUpdate(1.00, this.countdownSeconds);
-      }
+      if (gState.phase === 'WAITING') {
+        if (this.state !== 'WAITING') {
+          this.state = 'WAITING';
+          this.targetCrashMultiplier = gState.crashMultiplier;
+          this.particles = [];
+          this.explosionParticles = [];
+          this.shockwaveRadius = 0;
+          this.shockwaveAlpha = 0;
+          this.crashTime = 0;
+          this.maxX = 7;
+          this.maxY = 2.2;
+          if (this.onStateChange) {
+            this.onStateChange('WAITING', { countdown: gState.remainingSeconds, crashMultiplier: this.targetCrashMultiplier });
+          }
+        }
+        this.targetCrashMultiplier = gState.crashMultiplier;
+        this.countdownSeconds = gState.remainingSeconds;
+        this.currentMultiplier = 1.00;
+        this.elapsedFlightTime = 0;
 
-      if (remaining <= 0) {
-        this.startFlight(this.targetCrashMultiplier);
-        return;
-      }
-    } else if (this.state === 'FLYING') {
-      if (!this.flightStartTime) this.flightStartTime = timestamp;
-      this.elapsedFlightTime = Math.max(0, (timestamp - this.flightStartTime) / 1000);
-      this.currentMultiplier = this.computeMultiplierFromTime(this.elapsedFlightTime);
+        if (this.onMultiplierUpdate) {
+          this.onMultiplierUpdate(1.00, this.countdownSeconds);
+        }
+      } else if (gState.phase === 'FLYING') {
+        if (this.state !== 'FLYING') {
+          this.state = 'FLYING';
+          this.targetCrashMultiplier = gState.crashMultiplier;
+          this.particles = [];
+          this.explosionParticles = [];
+          this.crashTime = 0;
+          if (this.onStateChange) {
+            this.onStateChange('FLYING', { crashMultiplier: this.targetCrashMultiplier });
+          }
+        }
+        this.targetCrashMultiplier = gState.crashMultiplier;
+        this.elapsedFlightTime = gState.elapsedFlightSeconds;
+        this.currentMultiplier = gState.currentMultiplier;
 
-      if (this.currentMultiplier >= this.targetCrashMultiplier) {
-        this.currentMultiplier = this.targetCrashMultiplier;
-        this.triggerCrash();
-      } else {
         if (this.currentMultiplier > this.maxY * 0.75) {
           this.maxY = this.currentMultiplier * 1.35;
         }
@@ -259,15 +283,85 @@ export class FlightCanvasEngine {
             color: Math.random() > 0.4 ? '#ff003b' : '#ff9800'
           });
         }
-      }
 
-      if (this.onMultiplierUpdate) {
-        this.onMultiplierUpdate(this.currentMultiplier, 0);
+        if (this.onMultiplierUpdate) {
+          this.onMultiplierUpdate(this.currentMultiplier, 0);
+        }
+      } else if (gState.phase === 'CRASHED') {
+        if (this.state !== 'CRASHED') {
+          this.state = 'CRASHED';
+          this.targetCrashMultiplier = gState.crashMultiplier;
+          this.currentMultiplier = gState.crashMultiplier;
+          this.lastCrashPos = this.getPlaneCoordinates();
+          this.crashPlanePos = { ...this.lastCrashPos };
+          this.crashTime = performance.now();
+          this.createExplosion();
+          if (this.onStateChange) {
+            this.onStateChange('CRASHED', { finalMultiplier: this.targetCrashMultiplier });
+          }
+        }
+        this.currentMultiplier = gState.crashMultiplier;
+        if (this.shockwaveRadius < 90) {
+          this.shockwaveRadius += 3.5;
+          this.shockwaveAlpha = Math.max(0, this.shockwaveAlpha - 0.045);
+        }
+
+        if (this.onMultiplierUpdate) {
+          this.onMultiplierUpdate(this.currentMultiplier, 0);
+        }
       }
-    } else if (this.state === 'CRASHED') {
-      if (this.shockwaveRadius < 90) {
-        this.shockwaveRadius += 3.5;
-        this.shockwaveAlpha = Math.max(0, this.shockwaveAlpha - 0.045);
+    } else {
+      if (this.state === 'WAITING') {
+        const elapsed = timestamp - (this.countdownStartTime || timestamp);
+        const remaining = (this.countdownDuration - elapsed) / 1000;
+        this.countdownSeconds = Math.max(0, remaining);
+
+        if (this.onMultiplierUpdate) {
+          this.onMultiplierUpdate(1.00, this.countdownSeconds);
+        }
+
+        if (remaining <= 0) {
+          this.startFlight(this.targetCrashMultiplier);
+          return;
+        }
+      } else if (this.state === 'FLYING') {
+        if (!this.flightStartTime) this.flightStartTime = timestamp;
+        this.elapsedFlightTime = Math.max(0, (timestamp - this.flightStartTime) / 1000);
+        this.currentMultiplier = this.computeMultiplierFromTime(this.elapsedFlightTime);
+
+        if (this.currentMultiplier >= this.targetCrashMultiplier) {
+          this.currentMultiplier = this.targetCrashMultiplier;
+          this.triggerCrash();
+        } else {
+          if (this.currentMultiplier > this.maxY * 0.75) {
+            this.maxY = this.currentMultiplier * 1.35;
+          }
+          if (this.elapsedFlightTime > this.maxX * 0.75) {
+            this.maxX = this.elapsedFlightTime * 1.35;
+          }
+
+          if (Math.random() > 0.2) {
+            const plane = this.getPlaneCoordinates();
+            this.particles.push({
+              x: plane.x - 22,
+              y: plane.y + 4 + (Math.random() - 0.5) * 4,
+              vx: -3.0 - Math.random() * 3.0,
+              vy: 0.5 + (Math.random() - 0.5) * 1.5,
+              radius: 2.5 + Math.random() * 3.5,
+              alpha: 0.8,
+              color: Math.random() > 0.4 ? '#ff003b' : '#ff9800'
+            });
+          }
+        }
+
+        if (this.onMultiplierUpdate) {
+          this.onMultiplierUpdate(this.currentMultiplier, 0);
+        }
+      } else if (this.state === 'CRASHED') {
+        if (this.shockwaveRadius < 90) {
+          this.shockwaveRadius += 3.5;
+          this.shockwaveAlpha = Math.max(0, this.shockwaveAlpha - 0.045);
+        }
       }
     }
 

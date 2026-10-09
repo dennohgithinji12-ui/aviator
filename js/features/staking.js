@@ -205,6 +205,16 @@ export class StakingTerminalManager {
     this.soundEngine?.playClick();
   }
 
+  setRealBalance(amount) {
+    this.realBalance = Math.max(0, parseFloat(amount) || 0);
+    this.saveBalance();
+  }
+
+  setDemoBalance(amount) {
+    this.demoBalance = Math.max(0, parseFloat(amount) || 0);
+    this.saveBalance();
+  }
+
   topUp(amount = 49, isReal = true) {
     const depositAmt = Math.round(Number(amount));
     if (depositAmt < 49) {

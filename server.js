@@ -56,6 +56,45 @@ const CRASHED_PAUSE_DURATION = 3.0; // 3.0s Frozen Crash Window (NotebookLM Sect
 // PayHero Payment Transactions Store (M-PESA STK Push)
 const PAYHERO_TRANSACTIONS = new Map();
 
+function callPayHeroApi(endpoint, method = 'GET', data = null) {
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.PAYHERO_API_KEY;
+    const apiSecret = process.env.PAYHERO_API_SECRET;
+    if (!apiKey || !apiSecret) {
+      return reject(new Error('PayHero credentials not configured'));
+    }
+    const https = require('https');
+    const authHeader = 'Basic ' + Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+    const cleanPath = endpoint.startsWith('/') ? endpoint : `/api/v2/${endpoint}`;
+    const url = `https://backend.payhero.co.ke${cleanPath}`;
+    const postData = data ? JSON.stringify(data) : null;
+
+    const req = https.request(url, {
+      method: method,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+        ...(postData ? { 'Content-Length': Buffer.byteLength(postData) } : {})
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body || '{}');
+          resolve({ statusCode: res.statusCode, body: json });
+        } catch (e) {
+          resolve({ statusCode: res.statusCode, body: { raw: body } });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    if (postData) req.write(postData);
+    req.end();
+  });
+}
+
 function simulateSandboxSuccess(reference, txRecord) {
   setTimeout(() => {
     if (PAYHERO_TRANSACTIONS.has(reference)) {
@@ -230,11 +269,204 @@ const server = http.createServer((req, res) => {
     }));
   }
 
+  // PayHero Service Wallet Status Endpoint
+  if (pathname === '/api/payhero/service-wallet' && req.method === 'GET') {
+    callPayHeroApi('wallets?wallet_type=service_wallet', 'GET')
+      .then(result => {
+        const data = result.body || {};
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: result.statusCode < 400,
+          availableBalance: data.available_balance !== undefined ? parseFloat(data.available_balance) : 0,
+          currency: data.currency || 'KES',
+          status: data.wallet_status || 'ACTIVE',
+          channelId: process.env.PAYHERO_CHANNEL_ID || '4848',
+          tillNumber: '9956081',
+          secondaryTillNumber: '6310357'
+        }));
+      })
+      .catch(err => {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: false,
+          availableBalance: 0,
+          currency: 'KES',
+          error: err.message,
+          channelId: process.env.PAYHERO_CHANNEL_ID || '4848',
+          tillNumber: '9956081',
+          secondaryTillNumber: '6310357'
+        }));
+      });
+    return;
+  }
+
+  // PayHero Service Wallet Top-Up Endpoint (M-PESA float top up)
+  if (pathname === '/api/payhero/topup-service-wallet' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const amount = Math.max(10, Math.round(parseFloat(data.amount) || 50));
+        let phone = String(data.phone || '').trim().replace(/[^\d+]/g, '');
+        if (phone.startsWith('07') || phone.startsWith('01')) {
+          phone = '254' + phone.substring(1);
+        } else if (phone.startsWith('+254')) {
+          phone = phone.substring(1);
+        } else if (!phone.startsWith('254') && phone.length === 9) {
+          phone = '254' + phone;
+        }
+
+        if (!phone || phone.length < 10) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'Valid phone number required for float top-up.' }));
+        }
+
+        const topupRes = await callPayHeroApi('topup', 'POST', {
+          amount: amount,
+          phone_number: phone
+        });
+
+        if (topupRes.statusCode >= 400 || (topupRes.body && topupRes.body.error_message)) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: topupRes.body.error_message || 'PayHero float top-up failed',
+            details: topupRes.body
+          }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({
+          success: true,
+          message: `M-PESA prompt of KES ${amount} sent to 0${phone.substring(3)}. Enter your PIN to credit PayHero Service Float.`,
+          reference: topupRes.body.reference,
+          checkoutRequestId: topupRes.body.CheckoutRequestID
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Lipa na M-PESA Buy Goods Till 9956081 Direct Payment Verification
+  if (pathname === '/api/payhero/verify-mpesa-code' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const rawCode = String(data.mpesaCode || data.receipt || '').trim().toUpperCase();
+        let phone = String(data.phone || '').trim().replace(/[^\d+]/g, '');
+        if (phone.startsWith('07') || phone.startsWith('01')) {
+          phone = '254' + phone.substring(1);
+        } else if (phone.startsWith('+254')) {
+          phone = phone.substring(1);
+        } else if (!phone.startsWith('254') && phone.length === 9) {
+          phone = '254' + phone;
+        }
+
+        if (!rawCode || rawCode.length < 8) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: 'Please enter a valid M-PESA confirmation receipt code (e.g. UAO234VA8A or NL12345678).'
+          }));
+        }
+
+        // 1. Idempotency check: Has this receipt code already been credited?
+        const alreadyClaimed = db.getDepositByReceipt(rawCode);
+        if (alreadyClaimed && alreadyClaimed.status === 'SUCCESS') {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: `M-PESA receipt code ${rawCode} has already been credited to user ${alreadyClaimed.phone}.`
+          }));
+        }
+
+        // 2. Query PayHero Live Inbound Transactions
+        let matchedTx = null;
+        try {
+          const txRes = await callPayHeroApi('transactions?page=1&per_page=50', 'GET');
+          if (txRes.body && Array.isArray(txRes.body.transactions)) {
+            matchedTx = txRes.body.transactions.find(t => {
+              const provRef = String(t.provider_reference || '').toUpperCase();
+              const extRef = String(t.external_reference || '').toUpperCase();
+              const txRef = String(t.transaction_reference || '').toUpperCase();
+              return provRef === rawCode || provRef.endsWith(rawCode) || extRef === rawCode || txRef.includes(rawCode);
+            });
+          }
+        } catch (apiErr) {
+          console.warn('[PayHero Transactions Query Warning]:', apiErr.message);
+        }
+
+        if (matchedTx) {
+          const creditedAmount = Math.max(49, parseFloat(matchedTx.amount) || parseFloat(data.amount) || 49);
+          const ref = `PH_TILL_${rawCode}`;
+          db.createDeposit(ref, phone, creditedAmount);
+          db.completeDeposit(ref, rawCode);
+          const balances = db.getBalances(phone);
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: true,
+            message: `Deposit verified! KES ${creditedAmount.toFixed(2)} credited from Lipa na M-PESA Till payment (Ref: ${rawCode}).`,
+            receiptNumber: rawCode,
+            reference: ref,
+            creditedAmount: creditedAmount,
+            realBalance: balances.realBalance,
+            demoBalance: balances.demoBalance
+          }));
+        }
+
+        // If not yet found in transactions list, check if sandbox test mode is active
+        if (data.isSandbox === true || process.env.PAYHERO_SANDBOX === 'true') {
+          const creditedAmount = Math.max(49, parseFloat(data.amount) || 49);
+          const ref = `PH_TEST_${rawCode}`;
+          db.createDeposit(ref, phone, creditedAmount);
+          db.completeDeposit(ref, rawCode);
+          const balances = db.getBalances(phone);
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: true,
+            message: `[Sandbox] Test receipt ${rawCode} verified! KES ${creditedAmount.toFixed(2)} credited.`,
+            receiptNumber: rawCode,
+            reference: ref,
+            creditedAmount: creditedAmount,
+            realBalance: balances.realBalance,
+            demoBalance: balances.demoBalance
+          }));
+        }
+
+        // If not found in PayHero transactions list, return helpful guidance
+        res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({
+          success: false,
+          error: `M-PESA receipt code ${rawCode} was not found in recent PayHero Till transactions. If you just sent money to Till 9956081, please wait 15 seconds for Safaricom to sync and try again.`,
+          code: 'RECEIPT_NOT_FOUND'
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // PayHero API endpoints for Kenyan M-PESA STK Push (Min 49 Bob)
   if (pathname === '/api/payhero/stk-push' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const data = JSON.parse(body || '{}');
         const amount = parseFloat(data.amount);
@@ -308,94 +540,70 @@ const server = http.createServer((req, res) => {
         // Check if live PayHero credentials are configured in environment
         const apiKey = process.env.PAYHERO_API_KEY;
         const apiSecret = process.env.PAYHERO_API_SECRET;
-        const channelId = process.env.PAYHERO_CHANNEL_ID;
+        const channelId = process.env.PAYHERO_CHANNEL_ID || '4848';
 
-        if (apiKey && apiSecret) {
-          // Perform live PayHero HTTPS STK push request
-          const https = require('https');
-          const authHeader = 'Basic ' + Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
-          const payload = JSON.stringify({
-            amount: amount,
-            phone_number: phone,
-            channel_id: channelId ? parseInt(channelId) : undefined,
-            provider: 'm-pesa',
-            external_reference: reference,
-            customer_name: data.customerName || 'Aviator Pilot',
-            callback_url: `http://${req.headers.host}/api/payhero/callback`
-          });
+        if (apiKey && apiSecret && !data.forceSandbox) {
+          try {
+            const phRes = await callPayHeroApi('payments', 'POST', {
+              amount: Math.round(amount),
+              phone_number: phone,
+              channel_id: parseInt(channelId),
+              provider: 'm-pesa',
+              external_reference: reference,
+              customer_name: data.customerName || 'Aviator Pilot',
+              callback_url: `http://${req.headers.host}/api/payhero/callback`
+            });
 
-          const phReq = https.request('https://backend.payhero.co.ke/api/v2/payments', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': authHeader,
-              'Content-Length': Buffer.byteLength(payload)
-            }
-          }, (phRes) => {
-            let phBody = '';
-            phRes.on('data', c => phBody += c);
-            phRes.on('end', () => {
-              try {
-                const phJson = JSON.parse(phBody);
-                if (phRes.statusCode >= 400) {
-                  console.warn('[PayHero Live API Notice]:', phRes.statusCode, phJson);
-                  if (phJson.error_message && phJson.error_message.includes('insufficient balance')) {
-                    simulateSandboxSuccess(reference, txRecord);
-                    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                    return res.end(JSON.stringify({
-                      success: true,
-                      status: 'PENDING',
-                      reference: reference,
-                      message: `Deposit of KES ${amount} initiated. Note: PayHero merchant service wallet requires top-up on payherokenya.com.`,
-                      isSandbox: true,
-                      payheroResponse: phJson
-                    }));
-                  }
-                  res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                  return res.end(JSON.stringify({
-                    success: false,
-                    error: phJson.error_message || phJson.message || 'PayHero payment initiation failed',
-                    payheroResponse: phJson
-                  }));
-                }
+            const phJson = phRes.body || {};
 
-                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            if (phRes.statusCode >= 400 || (phJson.error_message && !phJson.success)) {
+              console.warn('[PayHero Live API Notice]:', phRes.statusCode, phJson);
+
+              // Insufficient service wallet float on PayHero
+              if (phJson.error_message && phJson.error_message.includes('insufficient balance')) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
                 return res.end(JSON.stringify({
-                  success: true,
-                  status: 'PENDING',
+                  success: false,
+                  code: 'INSUFFICIENT_SERVICE_FLOAT',
+                  error: 'PayHero service float is currently 0 KES. Please pay directly via Lipa na M-PESA Buy Goods Till 9956081 below, or top up the float.',
+                  tillNumber: '9956081',
+                  secondaryTillNumber: '6310357',
                   reference: reference,
-                  message: `STK Push sent to ${phone}. Enter your M-PESA PIN to complete deposit of KES ${amount}.`,
+                  requiresTill: true,
                   payheroResponse: phJson
                 }));
-              } catch (e) {
-                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                return res.end(JSON.stringify({
-                  success: true,
-                  status: 'PENDING',
-                  reference: reference,
-                  message: `STK Push initiated for KES ${amount}.`
-                }));
               }
-            });
-          });
 
-          phReq.on('error', (err) => {
-            console.warn('[PayHero Live Error, falling back to simulated sandbox]:', err.message);
-            // Sandbox fallback if API is unreachable or keys in test mode
-            simulateSandboxSuccess(reference, txRecord);
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              return res.end(JSON.stringify({
+                success: false,
+                error: phJson.error_message || phJson.message || 'PayHero payment initiation failed',
+                payheroResponse: phJson
+              }));
+            }
+
             res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
             return res.end(JSON.stringify({
               success: true,
               status: 'PENDING',
               reference: reference,
-              message: `STK Push prompt sent to ${phone}. Please enter your M-PESA PIN.`
+              message: `STK Push sent to 0${phone.substring(3)}. Enter your M-PESA PIN to complete deposit of KES ${amount}.`,
+              checkoutRequestId: phJson.CheckoutRequestID,
+              payheroResponse: phJson
             }));
-          });
 
-          phReq.write(payload);
-          phReq.end();
+          } catch (liveErr) {
+            console.warn('[PayHero Live Error]:', liveErr.message);
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            return res.end(JSON.stringify({
+              success: false,
+              code: 'PAYHERO_API_ERROR',
+              error: `PayHero connection issue: ${liveErr.message}. Please pay directly via Buy Goods Till 9956081.`,
+              tillNumber: '9956081'
+            }));
+          }
         } else {
-          // Sandbox / Spark Test Mode: Simulate realistic M-PESA prompt & auto-credit after PIN entry delay
+          // Sandbox / Test Mode
           console.log(`[PayHero Sandbox] Simulated STK Push for KES ${amount} to ${phone} (Ref: ${reference})`);
           simulateSandboxSuccess(reference, txRecord);
 
@@ -419,7 +627,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // PayHero Status Polling Endpoint (with SQLite database synchronization)
+  // PayHero Status Polling Endpoint (with SQLite database synchronization & live PayHero reconciliation)
   if (pathname === '/api/payhero/status') {
     const ref = parsedUrl.searchParams.get('reference') || parsedUrl.searchParams.get('ref');
     let tx = PAYHERO_TRANSACTIONS.get(ref);
@@ -443,6 +651,28 @@ const server = http.createServer((req, res) => {
     });
     if (!tx) {
       return res.end(JSON.stringify({ success: false, status: 'NOT_FOUND' }));
+    }
+
+    // If still pending, check PayHero transactions API
+    if (tx.status === 'PENDING' && process.env.PAYHERO_API_KEY) {
+      callPayHeroApi('transactions?page=1&per_page=20', 'GET')
+        .then(tRes => {
+          if (tRes.body && Array.isArray(tRes.body.transactions)) {
+            const match = tRes.body.transactions.find(t => {
+              const ext = String(t.external_reference || '');
+              const desc = String(t.description || '');
+              return (ext && ext === tx.reference) || (tx.phone && desc.includes(tx.phone.slice(-9)));
+            });
+            if (match) {
+              const receipt = match.provider_reference || ('NL' + Math.random().toString(36).substring(2, 9).toUpperCase());
+              tx.status = 'SUCCESS';
+              tx.receiptNumber = receipt;
+              PAYHERO_TRANSACTIONS.set(ref, tx);
+              db.completeDeposit(tx.reference, receipt);
+            }
+          }
+        })
+        .catch(() => {});
     }
 
     const balances = db.getBalances(tx.phone);

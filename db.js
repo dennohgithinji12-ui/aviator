@@ -290,6 +290,12 @@ const DatabaseService = {
     return stmt.get(reference) || null;
   },
 
+  getDepositByReceipt(receiptNumber) {
+    if (!receiptNumber) return null;
+    const stmt = db.prepare('SELECT * FROM deposits WHERE receipt_number = ? COLLATE NOCASE');
+    return stmt.get(receiptNumber) || null;
+  },
+
   completeDeposit(reference, receiptNumber = null) {
     const dep = this.getDeposit(reference);
     if (!dep) return null;

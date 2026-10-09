@@ -280,7 +280,7 @@
             </div>
 
             <div class="canvas-watermark">AVIATOR</div>
-            <button id="btn-skip-countdown" class="canvas-skip-btn" title="Skip countdown and take off immediately">
+            <button id="btn-skip-countdown" class="canvas-skip-btn" title="Universal Synchronized Flight" style="display: none !important;">
               <span>▶ Take Off</span>
             </button>
           </div>
@@ -1149,100 +1149,175 @@
             <span class="notice-icon">⚡</span>
             <div class="notice-text">
               <strong>Minimum Deposit: KES 49.00 (49 Bob)</strong>
-              <p>Powered by PayHero API. You will receive an instant M-PESA STK Push PIN prompt on your phone.</p>
+              <p>Powered by PayHero API. Choose Instant STK Push or Direct Buy Goods Till 9956081.</p>
             </div>
           </div>
 
-          <!-- Payment Method Selector -->
-          <div class="deposit-methods-bar">
-            <button type="button" class="deposit-method-btn active" data-method="mpesa">
-              <span class="method-badge">PAYHERO</span>
-              <span class="method-name">M-PESA</span>
+          <!-- Deposit Sub-mode Selector (STK Push vs Buy Goods Till) -->
+          <div class="deposit-sub-tabs" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;">
+            <button type="button" class="deposit-sub-tab active" id="tab-dep-stk" style="padding: 7px 10px; background: #1e2029; border: 1px solid #2ecc71; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+              <span>📲</span> Instant STK Push
             </button>
-            <button type="button" class="deposit-method-btn" data-method="airtel">
-              <span class="method-badge">AIRTEL</span>
-              <span class="method-name">Money</span>
-            </button>
-            <button type="button" class="deposit-method-btn" data-method="card">
-              <span class="method-badge">VISA / MC</span>
-              <span class="method-name">Card</span>
-            </button>
-            <button type="button" class="deposit-method-btn" data-method="crypto">
-              <span class="method-badge">USDT</span>
-              <span class="method-name">Crypto</span>
+            <button type="button" class="deposit-sub-tab" id="tab-dep-till" style="padding: 7px 10px; background: #14151a; border: 1px solid var(--border-main); border-radius: 6px; color: #9aa1ad; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+              <span>🏪</span> Buy Goods Till 9956081
             </button>
           </div>
 
-          <!-- Amount Selection (With 49 Bob Highlighted) -->
-          <div class="deposit-section">
-            <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
-            <div class="deposit-input-wrapper">
-              <span class="deposit-currency-tag">KES</span>
-              <input 
-                type="number" 
-                id="deposit-amount-input" 
-                class="deposit-amount-input" 
-                value="49" 
-                min="49" 
-                step="1" 
-                placeholder="49" 
-              />
+          <!-- Section A: STK Push Mode -->
+          <div id="deposit-section-stk">
+            <!-- Payment Method Selector -->
+            <div class="deposit-methods-bar">
+              <button type="button" class="deposit-method-btn active" data-method="mpesa">
+                <span class="method-badge">PAYHERO</span>
+                <span class="method-name">M-PESA</span>
+              </button>
+              <button type="button" class="deposit-method-btn" data-method="airtel">
+                <span class="method-badge">AIRTEL</span>
+                <span class="method-name">Money</span>
+              </button>
+              <button type="button" class="deposit-method-btn" data-method="card">
+                <span class="method-badge">VISA / MC</span>
+                <span class="method-name">Card</span>
+              </button>
+              <button type="button" class="deposit-method-btn" data-method="crypto">
+                <span class="method-badge">USDT</span>
+                <span class="method-name">Crypto</span>
+              </button>
             </div>
 
-            <!-- Quick Presets (Starting at 49 Bob) -->
-            <div class="deposit-presets-grid">
-              <button type="button" class="btn-deposit-chip active" data-amount="49">KES 49 (49 Bob)</button>
-              <button type="button" class="btn-deposit-chip" data-amount="100">KES 100</button>
-              <button type="button" class="btn-deposit-chip" data-amount="200">KES 200</button>
-              <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
-              <button type="button" class="btn-deposit-chip" data-amount="1000">KES 1,000</button>
-              <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
+            <!-- Amount Selection (With 49 Bob Highlighted) -->
+            <div class="deposit-section">
+              <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
+              <div class="deposit-input-wrapper">
+                <span class="deposit-currency-tag">KES</span>
+                <input 
+                  type="number" 
+                  id="deposit-amount-input" 
+                  class="deposit-amount-input" 
+                  value="49" 
+                  min="49" 
+                  step="1" 
+                  placeholder="49" 
+                />
+              </div>
+
+              <!-- Quick Presets (Starting at 49 Bob) -->
+              <div class="deposit-presets-grid">
+                <button type="button" class="btn-deposit-chip active" data-amount="49">KES 49 (49 Bob)</button>
+                <button type="button" class="btn-deposit-chip" data-amount="100">KES 100</button>
+                <button type="button" class="btn-deposit-chip" data-amount="200">KES 200</button>
+                <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
+                <button type="button" class="btn-deposit-chip" data-amount="1000">KES 1,000</button>
+                <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
+              </div>
             </div>
+
+            <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
+            <div class="deposit-section" id="deposit-phone-container">
+              <label class="deposit-label" id="deposit-phone-label" for="deposit-phone-input">M-PESA Phone Number (PayHero STK Push):</label>
+              <div class="deposit-input-wrapper">
+                <span class="deposit-currency-tag">🇰🇪</span>
+                <input 
+                  type="tel" 
+                  id="deposit-phone-input" 
+                  class="deposit-amount-input" 
+                  placeholder="07XX XXX XXX or 01XX XXX XXX" 
+                />
+              </div>
+              <span class="deposit-hint-text" id="deposit-phone-note">You will receive an M-PESA PIN prompt on this phone to authorize the deposit.</span>
+            </div>
+
+            <!-- 30-Second Anti-Abuse Cooldown Active Notice (NotebookLM Section 5.2) -->
+            <div id="stk-cooldown-timer-notice" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; font-size: 11px; color: #fbbf24; text-align: center;">
+              ⏱️ Anti-Abuse Protection: Please wait <strong id="cooldown-seconds">30</strong>s before requesting another STK prompt.
+            </div>
+
+            <!-- PayHero STK Waiting Card (Shown during STK Push) -->
+            <div id="payhero-stk-waiting" class="payhero-stk-waiting-card" style="display: none;">
+              <div style="font-size: 26px; margin-bottom: 4px;">📲</div>
+              <strong style="color: #00e676; font-size: 13px;">M-PESA STK Push Sent to Your Phone!</strong>
+              <p style="font-size: 11px; color: #d1d5db; margin-top: 4px;">
+                Please enter your M-PESA PIN on your mobile phone to complete payment of <span id="stk-prompt-amount" style="color: #ffffff; font-weight: 800;">KES 49.00</span>.
+              </p>
+              <div style="font-size: 10px; color: #9aa1ad; margin-top: 6px;">
+                Transaction Ref: <span id="stk-prompt-ref" style="font-family: monospace;">PH_...</span>
+              </div>
+            </div>
+
+            <!-- Confirm Deposit Action -->
+            <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
+              <span class="btn-dep-icon">⚡</span>
+              <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 49.00 via PayHero</span>
+            </button>
           </div>
 
-          <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
-          <div class="deposit-section" id="deposit-phone-container">
-            <label class="deposit-label" id="deposit-phone-label" for="deposit-phone-input">M-PESA Phone Number (PayHero STK Push):</label>
-            <div class="deposit-input-wrapper">
-              <span class="deposit-currency-tag">🇰🇪</span>
-              <input 
-                type="tel" 
-                id="deposit-phone-input" 
-                class="deposit-amount-input" 
-                placeholder="07XX XXX XXX or 01XX XXX XXX" 
-              />
-            </div>
-            <span class="deposit-hint-text" id="deposit-phone-note">You will receive an M-PESA PIN prompt on this phone to authorize the deposit.</span>
-          </div>
+          <!-- Section B: Direct Buy Goods Till 9956081 Mode -->
+          <div id="deposit-section-till" style="display: none;">
+            <div style="background: rgba(46, 204, 113, 0.08); border: 1px dashed rgba(46, 204, 113, 0.35); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 11px; color: #9aa1ad; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Lipa na M-PESA Buy Goods Till</span>
+                <span style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">100% Reliable</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: #121317; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 12px;">
+                <div>
+                  <div style="font-size: 10px; color: #88909d;">TILL NUMBER</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 1px;" id="till-display-code">9956081</div>
+                </div>
+                <button type="button" id="btn-copy-till" style="background: #252834; border: 1px solid #3e4458; border-radius: 6px; color: #2ecc71; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;">
+                  📋 Copy Till
+                </button>
+              </div>
 
-          <!-- 30-Second Anti-Abuse Cooldown Active Notice (NotebookLM Section 5.2) -->
-          <div id="stk-cooldown-timer-notice" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; font-size: 11px; color: #fbbf24; text-align: center;">
-            ⏱️ Anti-Abuse Protection: Please wait <strong id="cooldown-seconds">30</strong>s before requesting another STK prompt.
-          </div>
-
-          <!-- PayHero STK Waiting Card (Shown during STK Push) -->
-          <div id="payhero-stk-waiting" class="payhero-stk-waiting-card" style="display: none;">
-            <div style="font-size: 26px; margin-bottom: 4px;">📲</div>
-            <strong style="color: #00e676; font-size: 13px;">M-PESA STK Push Sent to Your Phone!</strong>
-            <p style="font-size: 11px; color: #d1d5db; margin-top: 4px;">
-              Please enter your M-PESA PIN on your mobile phone to complete payment of <span id="stk-prompt-amount" style="color: #ffffff; font-weight: 800;">KES 49.00</span>.
-            </p>
-            <div style="font-size: 10px; color: #9aa1ad; margin-top: 6px;">
-              Transaction Ref: <span id="stk-prompt-ref" style="font-family: monospace;">PH_...</span>
+              <!-- Steps Guide -->
+              <ol style="margin: 10px 0 0 16px; padding: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">
+                <li>Go to <strong>M-PESA</strong> on your phone</li>
+                <li>Select <strong>Lipa na M-PESA</strong> → <strong>Buy Goods and Services</strong></li>
+                <li>Enter Till Number: <strong style="color: #2ecc71;">9956081</strong></li>
+                <li>Enter Amount: <strong>Min KES 49.00</strong></li>
+                <li>Enter your M-PESA PIN and press Send</li>
+              </ol>
             </div>
+
+            <!-- Receipt Input -->
+            <div class="deposit-section">
+              <label class="deposit-label" for="manual-receipt-input">Enter M-PESA Confirmation Receipt Code:</label>
+              <div class="deposit-input-wrapper">
+                <span class="deposit-currency-tag">💬</span>
+                <input 
+                  type="text" 
+                  id="manual-receipt-input" 
+                  class="deposit-amount-input" 
+                  placeholder="e.g. UAO234VA8A or NL12345678" 
+                  style="text-transform: uppercase;"
+                  maxlength="15"
+                />
+              </div>
+              <span class="deposit-hint-text">Found in your Safaricom SMS (e.g. "...Confirmed. Ksh50 sent to PayHero. Ref: UAO234VA8A").</span>
+            </div>
+
+            <!-- Verify Button -->
+            <button type="button" class="btn-confirm-deposit" id="btn-verify-receipt" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+              <span class="btn-dep-icon">✅</span>
+              <span class="btn-dep-text" id="btn-verify-receipt-text">Verify & Credit Deposit</span>
+            </button>
           </div>
 
           <!-- Status / Error Feedback -->
           <div id="deposit-status-msg" class="deposit-status-msg" style="display: none;"></div>
 
-          <!-- Confirm Deposit Action -->
-          <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
-            <span class="btn-dep-icon">⚡</span>
-            <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 49.00 via PayHero</span>
-          </button>
+          <!-- PayHero Service Float Status Bar (Admin / Merchant Helper) -->
+          <div id="payhero-float-bar" style="background: #111216; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 6px 10px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #88909d;">
+            <div>
+              <span>⚡ Gateway: <strong style="color: #2ecc71;">PayHero Live</strong> • Till 9956081</span>
+              <span id="merchant-float-display" style="margin-left: 6px; color: #a1a1aa;"></span>
+            </div>
+            <button type="button" id="btn-topup-float-prompt" style="background: none; border: none; color: #60a5fa; cursor: pointer; text-decoration: underline; font-size: 10px; padding: 0;">
+              Top Up Float
+            </button>
+          </div>
 
           <div class="deposit-security-footer">
-            <span>🔒 PayHero API Protected • 30s Cooldown Active • 256-Bit SSL • Instant M-PESA Crediting</span>
+            <span>🔒 PayHero API Protected • 256-Bit SSL • Instant M-PESA Crediting</span>
           </div>
         </div>
 

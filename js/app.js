@@ -32,6 +32,9 @@ class AviatorApp {
 
     // Start first game round sequence
     this.startNewRoundSequence();
+
+    // Universal multi-device synchronization heartbeat & watchdog
+    this.initSyncWatchdog();
   }
 
   initStakingManager() {
@@ -50,8 +53,37 @@ class AviatorApp {
     this.canvasEngine = new FlightCanvasEngine(
       canvas,
       (multiplier, remainingSeconds) => this.onFlightTick(multiplier, remainingSeconds),
-      (state, data) => this.onFlightStateChange(state, data)
+      (state, data) => this.onFlightStateChange(state, data),
+      this.globalSync
     );
+  }
+
+  initSyncWatchdog() {
+    // 1. Periodic watchdog (250ms): catch any round or phase drift
+    setInterval(() => {
+      const live = this.globalSync.getGlobalRoundState();
+      if (live.nonce !== this.currentRoundData?.nonce) {
+        this.startNewRoundSequence();
+      }
+    }, 250);
+
+    // 2. Visibility / Focus wake-up: immediate clock resync and round alignment
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.globalSync.initServerSync().then(() => {
+          this.startNewRoundSequence();
+        });
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      this.globalSync.initServerSync().then(() => {
+        const live = this.globalSync.getGlobalRoundState();
+        if (live.nonce !== this.currentRoundData?.nonce || live.phase !== this.canvasEngine.state) {
+          this.startNewRoundSequence();
+        }
+      });
+    });
   }
 
   initFeatures() {
@@ -158,8 +190,12 @@ class AviatorApp {
       this.stakingManager.onFlightStart();
       this.canvasEngine.startFlight(this.currentRoundData.crashMultiplier, globalState.elapsedFlightSeconds);
     } else {
-      // In 3.2s crashed pause - wait until scheduled end and launch next round
-      const delay = Math.max(500, globalState.roundEndTime - this.globalSync.getNow());
+      // In 3.0s crashed pause - wait until scheduled end and launch next round
+      this.soundEngine.stopEngine();
+      this.canvasEngine.state = 'CRASHED';
+      this.canvasEngine.currentMultiplier = globalState.crashMultiplier;
+      this.canvasEngine.targetCrashMultiplier = globalState.crashMultiplier;
+      const delay = Math.max(100, globalState.roundEndTime - this.globalSync.getNow());
       this.roundEndTimeout = setTimeout(() => this.startNewRoundSequence(), delay);
     }
   }
@@ -241,7 +277,7 @@ class AviatorApp {
 
       // Seamlessly transition to next global round at exact scheduled round end
       const stateNow = this.globalSync.getGlobalRoundState();
-      const delay = Math.max(1000, stateNow.roundEndTime - this.globalSync.getNow());
+      const delay = Math.max(100, stateNow.roundEndTime - this.globalSync.getNow());
       this.roundEndTimeout = setTimeout(() => {
         this.startNewRoundSequence();
       }, delay);
@@ -297,6 +333,9 @@ class AviatorApp {
     const depositModal = document.getElementById('deposit-modal');
     if (!depositModal) return;
     this._prefillDepositPhone();
+    this._prefillWithdrawPhone();
+    this.updateWalletAmlStatus();
+    this._updatePayHeroFloatStatus();
     depositModal.classList.add('show');
     const depositAmtInput = document.getElementById('deposit-amount-input');
     const btnConfirmDeposit = document.getElementById('btn-confirm-deposit');
@@ -367,6 +406,23 @@ class AviatorApp {
     } else {
       phoneInp.readOnly = false;
       phoneInp.style.opacity = '1';
+    }
+  }
+
+  async _updatePayHeroFloatStatus() {
+    try {
+      const res = await fetch('/api/payhero/service-wallet');
+      const data = await res.json();
+      const floatEl = document.getElementById('merchant-float-display');
+      if (floatEl) {
+        if (data.success && typeof data.availableBalance === 'number') {
+          floatEl.textContent = `(Float: KES ${data.availableBalance.toFixed(2)})`;
+        } else {
+          floatEl.textContent = '';
+        }
+      }
+    } catch (e) {
+      // silently ignore
     }
   }
 
@@ -601,6 +657,7 @@ class AviatorApp {
           this._prefillDepositPhone();
           this._prefillWithdrawPhone();
           this.updateWalletAmlStatus();
+          this._updatePayHeroFloatStatus();
           depositModal?.classList.add('show');
           updateDepositAmount(depositAmtInput?.value || 49);
           this.soundEngine.playClick();
@@ -629,6 +686,7 @@ class AviatorApp {
         tabBtnWithdraw.classList.remove('active');
         if (viewDeposit) viewDeposit.style.display = 'block';
         if (viewWithdraw) viewWithdraw.style.display = 'none';
+        this._updatePayHeroFloatStatus();
         this.soundEngine.playClick();
       });
 
@@ -640,6 +698,161 @@ class AviatorApp {
         this._prefillWithdrawPhone();
         this.updateWalletAmlStatus();
         this.soundEngine.playClick();
+      });
+    }
+
+    // --- SUBTABS: STK PUSH vs BUY GOODS TILL 9956081 ---
+    const tabDepStk = document.getElementById('tab-dep-stk');
+    const tabDepTill = document.getElementById('tab-dep-till');
+    const secDepStk = document.getElementById('deposit-section-stk');
+    const secDepTill = document.getElementById('deposit-section-till');
+
+    if (tabDepStk && tabDepTill) {
+      tabDepStk.addEventListener('click', () => {
+        tabDepStk.classList.add('active');
+        tabDepStk.style.borderColor = '#2ecc71';
+        tabDepStk.style.background = '#1e2029';
+        tabDepStk.style.color = '#fff';
+        tabDepTill.classList.remove('active');
+        tabDepTill.style.borderColor = 'var(--border-main)';
+        tabDepTill.style.background = '#14151a';
+        tabDepTill.style.color = '#9aa1ad';
+        if (secDepStk) secDepStk.style.display = 'block';
+        if (secDepTill) secDepTill.style.display = 'none';
+        this.soundEngine.playClick();
+      });
+
+      tabDepTill.addEventListener('click', () => {
+        tabDepTill.classList.add('active');
+        tabDepTill.style.borderColor = '#2ecc71';
+        tabDepTill.style.background = '#1e2029';
+        tabDepTill.style.color = '#fff';
+        tabDepStk.classList.remove('active');
+        tabDepStk.style.borderColor = 'var(--border-main)';
+        tabDepStk.style.background = '#14151a';
+        tabDepStk.style.color = '#9aa1ad';
+        if (secDepStk) secDepStk.style.display = 'none';
+        if (secDepTill) secDepTill.style.display = 'block';
+        this.soundEngine.playClick();
+      });
+    }
+
+    // Copy Till Number Button
+    const btnCopyTill = document.getElementById('btn-copy-till');
+    if (btnCopyTill) {
+      btnCopyTill.addEventListener('click', () => {
+        navigator.clipboard?.writeText('9956081');
+        btnCopyTill.textContent = '✅ Copied!';
+        this.authManager?.showToast('📋 Buy Goods Till 9956081 copied to clipboard!');
+        this.soundEngine.playClick();
+        setTimeout(() => { btnCopyTill.textContent = '📋 Copy Till'; }, 2000);
+      });
+    }
+
+    // Verify Direct Till Receipt Button
+    const btnVerifyReceipt = document.getElementById('btn-verify-receipt');
+    const manualReceiptInp = document.getElementById('manual-receipt-input');
+    if (btnVerifyReceipt) {
+      btnVerifyReceipt.addEventListener('click', async () => {
+        const receiptCode = (manualReceiptInp?.value || '').trim().toUpperCase();
+        if (!receiptCode || receiptCode.length < 8) {
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg error';
+            depositStatusMsg.textContent = 'Please enter a valid M-PESA confirmation receipt code (e.g. UAO234VA8A).';
+            depositStatusMsg.style.display = 'block';
+          }
+          return;
+        }
+
+        const phone = this.authManager?.user?.phone || document.getElementById('deposit-phone-input')?.value || '';
+        btnVerifyReceipt.disabled = true;
+        btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">⏳</span><span>Verifying with PayHero...</span>`;
+        if (depositStatusMsg) depositStatusMsg.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/payhero/verify-mpesa-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mpesaCode: receiptCode,
+              phone: phone,
+              amount: parseFloat(document.getElementById('deposit-amount-input')?.value || 49)
+            })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(data.error || 'Receipt verification failed.');
+          }
+
+          // Credit balance in UI
+          if (typeof data.realBalance === 'number') {
+            this.stakingManager.setRealBalance(data.realBalance);
+            if (this.authManager?.user) {
+              this.authManager.user.balance = data.realBalance;
+              this.authManager.user.realBalance = data.realBalance;
+            }
+          } else {
+            this.stakingManager.topUp(data.creditedAmount || 49, true);
+          }
+
+          this.stakingManager.setGameMode('REAL');
+          if (typeof updateRealModeUI === 'function') updateRealModeUI('REAL');
+
+          this.soundEngine.playCashout();
+          this.authManager?.showToast(`🎉 ${data.message}`);
+          this.updateWalletAmlStatus();
+
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg';
+            depositStatusMsg.textContent = `✅ ${data.message}`;
+            depositStatusMsg.style.display = 'block';
+          }
+
+          setTimeout(() => {
+            depositModal?.classList.remove('show');
+            btnVerifyReceipt.disabled = false;
+            btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">✅</span><span>Verify & Credit Deposit</span>`;
+          }, 1500);
+
+        } catch (err) {
+          btnVerifyReceipt.disabled = false;
+          btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">✅</span><span>Verify & Credit Deposit</span>`;
+          if (depositStatusMsg) {
+            depositStatusMsg.className = 'deposit-status-msg error';
+            depositStatusMsg.textContent = err.message;
+            depositStatusMsg.style.display = 'block';
+          }
+        }
+      });
+    }
+
+    // Top Up Float Prompt Button
+    const btnTopupFloat = document.getElementById('btn-topup-float-prompt');
+    if (btnTopupFloat) {
+      btnTopupFloat.addEventListener('click', async () => {
+        const phone = prompt('Enter your phone number to top up PayHero Float via M-PESA:', this.authManager?.user?.phone || '07');
+        if (!phone) return;
+        const amtStr = prompt('Enter float amount in KES (minimum 10 KES):', '50');
+        const amt = parseInt(amtStr || '50');
+        if (isNaN(amt) || amt < 10) return alert('Minimum float top-up is KES 10.00.');
+
+        try {
+          this.authManager?.showToast('⏳ Requesting PayHero Float Top-Up prompt...');
+          const res = await fetch('/api/payhero/topup-service-wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, amount: amt })
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.authManager?.showToast(`📲 ${data.message}`);
+            setTimeout(() => this._updatePayHeroFloatStatus(), 8000);
+          } else {
+            alert('Float Top-Up notice: ' + (data.error || 'Failed'));
+          }
+        } catch (e) {
+          alert('Error: ' + e.message);
+        }
       });
     }
 
@@ -757,6 +970,21 @@ class AviatorApp {
 
           const data = await res.json();
           if (!data.success) {
+            // If PayHero service wallet is empty, guide player to Lipa na M-PESA Till 9956081
+            if (data.requiresTill || data.code === 'INSUFFICIENT_SERVICE_FLOAT') {
+              btnConfirmDeposit.disabled = false;
+              btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Deposit KES ${amt.toFixed(2)} via PayHero</span>`;
+              if (waitingCard) waitingCard.style.display = 'none';
+              if (tabDepTill) tabDepTill.click();
+              if (depositStatusMsg) {
+                depositStatusMsg.className = 'deposit-status-msg';
+                depositStatusMsg.style.borderLeftColor = '#f59e0b';
+                depositStatusMsg.style.color = '#fbbf24';
+                depositStatusMsg.textContent = '💡 STK Push requires service float. Please pay directly via Buy Goods Till 9956081 above and enter your receipt code to credit instantly!';
+                depositStatusMsg.style.display = 'block';
+              }
+              return;
+            }
             throw new Error(data.error || 'Failed to initiate PayHero deposit');
           }
 
@@ -783,15 +1011,19 @@ class AviatorApp {
                 clearInterval(pollInterval);
 
                 // Deposit confirmed into SQLite database & local wallet!
-                this.stakingManager.topUp(amt, true);
+                if (typeof statusData.realBalance === 'number') {
+                  this.stakingManager.setRealBalance(statusData.realBalance);
+                  if (this.authManager?.user) {
+                    this.authManager.user.balance = statusData.realBalance;
+                    this.authManager.user.realBalance = statusData.realBalance;
+                  }
+                } else {
+                  this.stakingManager.topUp(amt, true);
+                }
+
                 this.stakingManager.setGameMode('REAL');
                 if (typeof updateRealModeUI === 'function') {
                   updateRealModeUI('REAL');
-                }
-
-                if (this.authManager?.user) {
-                  this.authManager.user.balance = this.stakingManager.realBalance;
-                  this.authManager.user.realBalance = this.stakingManager.realBalance;
                 }
 
                 if (waitingCard) waitingCard.style.display = 'none';
@@ -825,7 +1057,7 @@ class AviatorApp {
                 btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Check Again</span>`;
                 if (depositStatusMsg) {
                   depositStatusMsg.className = 'deposit-status-msg error';
-                  depositStatusMsg.textContent = 'Payment confirmation is taking longer than usual. Please check your M-PESA SMS.';
+                  depositStatusMsg.textContent = 'Payment confirmation is taking longer than usual. If paid, enter your receipt in the Buy Goods Till tab.';
                   depositStatusMsg.style.display = 'block';
                 }
               }
