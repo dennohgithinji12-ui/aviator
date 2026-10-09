@@ -67,10 +67,35 @@ db.exec(`
     timestamp INTEGER NOT NULL
   );
 
+  -- Withdrawals Table (PostgreSQL / SQLite Model per NotebookLM Blueprint)
+  CREATE TABLE IF NOT EXISTS withdrawals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    phone TEXT NOT NULL,
+    amount REAL NOT NULL,
+    reference TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL, -- 'REQUESTED', 'PROCESSING', 'SETTLED', 'MANUAL_HOLD_HIGH_VALUE', 'MANUAL_HOLD_VELOCITY', 'REJECTED'
+    risk_score INTEGER DEFAULT 0,
+    risk_reason TEXT,
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER
+  );
+
+  -- PayHero STK Push Attempts Tracker (Sliding Rate Limits & Abuse Protection)
+  CREATE TABLE IF NOT EXISTS stk_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT NOT NULL,
+    status TEXT NOT NULL, -- 'SUCCESS', 'FAILED', 'CANCELLED'
+    timestamp INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
   CREATE INDEX IF NOT EXISTS idx_deposits_ref ON deposits(reference);
   CREATE INDEX IF NOT EXISTS idx_deposits_phone ON deposits(phone);
   CREATE INDEX IF NOT EXISTS idx_bets_phone ON bets(phone);
+  CREATE INDEX IF NOT EXISTS idx_withdrawals_phone ON withdrawals(phone);
+  CREATE INDEX IF NOT EXISTS idx_withdrawals_ref ON withdrawals(reference);
+  CREATE INDEX IF NOT EXISTS idx_stk_attempts_phone ON stk_attempts(phone, timestamp);
   CREATE INDEX IF NOT EXISTS idx_resets_phone_time ON password_resets(phone, timestamp);
 `);
 
@@ -399,11 +424,131 @@ const DatabaseService = {
     stmt.run(norm, Date.now());
   },
 
+  // --- WITHDRAWALS & AUTOMATED RISK ENGINE (NotebookLM Blueprint) ---
+
+  createWithdrawal(phone, amount, reference, status = 'PROCESSING', riskScore = 0, riskReason = '') {
+    const norm = normalizePhone(phone);
+    const user = this.getUser(norm);
+    const userId = user ? user.id : null;
+    const now = Date.now();
+    const stmt = db.prepare(`
+      INSERT INTO withdrawals (user_id, phone, amount, reference, status, risk_score, risk_reason, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(userId, norm, amount, reference, status, riskScore, riskReason, now);
+
+    return {
+      reference,
+      phone: norm,
+      amount,
+      status,
+      riskScore,
+      riskReason,
+      createdAt: now
+    };
+  },
+
+  getDailyWithdrawalCount(phone) {
+    const norm = normalizePhone(phone);
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM withdrawals 
+      WHERE phone = ? AND created_at > ?
+    `);
+    const row = stmt.get(norm, oneDayAgo);
+    return row ? row.count : 0;
+  },
+
+  getTotalDeposits(phone) {
+    const norm = normalizePhone(phone);
+    const stmt = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) as total 
+      FROM deposits 
+      WHERE phone = ? AND status = 'SUCCESS'
+    `);
+    const row = stmt.get(norm);
+    return row ? row.total : 0;
+  },
+
+  getTotalTurnover(phone) {
+    const norm = normalizePhone(phone);
+    const stmt = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) as total 
+      FROM bets 
+      WHERE phone = ? AND mode = 'REAL'
+    `);
+    const row = stmt.get(norm);
+    return row ? row.total : 0;
+  },
+
+  getWithdrawals(phone, limit = 10) {
+    const norm = normalizePhone(phone);
+    const stmt = db.prepare(`
+      SELECT * FROM withdrawals 
+      WHERE phone = ? 
+      ORDER BY created_at DESC 
+      LIMIT ?
+    `);
+    return stmt.all(norm, limit);
+  },
+
+  // --- PAYHERO STK PUSH SLIDING ANTI-ABUSE ENGINE (NotebookLM Section 5.2) ---
+
+  recordStkAttempt(phone, status = 'PENDING') {
+    const norm = normalizePhone(phone);
+    const stmt = db.prepare(`
+      INSERT INTO stk_attempts (phone, status, timestamp)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(norm, status, Date.now());
+  },
+
+  checkStkRateLimit(phone) {
+    const norm = normalizePhone(phone);
+    const now = Date.now();
+    const fiveMinutesAgo = now - (5 * 60 * 1000);
+    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+
+    // Rule 1: Max 3 STK attempts per 5 minutes per phone
+    const stmtRecent = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM stk_attempts 
+      WHERE phone = ? AND timestamp > ?
+    `);
+    const recentCount = stmtRecent.get(norm, fiveMinutesAgo)?.count || 0;
+    if (recentCount >= 3) {
+      return {
+        allowed: false,
+        reason: 'RATE_LIMIT_5M',
+        message: 'Too many deposit requests. Please wait 5 minutes before initiating another STK push.'
+      };
+    }
+
+    // Rule 2: >10 successive failed/cancelled STK requests within 24h blocks phone for 24 hours
+    const stmtDailyFails = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM stk_attempts 
+      WHERE phone = ? AND status IN ('FAILED', 'CANCELLED') AND timestamp > ?
+    `);
+    const failCount = stmtDailyFails.get(norm, oneDayAgo)?.count || 0;
+    if (failCount >= 10) {
+      return {
+        allowed: false,
+        reason: 'BLOCKED_24H_EXCESSIVE_FAILURES',
+        message: 'Security Notice: This phone has exceeded maximum failed deposit attempts. Suspended for 24 hours per PayHero anti-abuse policy.'
+      };
+    }
+
+    return { allowed: true };
+  },
+
   // --- DATABASE HEALTH & REPORTING ---
 
   getStats() {
     const usersCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
     const depositsTotal = db.prepare("SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM deposits WHERE status = 'SUCCESS'").get();
+    const withdrawalsTotal = db.prepare("SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM withdrawals WHERE status IN ('PROCESSING', 'SETTLED')").get();
     const betsTotal = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as volume FROM bets').get();
 
     return {
@@ -412,6 +557,8 @@ const DatabaseService = {
       totalUsers: usersCount,
       successfulDepositsCount: depositsTotal.count,
       totalDepositedKes: depositsTotal.total,
+      withdrawalsCount: withdrawalsTotal.count,
+      totalWithdrawnKes: withdrawalsTotal.total,
       totalBetsPlaced: betsTotal.count,
       totalStakingVolumeKes: betsTotal.volume
     };

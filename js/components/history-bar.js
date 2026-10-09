@@ -64,7 +64,7 @@ export class HistoryBarComponent {
     const scrollContainer = document.createElement('div');
     scrollContainer.className = 'history-scroll-container';
 
-    this.history.slice(0, 35).forEach((item) => {
+    this.history.slice(0, 45).forEach((item) => {
       const pill = document.createElement('button');
       pill.className = `history-pill ${this.getBadgeClass(item.crashMultiplier)}`;
       pill.innerHTML = `<span>${item.crashMultiplier.toFixed(2)}x</span>`;
@@ -78,6 +78,14 @@ export class HistoryBarComponent {
 
       scrollContainer.appendChild(pill);
     });
+
+    // Support horizontal scroll with mouse wheel
+    scrollContainer.addEventListener('wheel', (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        scrollContainer.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
 
     this.container.appendChild(scrollContainer);
   }

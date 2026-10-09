@@ -207,22 +207,27 @@
 
     <!-- VIEW 1: AVIATOR CONSOLE (Spribe Exact Layout & Full Responsiveness) -->
     <section class="view-section active" id="view-terminal">
+
+      <!-- Multiplier History Bar (Displayed Prominently along Top of Screen) -->
+      <div class="arena-history-bar" id="arena-history-bar">
+        <div class="history-ribbon-wrapper" id="history-ribbon">
+          <!-- Injected by history-bar.js -->
+        </div>
+
+        <!-- Detailed Round History Dropdown Button (Opens Popup Overlay Matching Screenshot 2) -->
+        <button class="btn-round-history" id="btn-open-round-history" title="Round History & Multipliers">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 3px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>•••</span>
+        </button>
+      </div>
+
       <div class="aviator-console-layout">
 
         <!-- RIGHT COLUMN / TOP MOBILE: Main Flight Stage & Dual Betting Terminals -->
         <div class="console-main-stage">
-
-          <!-- Multiplier History Bar (Directly Above Canvas) -->
-          <div class="arena-history-bar">
-            <div class="history-ribbon-wrapper" id="history-ribbon">
-              <!-- Injected by history-bar.js -->
-            </div>
-
-            <!-- Detailed Round History Dropdown Button (Opens Popup Overlay Matching Screenshot 2) -->
-            <button class="btn-round-history" id="btn-open-round-history" title="Round History & Multipliers">
-              <span>•••</span>
-            </button>
-          </div>
 
           <!-- FUN MODE Yellow Top Banner (Demo Mode) -->
           <div class="shiftstack-fun-banner kessbet-fun-banner">FUN MODE</div>
@@ -1123,109 +1128,190 @@
             </svg>
           </div>
           <div>
-            <h2 id="deposit-modal-title">Deposit Funds</h2>
-            <span class="deposit-subtitle">Instant PayHero M-PESA STK Push • Min 49 Bob</span>
+            <h2 id="deposit-modal-title">Wallet & Cash Hub</h2>
+            <span class="deposit-subtitle">PayHero M-PESA STK Push (Min 49 Bob) • B2C Withdrawals</span>
           </div>
         </div>
         <button class="btn-modal-close" id="btn-close-deposit" aria-label="Close modal">✕</button>
       </div>
 
       <div class="modal-body">
-        <!-- Minimum Deposit Notice Banner (Strict 49 Bob) -->
-        <div class="deposit-notice-banner">
-          <span class="notice-icon">⚡</span>
-          <div class="notice-text">
-            <strong>Minimum Deposit: KES 49.00 (49 Bob)</strong>
-            <p>Powered by PayHero API. You will receive an instant M-PESA STK Push PIN prompt on your phone.</p>
-          </div>
+        <!-- Wallet Action Tabs: Deposit vs Withdraw -->
+        <div class="wallet-modal-tabs">
+          <button type="button" class="wallet-tab-btn active" id="tab-btn-deposit" data-tab="deposit">⚡ Deposit (Min 49 Bob)</button>
+          <button type="button" class="wallet-tab-btn" id="tab-btn-withdraw" data-tab="withdraw">💸 Withdraw (Min 25 Bob)</button>
         </div>
 
-        <!-- Payment Method Selector -->
-        <div class="deposit-methods-bar">
-          <button type="button" class="deposit-method-btn active" data-method="mpesa">
-            <span class="method-badge">PAYHERO</span>
-            <span class="method-name">M-PESA</span>
+        <!-- ==================== VIEW 1: DEPOSIT ==================== -->
+        <div id="wallet-view-deposit">
+          <!-- Minimum Deposit Notice Banner (Strict 49 Bob) -->
+          <div class="deposit-notice-banner">
+            <span class="notice-icon">⚡</span>
+            <div class="notice-text">
+              <strong>Minimum Deposit: KES 49.00 (49 Bob)</strong>
+              <p>Powered by PayHero API. You will receive an instant M-PESA STK Push PIN prompt on your phone.</p>
+            </div>
+          </div>
+
+          <!-- Payment Method Selector -->
+          <div class="deposit-methods-bar">
+            <button type="button" class="deposit-method-btn active" data-method="mpesa">
+              <span class="method-badge">PAYHERO</span>
+              <span class="method-name">M-PESA</span>
+            </button>
+            <button type="button" class="deposit-method-btn" data-method="airtel">
+              <span class="method-badge">AIRTEL</span>
+              <span class="method-name">Money</span>
+            </button>
+            <button type="button" class="deposit-method-btn" data-method="card">
+              <span class="method-badge">VISA / MC</span>
+              <span class="method-name">Card</span>
+            </button>
+            <button type="button" class="deposit-method-btn" data-method="crypto">
+              <span class="method-badge">USDT</span>
+              <span class="method-name">Crypto</span>
+            </button>
+          </div>
+
+          <!-- Amount Selection (With 49 Bob Highlighted) -->
+          <div class="deposit-section">
+            <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
+            <div class="deposit-input-wrapper">
+              <span class="deposit-currency-tag">KES</span>
+              <input 
+                type="number" 
+                id="deposit-amount-input" 
+                class="deposit-amount-input" 
+                value="49" 
+                min="49" 
+                step="1" 
+                placeholder="49" 
+              />
+            </div>
+
+            <!-- Quick Presets (Starting at 49 Bob) -->
+            <div class="deposit-presets-grid">
+              <button type="button" class="btn-deposit-chip active" data-amount="49">KES 49 (49 Bob)</button>
+              <button type="button" class="btn-deposit-chip" data-amount="100">KES 100</button>
+              <button type="button" class="btn-deposit-chip" data-amount="200">KES 200</button>
+              <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
+              <button type="button" class="btn-deposit-chip" data-amount="1000">KES 1,000</button>
+              <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
+            </div>
+          </div>
+
+          <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
+          <div class="deposit-section" id="deposit-phone-container">
+            <label class="deposit-label" id="deposit-phone-label" for="deposit-phone-input">M-PESA Phone Number (PayHero STK Push):</label>
+            <div class="deposit-input-wrapper">
+              <span class="deposit-currency-tag">🇰🇪</span>
+              <input 
+                type="tel" 
+                id="deposit-phone-input" 
+                class="deposit-amount-input" 
+                placeholder="07XX XXX XXX or 01XX XXX XXX" 
+              />
+            </div>
+            <span class="deposit-hint-text" id="deposit-phone-note">You will receive an M-PESA PIN prompt on this phone to authorize the deposit.</span>
+          </div>
+
+          <!-- 30-Second Anti-Abuse Cooldown Active Notice (NotebookLM Section 5.2) -->
+          <div id="stk-cooldown-timer-notice" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; font-size: 11px; color: #fbbf24; text-align: center;">
+            ⏱️ Anti-Abuse Protection: Please wait <strong id="cooldown-seconds">30</strong>s before requesting another STK prompt.
+          </div>
+
+          <!-- PayHero STK Waiting Card (Shown during STK Push) -->
+          <div id="payhero-stk-waiting" class="payhero-stk-waiting-card" style="display: none;">
+            <div style="font-size: 26px; margin-bottom: 4px;">📲</div>
+            <strong style="color: #00e676; font-size: 13px;">M-PESA STK Push Sent to Your Phone!</strong>
+            <p style="font-size: 11px; color: #d1d5db; margin-top: 4px;">
+              Please enter your M-PESA PIN on your mobile phone to complete payment of <span id="stk-prompt-amount" style="color: #ffffff; font-weight: 800;">KES 49.00</span>.
+            </p>
+            <div style="font-size: 10px; color: #9aa1ad; margin-top: 6px;">
+              Transaction Ref: <span id="stk-prompt-ref" style="font-family: monospace;">PH_...</span>
+            </div>
+          </div>
+
+          <!-- Status / Error Feedback -->
+          <div id="deposit-status-msg" class="deposit-status-msg" style="display: none;"></div>
+
+          <!-- Confirm Deposit Action -->
+          <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
+            <span class="btn-dep-icon">⚡</span>
+            <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 49.00 via PayHero</span>
           </button>
-          <button type="button" class="deposit-method-btn" data-method="airtel">
-            <span class="method-badge">AIRTEL</span>
-            <span class="method-name">Money</span>
+
+          <div class="deposit-security-footer">
+            <span>🔒 PayHero API Protected • 30s Cooldown Active • 256-Bit SSL • Instant M-PESA Crediting</span>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 2: WITHDRAW ==================== -->
+        <div id="wallet-view-withdraw" style="display: none;">
+          <!-- AML & Compliance Banner (NotebookLM Section 8.2) -->
+          <div id="withdraw-aml-banner" style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <strong style="color: #a78bfa;">🛡️ AML Deposit Turnover Status:</strong>
+              <span id="withdraw-turnover-badge" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(34, 197, 94, 0.2); color: #22c55e; font-weight: 700;">Verified</span>
+            </div>
+            <p style="color: #94a3b8; margin: 0;" id="withdraw-turnover-summary">
+              Wagers ≥ Deposits compliance active. Minimum withdrawal: KES 25.00 • Max instant auto-payout: KES 5,000.00.
+            </p>
+          </div>
+
+          <!-- Amount Selection -->
+          <div class="deposit-section">
+            <label class="deposit-label" for="withdraw-amount-input">Withdrawal Amount (KES):</label>
+            <div class="deposit-input-wrapper">
+              <span class="deposit-currency-tag" style="color: #a78bfa;">KES</span>
+              <input 
+                type="number" 
+                id="withdraw-amount-input" 
+                class="deposit-amount-input" 
+                value="100" 
+                min="25" 
+                step="1" 
+                placeholder="100" 
+              />
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="deposit-presets-grid">
+              <button type="button" class="btn-deposit-chip" data-withdraw-amount="50">KES 50</button>
+              <button type="button" class="btn-deposit-chip active" data-withdraw-amount="100">KES 100</button>
+              <button type="button" class="btn-deposit-chip" data-withdraw-amount="500">KES 500</button>
+              <button type="button" class="btn-deposit-chip" data-withdraw-amount="1000">KES 1,000</button>
+              <button type="button" class="btn-deposit-chip" data-withdraw-amount="5000">KES 5,000 (Max Auto)</button>
+            </div>
+          </div>
+
+          <!-- Mobile Money Phone Input -->
+          <div class="deposit-section">
+            <label class="deposit-label" for="withdraw-phone-input">Destination M-PESA Phone Number:</label>
+            <div class="deposit-input-wrapper">
+              <span class="deposit-currency-tag">🇰🇪</span>
+              <input 
+                type="tel" 
+                id="withdraw-phone-input" 
+                class="deposit-amount-input" 
+                placeholder="07XX XXX XXX or 01XX XXX XXX" 
+              />
+            </div>
+            <span class="deposit-hint-text">Must match your registered account phone number for automated compliance approval.</span>
+          </div>
+
+          <!-- Status / Error Feedback -->
+          <div id="withdraw-status-msg" class="deposit-status-msg" style="display: none;"></div>
+
+          <!-- Confirm Withdrawal Action -->
+          <button type="button" class="btn-confirm-deposit" id="btn-confirm-withdraw" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 16px rgba(109, 40, 217, 0.45);">
+            <span class="btn-dep-icon">💸</span>
+            <span class="btn-dep-text" id="btn-confirm-withdraw-text">Withdraw to M-PESA</span>
           </button>
-          <button type="button" class="deposit-method-btn" data-method="card">
-            <span class="method-badge">VISA / MC</span>
-            <span class="method-name">Card</span>
-          </button>
-          <button type="button" class="deposit-method-btn" data-method="crypto">
-            <span class="method-badge">USDT</span>
-            <span class="method-name">Crypto</span>
-          </button>
-        </div>
 
-        <!-- Amount Selection (With 49 Bob Highlighted) -->
-        <div class="deposit-section">
-          <label class="deposit-label" for="deposit-amount-input">Select or Enter Amount (KES):</label>
-          <div class="deposit-input-wrapper">
-            <span class="deposit-currency-tag">KES</span>
-            <input 
-              type="number" 
-              id="deposit-amount-input" 
-              class="deposit-amount-input" 
-              value="49" 
-              min="49" 
-              step="1" 
-              placeholder="49" 
-            />
+          <div class="deposit-security-footer">
+            <span>🔒 Automated Risk Engine • Max 2 Withdrawals / 24h • Instant B2C Mobile Disbursal</span>
           </div>
-
-          <!-- Quick Presets (Starting at 49 Bob) -->
-          <div class="deposit-presets-grid">
-            <button type="button" class="btn-deposit-chip active" data-amount="49">KES 49 (49 Bob)</button>
-            <button type="button" class="btn-deposit-chip" data-amount="100">KES 100</button>
-            <button type="button" class="btn-deposit-chip" data-amount="200">KES 200</button>
-            <button type="button" class="btn-deposit-chip" data-amount="500">KES 500</button>
-            <button type="button" class="btn-deposit-chip" data-amount="1000">KES 1,000</button>
-            <button type="button" class="btn-deposit-chip" data-amount="2000">KES 2,000</button>
-          </div>
-        </div>
-
-        <!-- Mobile Money Phone Input (M-PESA / Airtel) -->
-        <div class="deposit-section" id="deposit-phone-container">
-          <label class="deposit-label" for="deposit-phone-input">M-PESA Phone Number (PayHero STK Push):</label>
-          <div class="deposit-input-wrapper">
-            <span class="deposit-currency-tag">🇰🇪</span>
-            <input 
-              type="tel" 
-              id="deposit-phone-input" 
-              class="deposit-amount-input" 
-              value="0712345678" 
-              placeholder="07XX XXX XXX or 01XX XXX XXX" 
-            />
-          </div>
-          <span class="deposit-hint-text">You will receive an M-PESA PIN prompt on this phone to authorize the deposit.</span>
-        </div>
-
-        <!-- PayHero STK Waiting Card (Shown during STK Push) -->
-        <div id="payhero-stk-waiting" class="payhero-stk-waiting-card" style="display: none;">
-          <div style="font-size: 26px; margin-bottom: 4px;">📲</div>
-          <strong style="color: #00e676; font-size: 13px;">M-PESA STK Push Sent to Your Phone!</strong>
-          <p style="font-size: 11px; color: #d1d5db; margin-top: 4px;">
-            Please enter your M-PESA PIN on your mobile phone to complete payment of <span id="stk-prompt-amount" style="color: #ffffff; font-weight: 800;">KES 49.00</span>.
-          </p>
-          <div style="font-size: 10px; color: #9aa1ad; margin-top: 6px;">
-            Transaction Ref: <span id="stk-prompt-ref" style="font-family: monospace;">PH_...</span>
-          </div>
-        </div>
-
-        <!-- Status / Error Feedback -->
-        <div id="deposit-status-msg" class="deposit-status-msg" style="display: none;"></div>
-
-        <!-- Confirm Deposit Action -->
-        <button type="button" class="btn-confirm-deposit" id="btn-confirm-deposit">
-          <span class="btn-dep-icon">⚡</span>
-          <span class="btn-dep-text" id="btn-confirm-deposit-text">Deposit KES 49.00 via PayHero</span>
-        </button>
-
-        <div class="deposit-security-footer">
-          <span>🔒 PayHero API Protected • 256-Bit SSL • Instant M-PESA Crediting</span>
         </div>
       </div>
     </div>
@@ -1464,36 +1550,64 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 6: GAME LIMITS (From Hamburger Menu)
+       MODAL 6: GAME LIMITS (From Hamburger Menu - NotebookLM Blueprint)
        ========================================================================== -->
   <div class="modal-backdrop" id="game-limits-modal" role="dialog" aria-modal="true" aria-labelledby="limits-modal-title">
-    <div class="modal-dialog" style="max-width: 420px;">
+    <div class="modal-dialog" style="max-width: 460px;">
       <div class="modal-header">
         <div class="modal-header-title">
           <span style="font-size: 20px;">💵</span>
-          <h2 id="limits-modal-title">Game Limits</h2>
+          <h2 id="limits-modal-title">Game Limits & Compliance</h2>
         </div>
         <button class="btn-modal-close" id="btn-close-limits" aria-label="Close modal">✕</button>
       </div>
       <div class="modal-body">
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11.5px;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Return to Player (RTP):</span>
+            <strong style="color: #22c55e;">97.0% (3.0% House Edge)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Bust Gate (Instant 1.00x Loss):</span>
+            <strong style="color: #ef4444;">1 in 33 Rounds (3.03%)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
             <span style="color: #9aa1ad;">Minimum Bet:</span>
             <strong style="color: #ffffff;">KES 100.00</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
             <span style="color: #9aa1ad;">Maximum Bet:</span>
             <strong style="color: #ffffff;">KES 100,000.00</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
-            <span style="color: #9aa1ad;">Minimum Deposit (PayHero):</span>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Minimum Deposit (PayHero M-PESA):</span>
             <strong style="color: #22c55e;">KES 49.00 (49 Bob)</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Minimum Withdrawal:</span>
+            <strong style="color: #22c55e;">KES 25.00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Automated Payout Ceiling:</span>
+            <strong style="color: #f59e0b;">≤ KES 5,000.00 / txn</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Withdrawal Velocity Limit:</span>
+            <strong style="color: #93c5fd;">Max 2 per 24 hours</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">AML Turnover Requirement:</span>
+            <strong style="color: #a78bfa;">100% of Deposits (Wagers ≥ Deposits)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
+            <span style="color: #9aa1ad;">Deposit Anti-Abuse Rate Limit:</span>
+            <strong style="color: #f59e0b;">30s Cooldown (Max 3 / 5 min)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
             <span style="color: #9aa1ad;">Maximum Cashout per Bet:</span>
             <strong style="color: #ffffff;">KES 10,000,000.00</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 10px; background: #1b1c21; border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #1b1c21; border-radius: 6px;">
             <span style="color: #9aa1ad;">Password Reset Frequency:</span>
             <strong style="color: #f59e0b;">Max 2 times per week</strong>
           </div>
@@ -1503,22 +1617,23 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 7: GAME RULES (From Hamburger Menu)
+       MODAL 7: GAME RULES (From Hamburger Menu - NotebookLM Blueprint)
        ========================================================================== -->
   <div class="modal-backdrop" id="game-rules-modal" role="dialog" aria-modal="true" aria-labelledby="rules-modal-title">
-    <div class="modal-dialog" style="max-width: 480px;">
+    <div class="modal-dialog" style="max-width: 500px;">
       <div class="modal-header">
         <div class="modal-header-title">
           <span style="font-size: 20px;">📄</span>
-          <h2 id="rules-modal-title">Game Rules</h2>
+          <h2 id="rules-modal-title">Game Rules & Fair Play Blueprint</h2>
         </div>
         <button class="btn-modal-close" id="btn-close-rules" aria-label="Close modal">✕</button>
       </div>
-      <div class="modal-body" style="font-size: 12px; line-height: 1.6; color: #d1d5db;">
-        <p><strong>1. Round Progression:</strong> The multiplier coefficient starts at 1.00x and climbs higher until the plane flies away.</p>
-        <p><strong>2. Winnings:</strong> If you cash out before the lucky plane flies away, your payout equals your bet amount multiplied by the exact cashout multiplier.</p>
-        <p><strong>3. Provably Fair:</strong> The crash coefficient for each round is generated using a combination of the server seed and client seeds, cryptographically verified with SHA-256.</p>
-        <p><strong>4. Auto Cash Out:</strong> Players can configure an automatic cash out target from 1.01x up to 10,000x.</p>
+      <div class="modal-body" style="font-size: 11.5px; line-height: 1.6; color: #d1d5db;">
+        <p><strong>1. Round Progression & Multiplier:</strong> Every round begins at a base multiplier of 1.00x and ascends exponentially until the aircraft flies away. Active stakes are multiplied by the cashout coefficient if collected prior to departure.</p>
+        <p><strong>2. 97.0% RTP & Bust Gate:</strong> The game enforces a verified 97.0% Return to Player (3.0% House Edge). Under the Modulus Bust Gate, approximately 1 in 33 rounds (h % 33 == 0) terminates instantly at 1.00x before manual cashout can occur.</p>
+        <p><strong>3. Cryptographic Provably Fair Architecture:</strong> Outcomes are calculated deterministically using HMAC-SHA256(Server Seed, Client Seed:Nonce). The first 13 hexadecimal characters (52 bits of entropy) map onto the continuous curve <code>m = floor((100*e - h)/(e - h)) / 100</code>. Operators cannot alter flight paths mid-round.</p>
+        <p><strong>4. Deterministic Pre-Registered Auto-Cashouts:</strong> Auto-cashouts are registered on the authoritative server engine prior to takeoff and evaluated on the 50ms server clock. Payouts execute with zero latency penalty even if client connectivity drops mid-flight.</p>
+        <p><strong>5. AML Compliance & Safe Payouts:</strong> To prevent financial abuse, withdrawals require 100% turnover of deposited funds (cumulative wagers ≥ deposits) and destination phone match.</p>
       </div>
     </div>
   </div>

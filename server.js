@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const db = require('./db.js');
 
@@ -45,12 +46,12 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf'
 };
 
-// Universal Authoritative Round Engine for Consistent Global Flight Windows
+// Universal Authoritative Round Engine for Consistent Global Flight Windows (NotebookLM Blueprint)
 const MASTER_SECRET = 'shiftstack_aviator_provably_fair_master_chain_2026';
 const PUBLIC_CLIENT_SEED = 'global_aviator_network_shared_seed_100x';
 const EPOCH_BASE = 1727180000000;
-const COUNTDOWN_DURATION = 5.0;
-const CRASHED_PAUSE_DURATION = 3.2;
+const COUNTDOWN_DURATION = 5.0; // 5.0s Betting Window (NotebookLM Section 3.1)
+const CRASHED_PAUSE_DURATION = 3.0; // 3.0s Frozen Crash Window (NotebookLM Section 3.1 & 10)
  
 // PayHero Payment Transactions Store (M-PESA STK Push)
 const PAYHERO_TRANSACTIONS = new Map();
@@ -78,27 +79,31 @@ function simulateSandboxSuccess(reference, txRecord) {
   }, 3500);
 }
 
-function hashString(str) {
-  let h1 = 0xdeadbeef ^ 1337, h2 = 0x41c6ce57 ^ 1337;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0));
-}
-
+/**
+ * Deterministic Provably Fair Multiplier Derivation (NotebookLM Section 1.2 & 2.2)
+ * - 97.0% Return to Player (RTP), 3.0% House Edge
+ * - Modulus Bust Gate: 1 in 33 chance of instant crash at 1.00x
+ * - 52-bit entropy curve over e = 2^52
+ */
 function getCrashMultiplier(nonce) {
-  const rawVal = hashString(`${MASTER_SECRET}:${PUBLIC_CLIENT_SEED}:${nonce}`);
-  const maxVal = Math.pow(2, 52);
-  const r = rawVal % 4503599627370496;
-  if (r % 33 === 0) return 1.00;
-  const mult = (0.97 * maxVal) / (maxVal - r);
-  return Math.max(1.00, Math.floor(mult * 100) / 100);
+  // 1. Generate deterministic HMAC-SHA256 digest
+  const hmac = crypto.createHmac('sha256', MASTER_SECRET);
+  hmac.update(`${PUBLIC_CLIENT_SEED}:${nonce}`);
+  const hexHash = hmac.digest('hex');
+
+  // 2. Extract first 13 hexadecimal characters (52 bits of entropy)
+  const subHash = hexHash.substring(0, 13);
+  const h = parseInt(subHash, 16);
+  const e = Math.pow(2, 52); // 4503599627370496
+
+  // 3. Apply House Edge / Bust Gate (1 in 33 chance of instant crash at 1.00x)
+  if (h % 33 === 0) {
+    return 1.00;
+  }
+
+  // 4. Calculate continuous curve multiplier
+  const multiplier = Math.floor((100 * e - h) / (e - h)) / 100;
+  return Math.max(1.00, multiplier);
 }
 
 function getFlightDuration(targetMultiplier) {
@@ -167,7 +172,7 @@ function getLiveRoundState(time = Date.now()) {
         elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds),
         roundStartTime: roundStart,
         roundEndTime: roundEnd,
-        serverHash: `hash_${hashString(currentNonce.toString()).toString(16).padStart(16, '0')}`,
+        serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex'),
         clientSeed: PUBLIC_CLIENT_SEED
       };
     }
@@ -188,7 +193,7 @@ function getLiveRoundState(time = Date.now()) {
     elapsedFlightSeconds: 0,
     roundStartTime: time,
     roundEndTime: time + 14300,
-    serverHash: 'fallback_hash',
+    serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex'),
     clientSeed: PUBLIC_CLIENT_SEED
   };
 }
@@ -266,6 +271,22 @@ const server = http.createServer((req, res) => {
             error: 'Please enter a valid Kenyan phone number (e.g. 0712 345 678).'
           }));
         }
+
+        // Anti-Abuse Rate Limit Enforcement (NotebookLM Section 5.2 & Section 11)
+        const rateCheck = db.checkStkRateLimit(phone);
+        if (!rateCheck.allowed) {
+          res.writeHead(429, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          return res.end(JSON.stringify({
+            success: false,
+            error: rateCheck.message,
+            reason: rateCheck.reason
+          }));
+        }
+
+        db.recordStkAttempt(phone, 'PENDING');
 
         const reference = data.reference || `PH_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
         const txRecord = {
@@ -437,7 +458,7 @@ const server = http.createServer((req, res) => {
     }));
   }
 
-  // PayHero Webhook Callback Endpoint
+  // PayHero Webhook Callback Endpoint (NotebookLM Section 7.1, 7.2, 7.3)
   if (pathname === '/api/payhero/callback' && req.method === 'POST') {
     let cbBody = '';
     req.on('data', chunk => { cbBody += chunk; });
@@ -449,6 +470,14 @@ const server = http.createServer((req, res) => {
         const receipt = payload.response?.MpesaReceiptNumber || `QPH${Date.now().toString(36).toUpperCase()}`;
 
         if (ref) {
+          // Idempotency Verification (NotebookLM Section 7.2: Never trust client, don't re-credit)
+          const existingDep = db.getDeposit(ref);
+          if (existingDep && existingDep.status === 'SUCCESS') {
+            console.log(`[PayHero Idempotency] Reference ${ref} already processed. Returning HTTP 200.`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ status: 'OK', note: 'Idempotent skip' }));
+          }
+
           if (PAYHERO_TRANSACTIONS.has(ref)) {
             const tx = PAYHERO_TRANSACTIONS.get(ref);
             tx.status = 'SUCCESS';
@@ -468,10 +497,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Wallet API: Fetch real & demo balances from SQLite database
+  // Wallet API: Fetch real & demo balances + AML turnover metrics (NotebookLM Blueprint)
   if (pathname === '/api/wallet' && req.method === 'GET') {
     const phone = parsedUrl.searchParams.get('phone') || '';
     const balances = db.getBalances(phone);
+    const totalDeposits = db.getTotalDeposits(phone);
+    const totalTurnover = db.getTotalTurnover(phone);
+    const turnoverCompleted = (totalDeposits === 0) || (totalTurnover >= totalDeposits);
+
     res.writeHead(200, {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
@@ -479,8 +512,132 @@ const server = http.createServer((req, res) => {
     });
     return res.end(JSON.stringify({
       success: true,
-      ...balances
+      ...balances,
+      totalDeposits,
+      totalTurnover,
+      turnoverCompleted,
+      turnoverRequired: Math.max(0, totalDeposits - totalTurnover)
     }));
+  }
+
+  // Wallet API: Withdraw Funds with Automated Risk Engine (NotebookLM Section 8.1, 8.2, 8.3 & Section 10)
+  if (pathname === '/api/wallet/withdraw' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone ? String(data.phone).trim() : '';
+        const targetPhone = data.targetPhone ? String(data.targetPhone).trim() : phone;
+        const amount = parseFloat(data.amount) || 0;
+
+        if (!phone || phone === 'guest') {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: 'An active account is required to withdraw funds. Please login first.'
+          }));
+        }
+
+        const user = db.getUser(phone);
+        const normPhone = user ? user.phone : phone;
+        const normTarget = db.getUser(targetPhone)?.phone || targetPhone;
+
+        // Minimum withdrawal threshold: 25.00 KES (NotebookLM Section 6.1 & 10)
+        if (amount < 25) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: 'Minimum withdrawal amount is KES 25.00. Please enter 25 KES or more.'
+          }));
+        }
+
+        const currentBal = db.getBalances(normPhone);
+        if (currentBal.realBalance < amount) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            error: `Insufficient real money balance (Available: KES ${currentBal.realBalance.toFixed(2)}).`
+          }));
+        }
+
+        // --- RULE 1: Anti-Money Laundering (AML) Turnover Rule (Turnover >= Deposits) ---
+        const totalDeposits = db.getTotalDeposits(normPhone);
+        const totalTurnover = db.getTotalTurnover(normPhone);
+        if (totalDeposits > 0 && totalTurnover < totalDeposits) {
+          const deficit = totalDeposits - totalTurnover;
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: false,
+            code: 'REJECTED_INSUFFICIENT_TURNOVER',
+            error: `AML Compliance Notice: You must wager 100% of deposited funds before requesting a withdrawal. Required Turnover: KES ${totalDeposits.toFixed(2)}, Current Turnover: KES ${totalTurnover.toFixed(2)} (Deficit: KES ${deficit.toFixed(2)}).`
+          }));
+        }
+
+        // --- RULE 2: Registered Phone Verification (Account Identity Match) ---
+        if (normTarget !== normPhone) {
+          const reference = `WTH_HOLD_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          db.updateBalance(normPhone, 'REAL', -amount);
+          db.createWithdrawal(normPhone, amount, reference, 'MANUAL_HOLD_PHONE_MISMATCH', 80, 'Destination phone mismatch');
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: true,
+            status: 'PROCESSING',
+            reference: reference,
+            message: 'Withdrawal Submitted - Processing'
+          }));
+        }
+
+        // --- RULE 3: Dynamic Velocity Screening (Max 2 withdrawals per 24 hours) ---
+        const dailyCount = db.getDailyWithdrawalCount(normPhone);
+        if (dailyCount >= 2) {
+          const reference = `WTH_HOLD_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+          db.updateBalance(normPhone, 'REAL', -amount);
+          db.createWithdrawal(normPhone, amount, reference, 'MANUAL_HOLD_VELOCITY_EXCEEDED', 60, 'Velocity exceeded (>2 in 24h)');
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({
+            success: true,
+            status: 'PROCESSING',
+            reference: reference,
+            message: 'Withdrawal Submitted - Processing'
+          }));
+        }
+
+        // --- RULE 4: Auto-Approval Ceiling (Max 5,000.00 KES automated) ---
+        const AUTO_DISBURSEMENT_LIMIT = 5000.00;
+        const reference = `WTH_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+        db.updateBalance(normPhone, 'REAL', -amount);
+
+        let status = 'SETTLED';
+        let riskScore = 10;
+        let riskReason = 'Approved automated B2C payout';
+
+        if (amount > AUTO_DISBURSEMENT_LIMIT) {
+          status = 'MANUAL_HOLD_HIGH_VALUE';
+          riskScore = 50;
+          riskReason = `Amount KES ${amount} exceeds automated ceiling of KES 5,000.00`;
+        }
+
+        db.createWithdrawal(normPhone, amount, reference, status, riskScore, riskReason);
+        const updatedBal = db.getBalances(normPhone);
+
+        // --- RULE 5: Frontend Status Abstraction (Uniform status for player security) ---
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({
+          success: true,
+          status: 'PROCESSING',
+          reference: reference,
+          amount: amount,
+          message: 'Withdrawal Submitted - Processing',
+          realBalance: updatedBal.realBalance,
+          demoBalance: updatedBal.demoBalance
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
   }
 
   // Auth API: Store verified phone user with Firebase UID in SQLite database

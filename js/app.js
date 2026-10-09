@@ -296,6 +296,7 @@ class AviatorApp {
   openDepositModal(initialAmount = 49) {
     const depositModal = document.getElementById('deposit-modal');
     if (!depositModal) return;
+    this._prefillDepositPhone();
     depositModal.classList.add('show');
     const depositAmtInput = document.getElementById('deposit-amount-input');
     const btnConfirmDeposit = document.getElementById('btn-confirm-deposit');
@@ -324,6 +325,86 @@ class AviatorApp {
     }
     this.soundEngine?.playClick();
   }
+
+  /**
+   * Pre-fill the deposit phone input with the user's registered number.
+   * Makes it readonly if logged in so they can't accidentally use a different number.
+   */
+  _prefillDepositPhone() {
+    const phoneInp = document.getElementById('deposit-phone-input');
+    const phoneLabel = document.getElementById('deposit-phone-label');
+    const phoneNote = document.getElementById('deposit-phone-note');
+    if (!phoneInp) return;
+
+    const user = this.authManager?.user;
+    if (user && user.phone) {
+      // Normalize to display-friendly format
+      const phone = user.phone;
+      phoneInp.value = phone.startsWith('+254') ? '0' + phone.slice(4) : phone;
+      phoneInp.readOnly = true;
+      phoneInp.style.opacity = '0.75';
+      phoneInp.style.cursor = 'not-allowed';
+      if (phoneLabel) phoneLabel.textContent = 'M-PESA Phone (your registered number):';
+      if (phoneNote) phoneNote.textContent = 'STK Push will be sent to your registered number.';
+    } else {
+      phoneInp.readOnly = false;
+      phoneInp.style.opacity = '1';
+      phoneInp.style.cursor = '';
+      if (phoneLabel) phoneLabel.textContent = 'M-PESA Phone Number (PayHero STK Push):';
+      if (phoneNote) phoneNote.textContent = 'You will receive an M-PESA PIN prompt on this phone.';
+    }
+  }
+
+  _prefillWithdrawPhone() {
+    const phoneInp = document.getElementById('withdraw-phone-input');
+    if (!phoneInp) return;
+    const user = this.authManager?.user;
+    if (user && user.phone) {
+      const phone = user.phone;
+      phoneInp.value = phone.startsWith('+254') ? '0' + phone.slice(4) : phone;
+      phoneInp.readOnly = true;
+      phoneInp.style.opacity = '0.8';
+    } else {
+      phoneInp.readOnly = false;
+      phoneInp.style.opacity = '1';
+    }
+  }
+
+  async updateWalletAmlStatus() {
+    const user = this.authManager?.user;
+    if (!user || !user.phone) return;
+    try {
+      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(user.phone)}`);
+      const data = await res.json();
+      if (data.success) {
+        const badge = document.getElementById('withdraw-turnover-badge');
+        const summary = document.getElementById('withdraw-turnover-summary');
+        if (data.turnoverCompleted) {
+          if (badge) {
+            badge.textContent = 'Compliant (100% Wagered)';
+            badge.style.background = 'rgba(34, 197, 94, 0.2)';
+            badge.style.color = '#22c55e';
+          }
+          if (summary) {
+            summary.textContent = `AML Compliance satisfied: Deposited KES ${data.totalDeposits.toFixed(2)}, Turnover KES ${data.totalTurnover.toFixed(2)}. Ready to withdraw.`;
+          }
+        } else {
+          if (badge) {
+            badge.textContent = `Turnover Deficit: KES ${data.turnoverRequired.toFixed(2)}`;
+            badge.style.background = 'rgba(239, 68, 68, 0.2)';
+            badge.style.color = '#ef4444';
+          }
+          if (summary) {
+            summary.textContent = `Anti-Money Laundering Rule: You must wager at least KES ${data.turnoverRequired.toFixed(2)} more before withdrawal (Deposited: KES ${data.totalDeposits.toFixed(2)}, Turnover: KES ${data.totalTurnover.toFixed(2)}).`;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Wallet AML Check Notice]:', e.message);
+    }
+  }
+
+
 
   updateTerminalUI(id, t, gameState, multiplier) {
     const termEl = document.getElementById(`terminal-${id}`);
@@ -516,6 +597,10 @@ class AviatorApp {
         btn.addEventListener('click', () => {
           const menu = document.getElementById('spribe-dropdown-menu');
           if (menu) menu.classList.remove('show');
+          // Auto-fill phones with registered number
+          this._prefillDepositPhone();
+          this._prefillWithdrawPhone();
+          this.updateWalletAmlStatus();
           depositModal?.classList.add('show');
           updateDepositAmount(depositAmtInput?.value || 49);
           this.soundEngine.playClick();
@@ -529,6 +614,32 @@ class AviatorApp {
       });
       depositModal.addEventListener('click', (e) => {
         if (e.target === depositModal) depositModal.classList.remove('show');
+      });
+    }
+
+    // --- TAB SWITCHER: DEPOSIT vs WITHDRAW (NotebookLM Cash Hub) ---
+    const tabBtnDeposit = document.getElementById('tab-btn-deposit');
+    const tabBtnWithdraw = document.getElementById('tab-btn-withdraw');
+    const viewDeposit = document.getElementById('wallet-view-deposit');
+    const viewWithdraw = document.getElementById('wallet-view-withdraw');
+
+    if (tabBtnDeposit && tabBtnWithdraw) {
+      tabBtnDeposit.addEventListener('click', () => {
+        tabBtnDeposit.classList.add('active');
+        tabBtnWithdraw.classList.remove('active');
+        if (viewDeposit) viewDeposit.style.display = 'block';
+        if (viewWithdraw) viewWithdraw.style.display = 'none';
+        this.soundEngine.playClick();
+      });
+
+      tabBtnWithdraw.addEventListener('click', () => {
+        tabBtnWithdraw.classList.add('active');
+        tabBtnDeposit.classList.remove('active');
+        if (viewDeposit) viewDeposit.style.display = 'none';
+        if (viewWithdraw) viewWithdraw.style.display = 'block';
+        this._prefillWithdrawPhone();
+        this.updateWalletAmlStatus();
+        this.soundEngine.playClick();
       });
     }
 
@@ -565,7 +676,33 @@ class AviatorApp {
       });
     }
 
-    // PayHero STK Push Deposit Handler (Minimum 49 Bob)
+    // 30-Second Anti-Abuse Cooldown Timer (NotebookLM Section 5.2 & Section 11)
+    let depositCooldownInterval = null;
+    const triggerDepositCooldown = (duration = 30) => {
+      const notice = document.getElementById('stk-cooldown-timer-notice');
+      const secondsEl = document.getElementById('cooldown-seconds');
+      if (notice) notice.style.display = 'block';
+      let remaining = duration;
+      if (secondsEl) secondsEl.textContent = remaining;
+      if (btnConfirmDeposit) btnConfirmDeposit.disabled = true;
+
+      if (depositCooldownInterval) clearInterval(depositCooldownInterval);
+      depositCooldownInterval = setInterval(() => {
+        remaining--;
+        if (secondsEl) secondsEl.textContent = remaining;
+        if (remaining <= 0) {
+          clearInterval(depositCooldownInterval);
+          depositCooldownInterval = null;
+          if (notice) notice.style.display = 'none';
+          if (btnConfirmDeposit) {
+            btnConfirmDeposit.disabled = false;
+            btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Deposit KES ${parseFloat(depositAmtInput?.value || 49).toFixed(2)} via PayHero</span>`;
+          }
+        }
+      }, 1000);
+    };
+
+    // PayHero STK Push Deposit Handler (Minimum 49 Bob with 30s Cooldown)
     if (btnConfirmDeposit) {
       btnConfirmDeposit.addEventListener('click', async () => {
         const amt = parseFloat(depositAmtInput?.value || 0);
@@ -623,6 +760,9 @@ class AviatorApp {
             throw new Error(data.error || 'Failed to initiate PayHero deposit');
           }
 
+          // Enforce 30-second cooldown immediately upon dispatch (NotebookLM Section 5.2)
+          triggerDepositCooldown(30);
+
           if (waitingCard) waitingCard.style.display = 'block';
           if (promptRefEl) promptRefEl.textContent = data.reference;
 
@@ -661,6 +801,7 @@ class AviatorApp {
 
                 const receipt = statusData.receiptNumber || 'M-PESA';
                 this.authManager?.showToast(`🎉 Deposit Confirmed! +KES ${amt.toLocaleString()} credited to your REAL MONEY wallet via PayHero (Ref: ${receipt}).`);
+                this.updateWalletAmlStatus();
                 return;
               }
 
@@ -701,6 +842,121 @@ class AviatorApp {
             depositStatusMsg.className = 'deposit-status-msg error';
             depositStatusMsg.textContent = err.message || 'Deposit error. Please check your connection.';
             depositStatusMsg.style.display = 'block';
+          }
+        }
+      });
+    }
+
+    // --- WITHDRAWAL ACTIONS & 5-RULE RISK ENGINE (NotebookLM Section 8) ---
+    const withdrawAmtInput = document.getElementById('withdraw-amount-input');
+    const withdrawChips = document.querySelectorAll('[data-withdraw-amount]');
+    const btnConfirmWithdraw = document.getElementById('btn-confirm-withdraw');
+    const btnConfirmWithdrawText = document.getElementById('btn-confirm-withdraw-text');
+    const withdrawStatusMsg = document.getElementById('withdraw-status-msg');
+
+    withdrawChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        withdrawChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const val = parseFloat(chip.getAttribute('data-withdraw-amount'));
+        if (withdrawAmtInput) withdrawAmtInput.value = val;
+        if (btnConfirmWithdrawText) {
+          btnConfirmWithdrawText.textContent = `Withdraw KES ${val.toLocaleString()} to M-PESA`;
+        }
+        this.soundEngine.playClick();
+      });
+    });
+
+    if (withdrawAmtInput) {
+      withdrawAmtInput.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value) || 0;
+        if (btnConfirmWithdrawText) {
+          btnConfirmWithdrawText.textContent = `Withdraw KES ${val.toLocaleString()} to M-PESA`;
+        }
+        withdrawChips.forEach(c => {
+          c.classList.toggle('active', parseFloat(c.getAttribute('data-withdraw-amount')) === val);
+        });
+      });
+    }
+
+    if (btnConfirmWithdraw) {
+      btnConfirmWithdraw.addEventListener('click', async () => {
+        const amt = parseFloat(withdrawAmtInput?.value || 0);
+        const phoneInp = document.getElementById('withdraw-phone-input');
+        const rawPhone = phoneInp?.value || '';
+
+        if (!this.authManager?.user) {
+          if (withdrawStatusMsg) {
+            withdrawStatusMsg.className = 'deposit-status-msg error';
+            withdrawStatusMsg.textContent = 'Please log in to your account to withdraw real money.';
+            withdrawStatusMsg.style.display = 'block';
+          }
+          this.authManager?.openAuthModal('login');
+          return;
+        }
+
+        // Minimum withdrawal check (KES 25.00 per NotebookLM Section 6.1 & 10)
+        if (isNaN(amt) || amt < 25) {
+          if (withdrawStatusMsg) {
+            withdrawStatusMsg.className = 'deposit-status-msg error';
+            withdrawStatusMsg.textContent = 'Minimum withdrawal amount is KES 25.00. Please enter 25 KES or more.';
+            withdrawStatusMsg.style.display = 'block';
+          }
+          return;
+        }
+
+        btnConfirmWithdraw.disabled = true;
+        btnConfirmWithdraw.innerHTML = `<span class="btn-dep-icon">⏳</span><span>Screening Risk Rules...</span>`;
+        if (withdrawStatusMsg) withdrawStatusMsg.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/wallet/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: this.authManager.user.phone,
+              targetPhone: rawPhone || this.authManager.user.phone,
+              amount: amt
+            })
+          });
+
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(data.error || 'Withdrawal rejected by risk engine.');
+          }
+
+          // Balance deducted atomically in backend
+          if (data.realBalance !== undefined) {
+            this.stakingManager.setRealBalance(data.realBalance);
+            this.authManager.user.realBalance = data.realBalance;
+            this.authManager.user.balance = data.realBalance;
+            this.updateBalanceUI(data.realBalance, 'REAL');
+          }
+
+          if (withdrawStatusMsg) {
+            withdrawStatusMsg.className = 'deposit-status-msg';
+            withdrawStatusMsg.style.borderLeftColor = '#8b5cf6';
+            withdrawStatusMsg.style.color = '#c084fc';
+            withdrawStatusMsg.textContent = `✅ ${data.message} (Ref: ${data.reference}). Automated B2C M-PESA transfer initiated.`;
+            withdrawStatusMsg.style.display = 'block';
+          }
+
+          this.authManager?.showToast(`💸 ${data.message}: KES ${amt.toLocaleString()} processed via automated B2C payout.`);
+          this.soundEngine.playCashout();
+          this.updateWalletAmlStatus();
+
+          setTimeout(() => {
+            btnConfirmWithdraw.disabled = false;
+            btnConfirmWithdraw.innerHTML = `<span class="btn-dep-icon">💸</span><span>Withdraw to M-PESA</span>`;
+          }, 3500);
+
+        } catch (err) {
+          btnConfirmWithdraw.disabled = false;
+          btnConfirmWithdraw.innerHTML = `<span class="btn-dep-icon">💸</span><span>Withdraw to M-PESA</span>`;
+          if (withdrawStatusMsg) {
+            withdrawStatusMsg.className = 'deposit-status-msg error';
+            withdrawStatusMsg.textContent = err.message;
+            withdrawStatusMsg.style.display = 'block';
           }
         }
       });

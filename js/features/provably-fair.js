@@ -106,22 +106,35 @@ export class ProvablyFairUI {
     try {
       const serverHash = await this.engine.sha256(serverSeed);
       const hmacHex = await this.engine.hmacSha256(serverSeed, `${clientSeed}:${nonce}`);
+      const subHex = hmacHex.substring(0, 13);
+      const h = parseInt(subHex, 16);
+      const isBustGate = (h % 33 === 0);
       const multiplier = await this.engine.calculateCrashMultiplier(serverSeed, clientSeed, nonce);
 
       resultBox.innerHTML = `
         <div class="pf-result-success">
-          <div class="pf-result-badge">VERIFIED PROVABLY FAIR</div>
+          <div class="pf-result-badge">VERIFIED PROVABLY FAIR (97.0% RTP)</div>
           <div class="pf-result-row">
-            <strong>Calculated Multiplier:</strong>
+            <strong>Phase 4 Final Multiplier:</strong>
             <span class="pf-result-highlight">${multiplier.toFixed(2)}x</span>
           </div>
           <div class="pf-result-row">
-            <strong>SHA-256(Server Seed):</strong>
+            <strong>Phase 1 Pre-Commitment SHA-256(Seed):</strong>
             <code>${serverHash}</code>
           </div>
           <div class="pf-result-row">
-            <strong>HMAC-SHA256:</strong>
+            <strong>Phase 3 Deterministic HMAC-SHA256:</strong>
             <code>${hmacHex}</code>
+          </div>
+          <div class="pf-result-row">
+            <strong>Phase 4 52-Bit Entropy (13 Hex Chars):</strong>
+            <code>0x${subHex} (${h})</code>
+          </div>
+          <div class="pf-result-row">
+            <strong>Bust Gate Status (h % 33 == 0):</strong>
+            <span style="color: ${isBustGate ? '#ff003b' : '#22c55e'}; font-weight: 700;">
+              ${isBustGate ? 'BUST GATE TRIGGERED (1.00x Instant Crash)' : 'PASSED (Normal Continuous Flight)'}
+            </span>
           </div>
         </div>
       `;

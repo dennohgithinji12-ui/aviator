@@ -55,20 +55,19 @@ export class CrashMathEngine {
   async calculateCrashMultiplier(serverSeed, clientSeed, nonce) {
     const hmacHex = await this.hmacSha256(serverSeed, `${clientSeed}:${nonce}`);
     
-    // Take first 52 bits (13 hex characters)
+    // Take first 52 bits (13 hex characters) of entropy per NotebookLM Section 2.2
     const subHex = hmacHex.substring(0, 13);
-    const r = parseInt(subHex, 16);
-    const maxVal = Math.pow(2, 52);
+    const h = parseInt(subHex, 16);
+    const e = Math.pow(2, 52); // 4503599627370496
 
-    // 3% house edge: if divisible by 33, crash at 1.00x immediately
-    if (r % 33 === 0) {
+    // Modulus Bust Gate: 1 in 33 chance of instant crash at 1.00x (3.0% House Edge, 97.0% RTP)
+    if (h % 33 === 0) {
       return 1.00;
     }
 
-    // Multiplier calculation with 97% RTP
-    const multiplier = (0.97 * maxVal) / (maxVal - r);
-    const clamped = Math.max(1.00, Math.floor(multiplier * 100) / 100);
-    return clamped;
+    // Continuous curve multiplier calculation: floor((100*e - h)/(e - h)) / 100
+    const multiplier = Math.floor((100 * e - h) / (e - h)) / 100;
+    return Math.max(1.00, multiplier);
   }
 
   /**
