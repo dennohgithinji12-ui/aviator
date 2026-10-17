@@ -181,12 +181,12 @@ export class FlightCanvasEngine {
     }
 
     if (this.state === 'CRASHED') {
-      // Plane accelerates up and to the right off screen (Spribe "FLEW AWAY" signature animation)
+      // Plane flies up and to the right more slowly during the crash pause.
       const crashElapsed = (performance.now() - this.crashTime) / 1000;
-      const flyOffSpeed = 500; // px/sec
+      const flyOffSpeed = 150; // px/sec
       return {
         x: this.crashPlanePos.x + crashElapsed * flyOffSpeed,
-        y: this.crashPlanePos.y - crashElapsed * (flyOffSpeed * 0.75),
+        y: this.crashPlanePos.y - crashElapsed * (flyOffSpeed * 0.55),
         angle: -0.45
       };
     }

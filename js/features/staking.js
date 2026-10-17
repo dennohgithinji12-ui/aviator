@@ -48,7 +48,11 @@ export class StakingTerminalManager {
         autoCashoutEnabled: false,
         autoCashoutMultiplier: 2.00,
         cancelled: false,
-        activeBetId: null
+        activeBetId: null,
+        queuedForNextRound: false,
+        queuedAmount: null,
+        queuedMode: null,
+        betMode: null
       },
       2: {
         id: 2,
@@ -63,14 +67,20 @@ export class StakingTerminalManager {
         autoCashoutEnabled: false,
         autoCashoutMultiplier: 1.50,
         cancelled: false,
-        activeBetId: null
+        activeBetId: null,
+        queuedForNextRound: false,
+        queuedAmount: null,
+        queuedMode: null,
+        betMode: null
       }
     };
 
     this.gameState = 'WAITING'; // 'WAITING', 'FLYING', 'CRASHED'
     this.currentMultiplier = 1.00;
-    this.bettingLocked = false;
-    this.bettingCutoffAt = 0;
+    this.betPlacementLocked = false;
+    this.betCancellationLocked = false;
+    this.betPlacementCutoffAt = 0;
+    this.betCancellationCutoffAt = 0;
 
     // Initial sync with SQLite backend if phone available
     if (this.userPhone) {
@@ -249,28 +259,42 @@ export class StakingTerminalManager {
     return this.terminals[id];
   }
 
-  isBettingLocked() {
+  isBetPlacementLocked() {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    return this.bettingLocked || (this.bettingCutoffAt > 0 && now >= this.bettingCutoffAt);
+    return this.betPlacementLocked || (this.betPlacementCutoffAt > 0 && now >= this.betPlacementCutoffAt);
+  }
+
+  isBetCancellationLocked() {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return this.betCancellationLocked || (this.betCancellationCutoffAt > 0 && now >= this.betCancellationCutoffAt);
   }
 
   onCountdownTick(remainingSeconds) {
     if (this.gameState !== 'WAITING' || !Number.isFinite(Number(remainingSeconds))) return;
     const remaining = Math.max(0, Number(remainingSeconds));
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    this.bettingCutoffAt = now + Math.max(0, remaining - 0.5) * 1000;
-    const locked = remaining <= 0.5;
-    if (locked !== this.bettingLocked) {
-      this.bettingLocked = locked;
+    this.betPlacementCutoffAt = now + Math.max(0, remaining - 0.8) * 1000;
+    this.betCancellationCutoffAt = now + Math.max(0, remaining - 0.5) * 1000;
+    const placementLocked = remaining <= 0.8;
+    const cancellationLocked = remaining <= 0.5;
+    if (placementLocked !== this.betPlacementLocked || cancellationLocked !== this.betCancellationLocked) {
+      this.betPlacementLocked = placementLocked;
+      this.betCancellationLocked = cancellationLocked;
       [1, 2].forEach(id => this.notifyUpdate(id));
     }
+  }
+
+  changeBalanceForMode(mode, amount) {
+    if (mode === 'REAL') this.realBalance = Math.max(0, this.realBalance + amount);
+    else this.demoBalance = Math.max(0, this.demoBalance + amount);
+    this.saveBalance();
   }
 
   setAmount(id, amount) {
     const t = this.terminals[id];
     const hasUnsettledBet = t && t.staked && !t.cashedOut &&
       (this.gameState === 'WAITING' || this.gameState === 'FLYING');
-    if (!t || hasUnsettledBet || !Number.isFinite(Number(amount))) return;
+    if (!t || hasUnsettledBet || t.queuedForNextRound || !Number.isFinite(Number(amount))) return;
     t.amount = Math.max(100, Math.min(100000, Math.round(amount)));
     this.notifyUpdate(id);
   }
@@ -341,7 +365,7 @@ export class StakingTerminalManager {
 
   placeStake(id) {
     const t = this.terminals[id];
-    if (!t || t.staked || this.gameState !== 'WAITING' || this.isBettingLocked()) return { success: false, reason: 'NOT_WAITING' };
+    if (!t || t.staked || this.gameState !== 'WAITING' || this.isBetPlacementLocked()) return { success: false, reason: 'NOT_WAITING' };
 
     // Real Money mode strictly requires an active account; demo mode is open to all
     if (this.gameMode === 'REAL' && (!this.hasAccount || !this.userPhone)) {
@@ -378,33 +402,15 @@ export class StakingTerminalManager {
     }
 
     // Deduct stake from active mode balance
-    this.balance -= t.amount;
+    t.betMode = this.gameMode;
+    this.changeBalanceForMode(t.betMode, -t.amount);
     t.staked = true;
     t.stakedInRound = true;
     t.cashedOut = false;
     t.payout = 0;
     t.cashedOutMultiplier = 0;
 
-    this.saveBalance();
-
-    // Async sync with SQLite database
-    if (this.userPhone && typeof fetch !== 'undefined') {
-      fetch('/api/wallet/bet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: this.userPhone,
-          mode: this.gameMode,
-          terminalId: id,
-          amount: t.amount,
-          roundNonce: this.currentRoundNonce || 0
-        })
-      }).then(r => r.json()).then(res => {
-        if (res.success && res.betId) {
-          t.activeBetId = res.betId;
-        }
-      }).catch(() => {});
-    }
+    this.recordBet(id, t);
 
     if (this.soundEngine?.playBetPlaced) {
       this.soundEngine.playBetPlaced();
@@ -419,6 +425,10 @@ export class StakingTerminalManager {
     const t = this.terminals[id];
     if (!t) return { success: false };
 
+    if (t.queuedForNextRound) {
+      return { success: this.cancelQueuedStake(id), action: 'CANCEL_QUEUED' };
+    }
+
     if (this.gameState === 'WAITING') {
       if (t.staked) {
         return { success: this.cancelStake(id), action: 'CANCEL' };
@@ -431,22 +441,77 @@ export class StakingTerminalManager {
         const res = this.cashout(id, this.currentMultiplier);
         return { success: !!res, action: 'CASHOUT', data: res };
       }
+      return { ...this.queueNextRoundStake(id), action: 'QUEUE_NEXT' };
+    } else if (this.gameState === 'CRASHED') {
+      return { ...this.queueNextRoundStake(id), action: 'QUEUE_NEXT' };
     }
     return { success: false, reason: 'INVALID_STATE' };
   }
 
   cancelStake(id) {
     const t = this.terminals[id];
-    if (!t || !t.staked || this.gameState !== 'WAITING' || this.isBettingLocked()) return false;
+    if (!t || !t.staked || this.gameState !== 'WAITING' || this.isBetCancellationLocked()) return false;
 
-    this.balance += t.amount;
+    this.changeBalanceForMode(t.betMode || this.gameMode, t.amount);
     t.staked = false;
     t.stakedInRound = false;
+    t.betMode = null;
 
-    this.saveBalance();
     this.soundEngine?.playClick();
     this.notifyUpdate(id);
     return true;
+  }
+
+  queueNextRoundStake(id) {
+    const t = this.terminals[id];
+    if (!t || t.queuedForNextRound || (t.staked && !t.cashedOut && this.gameState !== 'CRASHED')) {
+      return { success: false, reason: 'INVALID_STATE' };
+    }
+    if (this.gameMode === 'REAL' && (!this.hasAccount || !this.userPhone)) {
+      return { success: false, reason: 'ACCOUNT_REQUIRED' };
+    }
+    if (t.amount < 100) return { success: false, reason: 'MIN_STAKE', minStake: 100 };
+    if (this.balance < t.amount) {
+      return this.gameMode === 'REAL'
+        ? { success: false, reason: 'INSUFFICIENT_REAL_FUNDS', balance: this.realBalance, needed: t.amount, minDeposit: 49 }
+        : { success: false, reason: 'INSUFFICIENT_DEMO_FUNDS', balance: this.demoBalance, needed: t.amount };
+    }
+
+    t.queuedForNextRound = true;
+    t.queuedAmount = t.amount;
+    t.queuedMode = this.gameMode;
+    this.changeBalanceForMode(t.queuedMode, -t.queuedAmount);
+    this.soundEngine?.playBetPlaced?.();
+    this.notifyUpdate(id);
+    return { success: true };
+  }
+
+  cancelQueuedStake(id) {
+    const t = this.terminals[id];
+    if (!t || !t.queuedForNextRound) return false;
+    this.changeBalanceForMode(t.queuedMode, t.queuedAmount);
+    t.queuedForNextRound = false;
+    t.queuedAmount = null;
+    t.queuedMode = null;
+    this.notifyUpdate(id);
+    return true;
+  }
+
+  recordBet(id, t) {
+    if (!this.userPhone || typeof fetch === 'undefined') return;
+    fetch('/api/wallet/bet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: this.userPhone,
+        mode: t.betMode || this.gameMode,
+        terminalId: id,
+        amount: t.amount,
+        roundNonce: this.currentRoundNonce || 0
+      })
+    }).then(r => r.json()).then(res => {
+      if (res.success && res.betId) t.activeBetId = res.betId;
+    }).catch(() => {});
   }
 
   cashout(id, multiplier) {
@@ -460,8 +525,7 @@ export class StakingTerminalManager {
     t.payout = payout;
 
     // Credit winnings to active balance
-    this.balance += payout;
-    this.saveBalance();
+    this.changeBalanceForMode(t.betMode || this.gameMode, payout);
 
     // Async sync winnings with SQLite database
     if (this.userPhone && typeof fetch !== 'undefined') {
@@ -470,7 +534,7 @@ export class StakingTerminalManager {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: this.userPhone,
-          mode: this.gameMode,
+          mode: t.betMode || this.gameMode,
           betId: t.activeBetId || 0,
           multiplier: multiplier,
           payout: payout,
@@ -506,7 +570,8 @@ export class StakingTerminalManager {
 
   onFlightStart() {
     this.gameState = 'FLYING';
-    this.bettingLocked = true;
+    this.betPlacementLocked = true;
+    this.betCancellationLocked = true;
     [1, 2].forEach(id => {
       this.notifyUpdate(id);
     });
@@ -526,8 +591,10 @@ export class StakingTerminalManager {
 
   onRoundWaiting(roundNonce = this.currentRoundNonce + 1, remainingSeconds = 5.0) {
     this.gameState = 'WAITING';
-    this.bettingLocked = false;
-    this.bettingCutoffAt = 0;
+    this.betPlacementLocked = false;
+    this.betCancellationLocked = false;
+    this.betPlacementCutoffAt = 0;
+    this.betCancellationCutoffAt = 0;
     this.onCountdownTick(remainingSeconds);
     // Round preparation can run again after tab focus or a clock resync. Process
     // a round only once so queued bets are not silently cleared or charged twice.
@@ -538,14 +605,29 @@ export class StakingTerminalManager {
 
     [1, 2].forEach(id => {
       const t = this.terminals[id];
+      const queuedForNextRound = t.queuedForNextRound;
+      const queuedAmount = t.queuedAmount;
+      const queuedMode = t.queuedMode;
       t.staked = false;
       t.stakedInRound = false;
       t.cashedOut = false;
       t.cashedOutMultiplier = 0;
       t.payout = 0;
       t.activeBetId = null;
+      t.betMode = null;
 
-      if (t.autoStakeEnabled && !this.isBettingLocked() && this.balance >= t.amount && t.amount >= 100) {
+      if (queuedForNextRound) {
+        t.amount = queuedAmount;
+        t.staked = true;
+        t.stakedInRound = true;
+        t.betMode = queuedMode;
+        t.queuedForNextRound = false;
+        t.queuedAmount = null;
+        t.queuedMode = null;
+        this.recordBet(id, t);
+      }
+
+      if (!t.staked && t.autoStakeEnabled && !this.isBetPlacementLocked() && this.balance >= t.amount && t.amount >= 100) {
         this.placeStake(id);
       }
       this.notifyUpdate(id);

@@ -471,8 +471,8 @@ class AviatorApp {
 
     // Amount input
     const inputEl = termEl.querySelector('.terminal-stake-input');
-    const amountLocked = t.staked && !t.cashedOut &&
-      (gameState === 'WAITING' || gameState === 'FLYING');
+    const amountLocked = t.queuedForNextRound || (t.staked && !t.cashedOut &&
+      (gameState === 'WAITING' || gameState === 'FLYING'));
     if (inputEl) inputEl.disabled = amountLocked;
     if (inputEl && document.activeElement !== inputEl) {
       inputEl.value = t.amount;
@@ -484,7 +484,9 @@ class AviatorApp {
     // Action button
     const actionBtn = termEl.querySelector('.btn-terminal-action');
     if (!actionBtn) return;
-    actionBtn.disabled = gameState === 'WAITING' && this.stakingManager.isBettingLocked();
+    actionBtn.disabled = gameState === 'WAITING' && (t.staked
+      ? this.stakingManager.isBetCancellationLocked()
+      : this.stakingManager.isBetPlacementLocked());
 
     let targetClass = 'state-stake';
     let mainText = 'BET';
@@ -501,33 +503,41 @@ class AviatorApp {
         subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       }
     } else if (gameState === 'FLYING') {
-      if (t.staked && !t.cashedOut) {
+      if (t.queuedForNextRound) {
+        targetClass = 'state-cancel';
+        mainText = 'CANCEL';
+        subText = 'QUEUED NEXT ROUND';
+      } else if (t.staked && !t.cashedOut) {
         const livePayout = Math.floor(t.amount * multiplier * 100) / 100;
         targetClass = 'state-cashout';
         mainText = 'CASH OUT';
         subText = `${livePayout.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES`;
       } else if (t.cashedOut) {
-        targetClass = 'state-cashed';
-        mainText = 'CASHED OUT';
-        subText = `+${t.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
+        targetClass = 'state-stake';
+        mainText = 'BET';
+        subText = 'NEXT ROUND';
       } else {
-        targetClass = 'state-waiting-next';
-        mainText = 'WAITING';
-        subText = 'Next Round';
+        targetClass = 'state-stake';
+        mainText = 'BET';
+        subText = 'NEXT ROUND';
       }
     } else if (gameState === 'CRASHED') {
-      if (t.staked && !t.cashedOut) {
+      if (t.queuedForNextRound) {
+        targetClass = 'state-cancel';
+        mainText = 'CANCEL';
+        subText = 'QUEUED NEXT ROUND';
+      } else if (t.staked && !t.cashedOut && t.stakedInRound) {
         targetClass = 'state-lost';
         mainText = 'FLEW AWAY';
         subText = `-${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       } else if (t.cashedOut) {
-        targetClass = 'state-cashed';
-        mainText = 'WON';
-        subText = `+${t.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
+        targetClass = 'state-stake';
+        mainText = 'BET';
+        subText = 'NEXT ROUND';
       } else {
-        targetClass = 'state-waiting-next';
-        mainText = 'ROUND ENDED';
-        subText = 'Next Round...';
+        targetClass = 'state-stake';
+        mainText = 'BET';
+        subText = 'NEXT ROUND';
       }
     }
 

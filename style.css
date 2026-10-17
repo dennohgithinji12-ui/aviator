@@ -1182,6 +1182,9 @@ h1, h2, h3, h4 {
   font-weight: 800;
   opacity: 0.95;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-top: 3px;
 }
 
@@ -4741,5 +4744,12 @@ h1, h2, h3, h4 {
 
 #btn-confirm-withdraw:active {
   transform: translateY(0);
+}
+
+/* Desktop density equivalent to 90% browser zoom; leave tablet and mobile sizing intact. */
+@media (min-width: 1201px) {
+  html {
+    zoom: 0.9;
+  }
 }
 

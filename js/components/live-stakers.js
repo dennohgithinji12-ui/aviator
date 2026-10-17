@@ -16,6 +16,7 @@ export class LiveStakersComponent {
     this.arrivalStartedAt = 0;
     this.arrivalDurationMs = 0;
     this.arrivalIndex = 0;
+    this.arrivalTotal = 0;
     this.lastGeneratedRoundNonce = null;
     this.myHistory = [];
     this.totalRoundPlayers = 80;
@@ -128,12 +129,13 @@ export class LiveStakersComponent {
     }
 
     this.render();
-    this.arrivalDurationMs = Math.max(0, Number(countdownSeconds) || 0) * 1000;
+    // Reveal entries only while bets are accepted; stop as the countdown enters
+    // the shared 800 ms bet placement lock window.
+    this.arrivalDurationMs = Math.max(0, (Number(countdownSeconds) || 0) - 0.8) * 1000;
     this.arrivalStartedAt = Date.now();
+    this.arrivalTotal = this.pendingStakers.length;
     if (this.arrivalDurationMs === 0) {
-      this.activeStakers.push(...this.pendingStakers);
       this.pendingStakers = [];
-      this.render();
     } else {
       this.scheduleNextArrival();
     }
@@ -145,9 +147,15 @@ export class LiveStakersComponent {
       return;
     }
     const nextArrivalAt = this.arrivalStartedAt +
-      (this.arrivalDurationMs * (this.arrivalIndex + 1)) / (this.arrivalIndex + this.pendingStakers.length);
+      (this.arrivalDurationMs * (this.arrivalIndex + 1)) / (this.arrivalTotal + 1);
     const delay = Math.max(0, nextArrivalAt - Date.now());
     this.arrivalTimer = setTimeout(() => {
+      const lockAt = this.arrivalStartedAt + this.arrivalDurationMs;
+      if (Date.now() >= lockAt) {
+        this.pendingStakers = [];
+        this.arrivalTimer = null;
+        return;
+      }
       const nextStaker = this.pendingStakers.shift();
       if (nextStaker) {
         this.activeStakers.push(nextStaker);
@@ -161,11 +169,8 @@ export class LiveStakersComponent {
   finishRoundArrivals() {
     if (this.arrivalTimer) clearTimeout(this.arrivalTimer);
     this.arrivalTimer = null;
-    if (this.pendingStakers.length) {
-      this.activeStakers.push(...this.pendingStakers);
-      this.pendingStakers = [];
-      this.render();
-    }
+    // Takeoff freezes the current feed; no pending bets appear after lock.
+    this.pendingStakers = [];
   }
 
   syncUserBets() {
