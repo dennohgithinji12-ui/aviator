@@ -469,6 +469,11 @@ class AviatorApp {
     const termEl = document.getElementById(`terminal-${id}`);
     if (!termEl) return;
 
+    if (t.cashedOut && !t.cashoutPopupShown) {
+      t.cashoutPopupShown = true;
+      this.showCashoutPopup(id, t.cashedOutMultiplier, t.payout);
+    }
+
     // Amount input
     const inputEl = termEl.querySelector('.terminal-stake-input');
     const amountLocked = t.queuedForNextRound || (t.staked && !t.cashedOut &&
@@ -560,6 +565,58 @@ class AviatorApp {
     }
 
     this.liveStakers?.syncUserBets();
+  }
+
+  showCashoutPopup(terminalId, multiplier, payout) {
+    let stack = document.getElementById('cashout-popup-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'cashout-popup-stack';
+      stack.className = 'cashout-popup-stack';
+      stack.setAttribute('aria-live', 'polite');
+      const graph = document.getElementById('flight-canvas-container');
+      (graph || document.body).appendChild(stack);
+    }
+
+    const popup = document.createElement('div');
+    popup.className = 'cashout-popup';
+    popup.setAttribute('role', 'status');
+
+    const result = document.createElement('div');
+    result.className = 'cashout-popup-result';
+    const message = document.createElement('span');
+    message.textContent = `You cashed out • Bet ${terminalId}`;
+    const odds = document.createElement('strong');
+    odds.textContent = `${Number(multiplier).toFixed(2)}x`;
+    result.append(message, odds);
+
+    const winnings = document.createElement('div');
+    winnings.className = 'cashout-popup-winnings';
+    const winLabel = document.createElement('span');
+    winLabel.textContent = 'WIN, KES';
+    const winAmount = document.createElement('strong');
+    winAmount.textContent = Number(payout).toLocaleString('en-KE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    winnings.append(winLabel, winAmount);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'cashout-popup-close';
+    close.setAttribute('aria-label', 'Dismiss cashout result');
+    close.textContent = '×';
+    popup.append(result, winnings, close);
+    stack.appendChild(popup);
+
+    let timeoutId;
+    const dismiss = () => {
+      clearTimeout(timeoutId);
+      popup.classList.add('is-dismissing');
+      setTimeout(() => popup.remove(), 220);
+    };
+    close.addEventListener('click', dismiss);
+    timeoutId = setTimeout(dismiss, 3000);
   }
 
   updateLiquidityVaultUI(state) {

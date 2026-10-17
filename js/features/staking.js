@@ -52,7 +52,8 @@ export class StakingTerminalManager {
         queuedForNextRound: false,
         queuedAmount: null,
         queuedMode: null,
-        betMode: null
+        betMode: null,
+        cashoutPopupShown: false
       },
       2: {
         id: 2,
@@ -71,7 +72,8 @@ export class StakingTerminalManager {
         queuedForNextRound: false,
         queuedAmount: null,
         queuedMode: null,
-        betMode: null
+        betMode: null,
+        cashoutPopupShown: false
       }
     };
 
@@ -409,6 +411,7 @@ export class StakingTerminalManager {
     t.cashedOut = false;
     t.payout = 0;
     t.cashedOutMultiplier = 0;
+    t.cashoutPopupShown = false;
 
     this.recordBet(id, t);
 
@@ -613,6 +616,7 @@ export class StakingTerminalManager {
       t.cashedOut = false;
       t.cashedOutMultiplier = 0;
       t.payout = 0;
+      t.cashoutPopupShown = false;
       t.activeBetId = null;
       t.betMode = null;
 
