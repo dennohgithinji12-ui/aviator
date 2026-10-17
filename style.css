@@ -1529,6 +1529,22 @@ h1, h2, h3, h4 {
   flex-direction: column;
 }
 
+/* Keep the verifier header and close control visible while its long form scrolls. */
+.pf-modal-dialog {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.pf-modal-dialog .modal-header {
+  flex: 0 0 auto;
+}
+.pf-modal-dialog .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modal-header {
   display: flex;
   align-items: center;

@@ -179,12 +179,13 @@ class AviatorApp {
 
     // 4. Synchronize Flight Phase with Global Timeline
     if (globalState.phase === 'WAITING') {
-      this.stakingManager.onRoundWaiting();
-      this.liveStakers.generateRoundStakers();
+      this.stakingManager.onRoundWaiting(globalState.nonce, globalState.remainingSeconds);
+      this.liveStakers.generateRoundStakers(globalState.remainingSeconds, globalState.nonce);
       this.lastCountdownSecond = -1;
       this.canvasEngine.startCountdown(5.0, this.currentRoundData.crashMultiplier, globalState.remainingSeconds);
     } else if (globalState.phase === 'FLYING') {
-      this.liveStakers.generateRoundStakers();
+      this.liveStakers.generateRoundStakers(0, globalState.nonce);
+      this.liveStakers.finishRoundArrivals();
       this.soundEngine.startEngine();
       this.soundEngine.updateEnginePitch(globalState.currentMultiplier);
       this.stakingManager.onFlightStart();
@@ -203,6 +204,7 @@ class AviatorApp {
   onFlightTick(multiplier, remainingSeconds) {
     const bnavMult = document.getElementById('bnav-live-multiplier');
     if (this.canvasEngine.state === 'WAITING') {
+      this.stakingManager.onCountdownTick(remainingSeconds);
       const ceilSec = Math.ceil(remainingSeconds);
       if (ceilSec > 0 && ceilSec !== this.lastCountdownSecond) {
         this.lastCountdownSecond = ceilSec;
@@ -229,6 +231,7 @@ class AviatorApp {
     if (newState === 'WAITING') {
       if (bnavMult) bnavMult.textContent = '● Wait';
     } else if (newState === 'FLYING') {
+      this.liveStakers?.finishRoundArrivals();
       this.soundEngine.playTakeoff();
       this.soundEngine.startEngine();
       this.stakingManager.onFlightStart();
@@ -468,13 +471,20 @@ class AviatorApp {
 
     // Amount input
     const inputEl = termEl.querySelector('.terminal-stake-input');
+    const amountLocked = t.staked && !t.cashedOut &&
+      (gameState === 'WAITING' || gameState === 'FLYING');
+    if (inputEl) inputEl.disabled = amountLocked;
     if (inputEl && document.activeElement !== inputEl) {
       inputEl.value = t.amount;
     }
+    termEl.querySelectorAll('.btn-step, .chip-btn').forEach(control => {
+      control.disabled = amountLocked;
+    });
 
     // Action button
     const actionBtn = termEl.querySelector('.btn-terminal-action');
     if (!actionBtn) return;
+    actionBtn.disabled = gameState === 'WAITING' && this.stakingManager.isBettingLocked();
 
     let targetClass = 'state-stake';
     let mainText = 'BET';
@@ -538,6 +548,8 @@ class AviatorApp {
       if (mainEl.textContent !== mainText) mainEl.textContent = mainText;
       if (subEl.textContent !== subText) subEl.textContent = subText;
     }
+
+    this.liveStakers?.syncUserBets();
   }
 
   updateLiquidityVaultUI(state) {

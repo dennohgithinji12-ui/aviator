@@ -32,6 +32,7 @@ export class StakingTerminalManager {
     this.userAccount = null;
 
     this.currentRoundNonce = 0;
+    this.lastPreparedRoundNonce = null;
 
     this.terminals = {
       1: {
@@ -68,6 +69,8 @@ export class StakingTerminalManager {
 
     this.gameState = 'WAITING'; // 'WAITING', 'FLYING', 'CRASHED'
     this.currentMultiplier = 1.00;
+    this.bettingLocked = false;
+    this.bettingCutoffAt = 0;
 
     // Initial sync with SQLite backend if phone available
     if (this.userPhone) {
@@ -246,9 +249,28 @@ export class StakingTerminalManager {
     return this.terminals[id];
   }
 
+  isBettingLocked() {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return this.bettingLocked || (this.bettingCutoffAt > 0 && now >= this.bettingCutoffAt);
+  }
+
+  onCountdownTick(remainingSeconds) {
+    if (this.gameState !== 'WAITING' || !Number.isFinite(Number(remainingSeconds))) return;
+    const remaining = Math.max(0, Number(remainingSeconds));
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this.bettingCutoffAt = now + Math.max(0, remaining - 0.5) * 1000;
+    const locked = remaining <= 0.5;
+    if (locked !== this.bettingLocked) {
+      this.bettingLocked = locked;
+      [1, 2].forEach(id => this.notifyUpdate(id));
+    }
+  }
+
   setAmount(id, amount) {
     const t = this.terminals[id];
-    if (!t) return;
+    const hasUnsettledBet = t && t.staked && !t.cashedOut &&
+      (this.gameState === 'WAITING' || this.gameState === 'FLYING');
+    if (!t || hasUnsettledBet || !Number.isFinite(Number(amount))) return;
     t.amount = Math.max(100, Math.min(100000, Math.round(amount)));
     this.notifyUpdate(id);
   }
@@ -287,9 +309,23 @@ export class StakingTerminalManager {
     if (!t) return;
     t.autoCashoutEnabled = !!enabled;
     if (multiplier !== undefined) {
-      t.autoCashoutMultiplier = Math.max(1.01, Math.min(1000.0, parseFloat(multiplier)));
+      const parsedMultiplier = parseFloat(multiplier);
+      if (Number.isFinite(parsedMultiplier)) {
+        t.autoCashoutMultiplier = Math.max(1.05, Math.min(1000.0, parsedMultiplier));
+      }
     }
     this.notifyUpdate(id);
+  }
+
+  // Keep UI control names explicit and compatible with the terminal event handlers.
+  toggleAutoCashout(id, enabled) {
+    this.setAutoCashout(id, enabled);
+  }
+
+  setAutoCashoutMultiplier(id, multiplier) {
+    const t = this.terminals[id];
+    if (!t) return;
+    this.setAutoCashout(id, t.autoCashoutEnabled, multiplier);
   }
 
   setAutoStake(id, enabled) {
@@ -299,9 +335,13 @@ export class StakingTerminalManager {
     this.notifyUpdate(id);
   }
 
+  toggleAutoStake(id, enabled) {
+    this.setAutoStake(id, enabled);
+  }
+
   placeStake(id) {
     const t = this.terminals[id];
-    if (!t || t.staked || this.gameState !== 'WAITING') return { success: false, reason: 'NOT_WAITING' };
+    if (!t || t.staked || this.gameState !== 'WAITING' || this.isBettingLocked()) return { success: false, reason: 'NOT_WAITING' };
 
     // Real Money mode strictly requires an active account; demo mode is open to all
     if (this.gameMode === 'REAL' && (!this.hasAccount || !this.userPhone)) {
@@ -397,7 +437,7 @@ export class StakingTerminalManager {
 
   cancelStake(id) {
     const t = this.terminals[id];
-    if (!t || !t.staked || this.gameState !== 'WAITING') return false;
+    if (!t || !t.staked || this.gameState !== 'WAITING' || this.isBettingLocked()) return false;
 
     this.balance += t.amount;
     t.staked = false;
@@ -460,11 +500,13 @@ export class StakingTerminalManager {
           this.cashout(id, t.autoCashoutMultiplier);
         }
       }
+      if (t?.staked && !t.cashedOut) this.notifyUpdate(id);
     });
   }
 
   onFlightStart() {
     this.gameState = 'FLYING';
+    this.bettingLocked = true;
     [1, 2].forEach(id => {
       this.notifyUpdate(id);
     });
@@ -482,8 +524,16 @@ export class StakingTerminalManager {
     });
   }
 
-  onRoundWaiting() {
+  onRoundWaiting(roundNonce = this.currentRoundNonce + 1, remainingSeconds = 5.0) {
     this.gameState = 'WAITING';
+    this.bettingLocked = false;
+    this.bettingCutoffAt = 0;
+    this.onCountdownTick(remainingSeconds);
+    // Round preparation can run again after tab focus or a clock resync. Process
+    // a round only once so queued bets are not silently cleared or charged twice.
+    if (this.lastPreparedRoundNonce === roundNonce) return;
+    this.lastPreparedRoundNonce = roundNonce;
+    this.currentRoundNonce = roundNonce;
     this.currentMultiplier = 1.00;
 
     [1, 2].forEach(id => {
@@ -495,7 +545,7 @@ export class StakingTerminalManager {
       t.payout = 0;
       t.activeBetId = null;
 
-      if (t.autoStakeEnabled && this.balance >= t.amount && t.amount >= 100) {
+      if (t.autoStakeEnabled && !this.isBettingLocked() && this.balance >= t.amount && t.amount >= 100) {
         this.placeStake(id);
       }
       this.notifyUpdate(id);

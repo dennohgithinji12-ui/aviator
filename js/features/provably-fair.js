@@ -18,20 +18,26 @@ export class ProvablyFairUI {
     if (openBtn && modal) {
       openBtn.addEventListener('click', () => {
         this.populateCurrentParams();
-        modal.classList.add('active');
+        modal.classList.add('show');
       });
     }
 
     if (closeBtn && modal) {
       closeBtn.addEventListener('click', () => {
-        modal.classList.remove('active');
+        modal.classList.remove('show');
       });
     }
 
     // Click outside modal to close
     window.addEventListener('click', (e) => {
       if (e.target === modal) {
-        modal.classList.remove('active');
+        modal.classList.remove('show');
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal?.classList.contains('show')) {
+        modal.classList.remove('show');
       }
     });
 
@@ -80,7 +86,7 @@ export class ProvablyFairUI {
     if (verifyClientSeed) verifyClientSeed.value = roundData.clientSeed || '';
     if (verifyNonce) verifyNonce.value = roundData.nonce || '';
 
-    modal.classList.add('active');
+    modal.classList.add('show');
     this.executeVerification();
   }
 

@@ -11,6 +11,12 @@ export class LiveStakersComponent {
     this.stakingManager = userTerminalManager;
     this.currentTab = 'all'; // 'all' | 'my' | 'top'
     this.activeStakers = [];
+    this.pendingStakers = [];
+    this.arrivalTimer = null;
+    this.arrivalStartedAt = 0;
+    this.arrivalDurationMs = 0;
+    this.arrivalIndex = 0;
+    this.lastGeneratedRoundNonce = null;
     this.myHistory = [];
     this.totalRoundPlayers = 80;
 
@@ -52,8 +58,14 @@ export class LiveStakersComponent {
     return 'badge-low';
   }
 
-  generateRoundStakers() {
+  generateRoundStakers(countdownSeconds = 5, roundNonce = null) {
+    if (roundNonce !== null && this.lastGeneratedRoundNonce === roundNonce) return;
+    if (roundNonce !== null) this.lastGeneratedRoundNonce = roundNonce;
+    if (this.arrivalTimer) clearTimeout(this.arrivalTimer);
+    this.arrivalTimer = null;
     this.activeStakers = [];
+    this.pendingStakers = [];
+    this.arrivalIndex = 0;
     // High-volume live players per round: 75 to 95 players
     const count = 75 + Math.floor(Math.random() * 21);
 
@@ -72,6 +84,7 @@ export class LiveStakersComponent {
           cashedMultiplier: 0,
           payout: 0,
           isUser: true,
+          terminalId: id,
           color: '#ff003b'
         });
       }
@@ -102,7 +115,7 @@ export class LiveStakersComponent {
 
       const color = this.avatarColors[i % this.avatarColors.length];
 
-      this.activeStakers.push({
+      this.pendingStakers.push({
         user: name,
         stake: stake,
         targetMultiplier: Math.round(target * 100) / 100,
@@ -114,8 +127,81 @@ export class LiveStakersComponent {
       });
     }
 
-    this.totalRoundPlayers = this.activeStakers.length;
     this.render();
+    this.arrivalDurationMs = Math.max(0, Number(countdownSeconds) || 0) * 1000;
+    this.arrivalStartedAt = Date.now();
+    if (this.arrivalDurationMs === 0) {
+      this.activeStakers.push(...this.pendingStakers);
+      this.pendingStakers = [];
+      this.render();
+    } else {
+      this.scheduleNextArrival();
+    }
+  }
+
+  scheduleNextArrival() {
+    if (!this.pendingStakers.length) {
+      this.arrivalTimer = null;
+      return;
+    }
+    const nextArrivalAt = this.arrivalStartedAt +
+      (this.arrivalDurationMs * (this.arrivalIndex + 1)) / (this.arrivalIndex + this.pendingStakers.length);
+    const delay = Math.max(0, nextArrivalAt - Date.now());
+    this.arrivalTimer = setTimeout(() => {
+      const nextStaker = this.pendingStakers.shift();
+      if (nextStaker) {
+        this.activeStakers.push(nextStaker);
+        this.arrivalIndex += 1;
+        this.render();
+      }
+      this.scheduleNextArrival();
+    }, delay);
+  }
+
+  finishRoundArrivals() {
+    if (this.arrivalTimer) clearTimeout(this.arrivalTimer);
+    this.arrivalTimer = null;
+    if (this.pendingStakers.length) {
+      this.activeStakers.push(...this.pendingStakers);
+      this.pendingStakers = [];
+      this.render();
+    }
+  }
+
+  syncUserBets() {
+    let changed = false;
+    [1, 2].forEach(id => {
+      const terminal = this.stakingManager.getTerminal(id);
+      const existingIndex = this.activeStakers.findIndex(s => s.terminalId === id);
+      if (terminal?.stakedInRound) {
+        const userBet = {
+          user: `YOU (#${id})`,
+          stake: terminal.amount,
+          targetMultiplier: terminal.autoCashoutEnabled ? terminal.autoCashoutMultiplier : 999.0,
+          cashedOut: terminal.cashedOut,
+          cashedMultiplier: terminal.cashedOutMultiplier || 0,
+          payout: terminal.payout || 0,
+          isUser: true,
+          terminalId: id,
+          color: '#ff003b'
+        };
+        if (existingIndex === -1) {
+          this.activeStakers.push(userBet);
+          changed = true;
+        } else {
+          const existing = this.activeStakers[existingIndex];
+          if (existing.stake !== userBet.stake || existing.cashedOut !== userBet.cashedOut ||
+              existing.cashedMultiplier !== userBet.cashedMultiplier || existing.payout !== userBet.payout) {
+            Object.assign(existing, userBet);
+            changed = true;
+          }
+        }
+      } else if (existingIndex !== -1) {
+        this.activeStakers.splice(existingIndex, 1);
+        changed = true;
+      }
+    });
+    if (changed) this.render();
   }
 
   onFlightTick(currentMultiplier) {
@@ -178,6 +264,7 @@ export class LiveStakersComponent {
     this.totalRoundPlayers = totalBets;
     const totalStaked = this.activeStakers.reduce((sum, s) => sum + s.stake, 0);
     const totalCashedOut = this.activeStakers.filter(s => s.cashedOut).length;
+    const betsByStake = [...this.activeStakers].sort((a, b) => b.stake - a.stake);
 
     // Synchronize tab header count with total bets
     const allTabBtn = document.querySelector('.stakers-tab-btn[data-tab="all"]');
@@ -210,7 +297,7 @@ export class LiveStakersComponent {
           <span style="text-align: right;">CASHOUT</span>
         </div>
         <div class="stakers-list-body custom-scroll">
-          ${this.activeStakers.map(s => `
+          ${betsByStake.map(s => `
             <div class="staker-row ${s.cashedOut ? 'row-cashed' : ''} ${s.isUser ? 'row-user-highlight' : ''}" style="grid-template-columns: 1.1fr 1fr 0.8fr 1.1fr;">
               <div class="staker-user-cell">
                 <span class="avatar-dot" style="background: ${s.cashedOut ? '#2ecc71' : s.color};"></span>
