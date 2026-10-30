@@ -181,12 +181,14 @@ export class FlightCanvasEngine {
     }
 
     if (this.state === 'CRASHED') {
-      // Plane flies up and to the right more slowly during the crash pause.
-      const crashElapsed = (performance.now() - this.crashTime) / 1000;
+      if (!this.crashTime) this.crashTime = performance.now();
+      const crashElapsed = Math.min(4.0, Math.max(0, (performance.now() - this.crashTime) / 1000));
       const flyOffSpeed = 150; // px/sec
+      const startX = isFinite(this.crashPlanePos?.x) ? this.crashPlanePos.x : originX;
+      const startY = isFinite(this.crashPlanePos?.y) ? this.crashPlanePos.y : originY;
       return {
-        x: this.crashPlanePos.x + crashElapsed * flyOffSpeed,
-        y: this.crashPlanePos.y - crashElapsed * (flyOffSpeed * 0.55),
+        x: startX + crashElapsed * flyOffSpeed,
+        y: startY - crashElapsed * (flyOffSpeed * 0.55),
         angle: -0.45
       };
     }
@@ -395,6 +397,8 @@ export class FlightCanvasEngine {
     const w = this.width;
     const h = this.height;
 
+    if (!ctx || w <= 10 || h <= 10) return;
+
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
     ctx.clearRect(0, 0, w, h);
@@ -433,48 +437,26 @@ export class FlightCanvasEngine {
     const marginX = isMobile ? 35 : 55;
     const marginY = isMobile ? 30 : 45;
 
-    // Dark base backdrop
-    ctx.fillStyle = '#0a0b0f';
+    // Rich Dark Gradient Backdrop
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, '#10131a');
+    bgGrad.addColorStop(0.65, '#0b0d13');
+    bgGrad.addColorStop(1, '#06070a');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Radiating Sunburst Fan Rays (Authentic Spribe Aviator aesthetic matching Screenshot 2 & 3)
-    ctx.save();
-    const originX = marginX + (isMobile ? 10 : 20);
-    const originY = h - marginY;
-    const rayCount = 30;
-    const maxRadius = Math.sqrt(w * w + h * h) * 1.35;
-
-    for (let i = 0; i < rayCount; i++) {
-      const startAngle = -Math.PI / 2 + (i / rayCount) * (Math.PI / 2 + 0.38);
-      const endAngle = -Math.PI / 2 + ((i + 1) / rayCount) * (Math.PI / 2 + 0.38);
-
-      ctx.beginPath();
-      ctx.moveTo(originX, originY);
-      ctx.arc(originX, originY, maxRadius, startAngle, endAngle);
-      ctx.closePath();
-
-      // Alternating subtle ray shades
-      ctx.fillStyle = (i % 2 === 0) ? '#0d0f15' : '#141824';
-      ctx.fill();
+    // Atmospheric warm red/magenta ambient glow (Safe clamped radius)
+    if (w > 20 && h > 20) {
+      ctx.save();
+      const glowR = Math.max(25, Math.min(w, h) * 0.65);
+      const ambientGlow = ctx.createRadialGradient(w * 0.55, h * 0.45, 10, w * 0.55, h * 0.45, glowR);
+      ambientGlow.addColorStop(0, 'rgba(180, 16, 68, 0.22)');
+      ambientGlow.addColorStop(0.6, 'rgba(90, 8, 38, 0.08)');
+      ambientGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = ambientGlow;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
     }
-
-    // Radial vignette overlay to give rich depth
-    const radial = ctx.createRadialGradient(w * 0.45, h * 0.45, 30, w * 0.5, h * 0.5, maxRadius * 0.65);
-    radial.addColorStop(0, 'rgba(0, 0, 0, 0.02)');
-    radial.addColorStop(0.65, 'rgba(5, 6, 10, 0.42)');
-    radial.addColorStop(1, 'rgba(3, 4, 6, 0.82)');
-    ctx.fillStyle = radial;
-    ctx.fillRect(0, 0, w, h);
-
-    // Atmospheric purple/magenta ambient glow (Matching Screenshot 2 & 3)
-    const ambientGlow = ctx.createRadialGradient(w * 0.58, h * 0.42, 10, w * 0.58, h * 0.42, Math.min(w, h) * 0.72);
-    ambientGlow.addColorStop(0, 'rgba(125, 12, 68, 0.30)');
-    ambientGlow.addColorStop(0.5, 'rgba(70, 6, 42, 0.14)');
-    ambientGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = ambientGlow;
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.restore();
 
     // Subtle coordinate lines
     ctx.save();
@@ -536,13 +518,14 @@ export class FlightCanvasEngine {
     const originY = h - marginY - (isMobile ? 8 : 14);
     const plane = (this.state === 'CRASHED') ? this.lastCrashPos : this.getPlaneCoordinates();
 
-    if (plane.x <= originX + 2) return;
+    if (!plane || !isFinite(plane.x) || !isFinite(plane.y) || plane.x <= originX + 2) return;
 
     ctx.save();
 
     // 1. Shaded Crimson Wedge under the curve (Matching Screenshot 2)
     const topY = Math.min(plane.y, originY - 4);
-    const fillGrad = ctx.createLinearGradient(0, topY, 0, originY);
+    const safeTopY = Math.min(topY, originY - 1);
+    const fillGrad = ctx.createLinearGradient(0, safeTopY, 0, originY);
     fillGrad.addColorStop(0, 'rgba(215, 12, 42, 0.88)');
     fillGrad.addColorStop(0.65, 'rgba(165, 0, 28, 0.65)');
     fillGrad.addColorStop(1, 'rgba(100, 0, 16, 0.42)');
@@ -570,7 +553,7 @@ export class FlightCanvasEngine {
     ctx.strokeStyle = '#e50914';
     ctx.lineWidth = isMobile ? 3.5 : 4.5;
     ctx.shadowColor = '#ff1744';
-    ctx.shadowBlur = isMobile ? 14 : 20;
+    ctx.shadowBlur = isMobile ? 10 : 16;
     ctx.stroke();
 
     ctx.restore();

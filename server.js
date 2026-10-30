@@ -162,13 +162,67 @@ function computeMultiplierFromTime(t) {
   return Math.max(1.00, Math.floor(val * 100) / 100);
 }
 
+let cachedServerRound = null;
+
+function computeServerPhaseForRound(round, time) {
+  const elapsedInRoundMs = time - round.roundStartTime;
+  const countdownDurationMs = COUNTDOWN_DURATION * 1000;
+  const flightDurationMs = round.flightDuration * 1000;
+
+  let phase = 'WAITING';
+  let remainingSeconds = 0;
+  let elapsedFlightSeconds = 0;
+  let currentMultiplier = 1.00;
+
+  if (elapsedInRoundMs < countdownDurationMs) {
+    phase = 'WAITING';
+    remainingSeconds = (countdownDurationMs - elapsedInRoundMs) / 1000;
+    currentMultiplier = 1.00;
+  } else if (elapsedInRoundMs < countdownDurationMs + flightDurationMs) {
+    phase = 'FLYING';
+    elapsedFlightSeconds = (elapsedInRoundMs - countdownDurationMs) / 1000;
+    currentMultiplier = Math.min(round.crashMultiplier, computeMultiplierFromTime(elapsedFlightSeconds));
+  } else {
+    phase = 'CRASHED';
+    currentMultiplier = round.crashMultiplier;
+    remainingSeconds = 0;
+  }
+
+  return {
+    serverTime: time,
+    nonce: round.nonce,
+    phase: phase,
+    crashMultiplier: round.crashMultiplier,
+    flightDuration: round.flightDuration,
+    currentMultiplier: currentMultiplier,
+    remainingSeconds: Math.max(0, remainingSeconds),
+    elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds),
+    roundStartTime: round.roundStartTime,
+    roundEndTime: round.roundEndTime,
+    serverHash: round.serverHash,
+    clientSeed: PUBLIC_CLIENT_SEED
+  };
+}
+
 function getLiveRoundState(time = Date.now()) {
+  if (cachedServerRound && time >= cachedServerRound.roundStartTime && time < cachedServerRound.roundEndTime) {
+    return computeServerPhaseForRound(cachedServerRound, time);
+  }
+
   const HOUR_MS = 3600000;
   const hourBlockIndex = Math.floor((time - EPOCH_BASE) / HOUR_MS);
   const hourStartTime = EPOCH_BASE + (hourBlockIndex * HOUR_MS);
 
-  let currentNonce = hourBlockIndex * 250;
-  let roundStart = hourStartTime;
+  let currentNonce;
+  let roundStart;
+
+  if (cachedServerRound && cachedServerRound.roundEndTime > hourStartTime && cachedServerRound.roundEndTime <= time) {
+    currentNonce = cachedServerRound.nonce + 1;
+    roundStart = cachedServerRound.roundEndTime;
+  } else {
+    currentNonce = hourBlockIndex * 250;
+    roundStart = hourStartTime;
+  }
 
   while (true) {
     const crashMultiplier = getCrashMultiplier(currentNonce);
@@ -178,63 +232,32 @@ function getLiveRoundState(time = Date.now()) {
     const roundEnd = roundStart + totalDurationMs;
 
     if (time >= roundStart && time < roundEnd) {
-      const elapsedInRoundMs = time - roundStart;
-      const countdownDurationMs = COUNTDOWN_DURATION * 1000;
-      const flightDurationMs = flightDuration * 1000;
-
-      let phase = 'WAITING';
-      let remainingSeconds = 0;
-      let elapsedFlightSeconds = 0;
-      let currentMultiplier = 1.00;
-
-      if (elapsedInRoundMs < countdownDurationMs) {
-        phase = 'WAITING';
-        remainingSeconds = (countdownDurationMs - elapsedInRoundMs) / 1000;
-        currentMultiplier = 1.00;
-      } else if (elapsedInRoundMs < countdownDurationMs + flightDurationMs) {
-        phase = 'FLYING';
-        elapsedFlightSeconds = (elapsedInRoundMs - countdownDurationMs) / 1000;
-        currentMultiplier = Math.min(crashMultiplier, computeMultiplierFromTime(elapsedFlightSeconds));
-      } else {
-        phase = 'CRASHED';
-        currentMultiplier = crashMultiplier;
-      }
-
-      return {
-        serverTime: time,
+      cachedServerRound = {
         nonce: currentNonce,
-        phase: phase,
         crashMultiplier: crashMultiplier,
         flightDuration: flightDuration,
-        currentMultiplier: currentMultiplier,
-        remainingSeconds: Math.max(0, remainingSeconds),
-        elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds),
         roundStartTime: roundStart,
         roundEndTime: roundEnd,
-        serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex'),
-        clientSeed: PUBLIC_CLIENT_SEED
+        serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex')
       };
+      return computeServerPhaseForRound(cachedServerRound, time);
     }
 
     roundStart = roundEnd;
     currentNonce++;
-    if (currentNonce > (hourBlockIndex * 250) + 400) break;
+    if (currentNonce > (hourBlockIndex * 250) + 600) break;
   }
 
-  return {
-    serverTime: time,
+  const fallback = {
     nonce: currentNonce,
-    phase: 'WAITING',
     crashMultiplier: 2.00,
     flightDuration: 6.10,
-    currentMultiplier: 1.00,
-    remainingSeconds: 5.0,
-    elapsedFlightSeconds: 0,
     roundStartTime: time,
     roundEndTime: time + 14300,
-    serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex'),
-    clientSeed: PUBLIC_CLIENT_SEED
+    serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex')
   };
+  cachedServerRound = fallback;
+  return computeServerPhaseForRound(fallback, time);
 }
 
 const server = http.createServer((req, res) => {
@@ -259,6 +282,21 @@ const server = http.createServer((req, res) => {
       console.log(`[HTTP ${req.method}] ${pathname} -> ${res.statusCode}`);
     }
   });
+
+  // Client Error Logging Endpoint (Catches any browser runtime errors)
+  if (pathname === '/api/client-error' && req.method === 'POST') {
+    let errBody = '';
+    req.on('data', c => errBody += c);
+    req.on('end', () => {
+      try {
+        const errJson = JSON.parse(errBody || '{}');
+        console.error('⚠️ [Client Browser Error]:', errJson);
+      } catch (e) {}
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end('{"ok":true}');
+    });
+    return;
+  }
 
   // Authoritative API endpoint for real-time round sync across all players
   if (pathname === '/api/round-state') {

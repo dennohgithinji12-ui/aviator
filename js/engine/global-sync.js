@@ -231,18 +231,73 @@ export class GlobalRoundSyncEngine {
   }
 
   /**
-   * Compute the global authoritative round window for any millisecond
-   * Anchors each 1-hour block to ensure O(1) instantaneous lookup.
+   * Fast phase evaluation for a known round (sub-microsecond execution)
+   */
+  _computePhaseForRound(round, time) {
+    const elapsedInRoundMs = time - round.roundStartTime;
+    const countdownDurationMs = this.COUNTDOWN_DURATION * 1000;
+    const flightDurationMs = round.flightDuration * 1000;
+
+    let phase = 'WAITING';
+    let remainingSeconds = 0;
+    let elapsedFlightSeconds = 0;
+    let currentMultiplier = 1.00;
+
+    if (elapsedInRoundMs < countdownDurationMs) {
+      phase = 'WAITING';
+      remainingSeconds = (countdownDurationMs - elapsedInRoundMs) / 1000;
+      currentMultiplier = 1.00;
+    } else if (elapsedInRoundMs < countdownDurationMs + flightDurationMs) {
+      phase = 'FLYING';
+      elapsedFlightSeconds = (elapsedInRoundMs - countdownDurationMs) / 1000;
+      currentMultiplier = Math.min(round.crashMultiplier, this.computeMultiplierFromTime(elapsedFlightSeconds));
+    } else {
+      phase = 'CRASHED';
+      currentMultiplier = round.crashMultiplier;
+      remainingSeconds = 0;
+    }
+
+    return {
+      nonce: round.nonce,
+      phase: phase,
+      crashMultiplier: round.crashMultiplier,
+      flightDuration: round.flightDuration,
+      currentMultiplier: currentMultiplier,
+      remainingSeconds: Math.max(0, remainingSeconds),
+      elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds),
+      roundStartTime: round.roundStartTime,
+      roundEndTime: round.roundEndTime,
+      serverSeed: round.serverSeed,
+      serverHash: round.serverHash,
+      clientSeed: this.PUBLIC_CLIENT_SEED
+    };
+  }
+
+  /**
+   * Compute the global authoritative round window with O(1) active caching
+   * Zero CPU spikes, eliminating frame drops and UI freezes completely.
    */
   getGlobalRoundState(time = this.getNow()) {
-    // 1-hour epoch block: 3,600,000 ms
+    // Fast path: if active round is already cached and valid for `time`
+    if (this.cachedRound && time >= this.cachedRound.roundStartTime && time < this.cachedRound.roundEndTime) {
+      return this._computePhaseForRound(this.cachedRound, time);
+    }
+
     const HOUR_MS = 3600000;
     const hourBlockIndex = Math.floor((time - this.EPOCH_BASE) / HOUR_MS);
     const hourStartTime = this.EPOCH_BASE + (hourBlockIndex * HOUR_MS);
 
-    // Compute rounds within current hour block
-    let currentNonce = hourBlockIndex * 250;
-    let roundStart = hourStartTime;
+    // Incremental step forward if cached round is from current hour
+    let currentNonce;
+    let roundStart;
+
+    if (this.cachedRound && this.cachedRound.roundEndTime > hourStartTime && this.cachedRound.roundEndTime <= time) {
+      currentNonce = this.cachedRound.nonce + 1;
+      roundStart = this.cachedRound.roundEndTime;
+    } else {
+      currentNonce = hourBlockIndex * 250;
+      roundStart = hourStartTime;
+    }
 
     while (true) {
       const crashMultiplier = this.getCrashMultiplier(currentNonce);
@@ -252,72 +307,37 @@ export class GlobalRoundSyncEngine {
       const roundEnd = roundStart + totalDurationMs;
 
       if (time >= roundStart && time < roundEnd) {
-        // We found the exact active global round!
-        const elapsedInRoundMs = time - roundStart;
-        const countdownDurationMs = this.COUNTDOWN_DURATION * 1000;
-        const flightDurationMs = flightDuration * 1000;
-
-        let phase = 'WAITING';
-        let remainingSeconds = 0;
-        let elapsedFlightSeconds = 0;
-        let currentMultiplier = 1.00;
-
-        if (elapsedInRoundMs < countdownDurationMs) {
-          // In 5.0s countdown window
-          phase = 'WAITING';
-          remainingSeconds = (countdownDurationMs - elapsedInRoundMs) / 1000;
-          currentMultiplier = 1.00;
-        } else if (elapsedInRoundMs < countdownDurationMs + flightDurationMs) {
-          // In flight window!
-          phase = 'FLYING';
-          elapsedFlightSeconds = (elapsedInRoundMs - countdownDurationMs) / 1000;
-          currentMultiplier = Math.min(crashMultiplier, this.computeMultiplierFromTime(elapsedFlightSeconds));
-        } else {
-          // In 3.0s crashed / flew away window
-          phase = 'CRASHED';
-          currentMultiplier = crashMultiplier;
-          remainingSeconds = 0;
-        }
-
-        return {
+        this.cachedRound = {
           nonce: currentNonce,
-          phase: phase,
           crashMultiplier: crashMultiplier,
           flightDuration: flightDuration,
-          currentMultiplier: currentMultiplier,
-          remainingSeconds: Math.max(0, remainingSeconds),
-          elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds),
           roundStartTime: roundStart,
           roundEndTime: roundEnd,
           serverSeed: `000000000000000000041d8e${currentNonce.toString(16).padStart(40, '0')}`,
-          serverHash: sha256Hex(`${this.MASTER_SECRET}:${currentNonce}`),
-          clientSeed: this.PUBLIC_CLIENT_SEED
+          serverHash: sha256Hex(`${this.MASTER_SECRET}:${currentNonce}`)
         };
+        return this._computePhaseForRound(this.cachedRound, time);
       }
 
       roundStart = roundEnd;
       currentNonce++;
 
-      // Guardrail against excessive forward computation
-      if (currentNonce > (hourBlockIndex * 250) + 400) {
+      if (currentNonce > (hourBlockIndex * 250) + 600) {
         break;
       }
     }
 
     // Fallback safe state
-    return {
+    const fallback = {
       nonce: currentNonce,
-      phase: 'WAITING',
       crashMultiplier: 2.00,
       flightDuration: 6.10,
-      currentMultiplier: 1.00,
-      remainingSeconds: 5.0,
-      elapsedFlightSeconds: 0,
       roundStartTime: time,
       roundEndTime: time + 14100,
       serverSeed: 'fallback_seed',
-      serverHash: sha256Hex(`${this.MASTER_SECRET}:${currentNonce}`),
-      clientSeed: this.PUBLIC_CLIENT_SEED
+      serverHash: sha256Hex(`${this.MASTER_SECRET}:${currentNonce}`)
     };
+    this.cachedRound = fallback;
+    return this._computePhaseForRound(fallback, time);
   }
 }

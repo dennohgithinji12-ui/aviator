@@ -62,7 +62,7 @@ class AviatorApp {
     // 1. Periodic watchdog (250ms): catch any round or phase drift
     setInterval(() => {
       const live = this.globalSync.getGlobalRoundState();
-      if (live.nonce !== this.currentRoundData?.nonce) {
+      if (!this.currentRoundData || live.nonce !== this.currentRoundData.nonce || (live.phase !== this.canvasEngine.state && this.canvasEngine.state !== 'CRASHED')) {
         this.startNewRoundSequence();
       }
     }, 250);
@@ -252,27 +252,31 @@ class AviatorApp {
 
       // Inform VIP Predictor of confirmed crash stop
       try {
-        const crashData = {
-          type: 'ROUND_CRASHED',
-          finalMultiplier: finalMultiplier,
-          nonce: this.currentRoundData.nonce,
-          timestamp: Date.now()
-        };
-        if (typeof BroadcastChannel !== 'undefined') {
-          new BroadcastChannel('aviator_vip_predictor_channel').postMessage(crashData);
+        if (this.currentRoundData) {
+          const crashData = {
+            type: 'ROUND_CRASHED',
+            finalMultiplier: finalMultiplier,
+            nonce: this.currentRoundData.nonce,
+            timestamp: Date.now()
+          };
+          if (typeof BroadcastChannel !== 'undefined') {
+            new BroadcastChannel('aviator_vip_predictor_channel').postMessage(crashData);
+          }
+          localStorage.setItem('aviator_vip_confirmed_stop', JSON.stringify(crashData));
         }
-        localStorage.setItem('aviator_vip_confirmed_stop', JSON.stringify(crashData));
       } catch (e) {}
 
       // Record in history ribbon & modal
-      this.historyBar.addRound({
-        nonce: this.currentRoundData.nonce,
-        crashMultiplier: finalMultiplier,
-        serverSeed: this.currentRoundData.serverSeed,
-        clientSeed: this.currentRoundData.clientSeed,
-        serverHash: this.currentRoundData.serverHash,
-        timestamp: new Date()
-      });
+      if (this.currentRoundData && this.historyBar) {
+        this.historyBar.addRound({
+          nonce: this.currentRoundData.nonce,
+          crashMultiplier: finalMultiplier,
+          serverSeed: this.currentRoundData.serverSeed,
+          clientSeed: this.currentRoundData.clientSeed,
+          serverHash: this.currentRoundData.serverHash,
+          timestamp: new Date()
+        });
+      }
 
       // Distribute simulated house volume fees to liquidity stakers
       const simulatedVolume = 12000 + Math.floor(Math.random() * 25000);
