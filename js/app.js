@@ -315,6 +315,208 @@ class AviatorApp {
     if (realAlertBanner) {
       realAlertBanner.style.display = (isReal && (this.stakingManager?.realBalance || 0) < 100) ? 'flex' : 'none';
     }
+
+    this.updateWalletPageDisplay();
+  }
+
+  updateWalletPageDisplay() {
+    const balEl = document.getElementById('wallet-balance-kes');
+    const phoneEl = document.getElementById('wallet-phone-display');
+    const logoutBtn = document.getElementById('btn-wallet-dashboard-logout');
+    const logoutLabel = document.getElementById('btn-wallet-logout-label');
+    const sessionNote = document.getElementById('wallet-session-status-text');
+    const user = this.authManager?.user;
+
+    if (!user) {
+      if (balEl) balEl.textContent = 'KES 0.00';
+      if (phoneEl) phoneEl.textContent = 'Guest Player';
+      if (logoutBtn) {
+        logoutBtn.className = 'btn-wallet-logout guest-mode';
+        if (logoutLabel) logoutLabel.textContent = 'Log In / Register with Phone';
+      }
+      if (sessionNote) {
+        sessionNote.textContent = 'Guest Mode • Sign in to access your real M-PESA wallet';
+      }
+      this.updatePromosDisplay();
+      return;
+    }
+
+    const currentPhone = user.phone || this.stakingManager?.userPhone || '';
+    const realBal = this.stakingManager?.realBalance || user.realBalance || 0;
+
+    if (balEl) {
+      balEl.textContent = `KES ${realBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    if (phoneEl) {
+      let raw = String(currentPhone).replace(/[^\d]/g, '');
+      if (raw.startsWith('254')) raw = raw.substring(3);
+      else if (raw.startsWith('0')) raw = raw.substring(1);
+      if (raw.length >= 9) {
+        phoneEl.textContent = `(254) ${raw.substring(0, 3)}-${raw.substring(3)}`;
+      } else {
+        phoneEl.textContent = currentPhone || 'Active Pilot';
+      }
+    }
+    if (logoutBtn) {
+      logoutBtn.className = 'btn-wallet-logout';
+      if (logoutLabel) logoutLabel.textContent = 'Log Out';
+    }
+    if (sessionNote) {
+      sessionNote.textContent = 'Logged in securely • PayHero M-PESA Protected';
+    }
+    this.updatePromosDisplay();
+  }
+
+  async updatePromosDisplay() {
+    const user = this.authManager?.user;
+    const phone = user?.phone || this.stakingManager?.userPhone;
+
+    // Elements for Promo 1: KES 20 Signup Bonus
+    const btnSignupDash = document.getElementById('btn-claim-signup-bonus');
+    const txtSignupDash = document.getElementById('btn-claim-signup-text');
+    const subSignupDash = document.getElementById('promo-signup-subtext');
+    const btnSignupModal = document.getElementById('btn-modal-claim-signup');
+    const txtSignupModal = document.getElementById('btn-modal-claim-signup-text');
+    const tagSignupModal = document.getElementById('modal-signup-status-tag');
+
+    // Elements for Promo 2: Stake KES 500 Get 100 Bob Casino Bonus
+    const btnCasinoDash = document.getElementById('btn-claim-casino-bonus');
+    const txtCasinoDash = document.getElementById('btn-claim-casino-text');
+    const subCasinoDash = document.getElementById('promo-casino-subtext');
+    const btnCasinoModal = document.getElementById('btn-modal-claim-casino');
+    const txtCasinoModal = document.getElementById('btn-modal-claim-casino-text');
+    const lblProgress = document.getElementById('modal-turnover-progress-label');
+    const barProgress = document.getElementById('modal-turnover-progress-bar');
+
+    if (!user || !phone) {
+      // Clean guest state for non-logged-in clients
+      if (btnSignupDash) {
+        btnSignupDash.disabled = false;
+        btnSignupDash.style.opacity = '1';
+        if (txtSignupDash) txtSignupDash.textContent = 'Claim KES 20';
+      }
+      if (subSignupDash) {
+        subSignupDash.textContent = 'Free KES 20 on signup • Cash out once for new accounts!';
+      }
+      if (btnSignupModal) {
+        btnSignupModal.disabled = false;
+        if (txtSignupModal) txtSignupModal.textContent = 'Register to Claim KES 20';
+      }
+      if (tagSignupModal) tagSignupModal.textContent = 'Available on Registration';
+
+      if (btnCasinoDash) {
+        btnCasinoDash.disabled = false;
+        btnCasinoDash.style.opacity = '1';
+        if (txtCasinoDash) txtCasinoDash.textContent = 'Unlock 100 Bob';
+      }
+      if (subCasinoDash) {
+        subCasinoDash.textContent = 'Stake KES 500 in Aviator or Casino games to unlock KES 100 bonus!';
+      }
+      if (btnCasinoModal) {
+        btnCasinoModal.disabled = false;
+        if (txtCasinoModal) txtCasinoModal.textContent = 'Log In to Track Progress';
+      }
+      if (lblProgress) lblProgress.textContent = 'KES 0.00 / 500.00 (0%)';
+      if (barProgress) barProgress.style.width = '0%';
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`, {
+        cache: 'no-store'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success) return;
+
+      const signupClaimed = !!data.signupBonusClaimed;
+      const casinoClaimed = !!data.casinoBonusClaimed;
+      const turnover = typeof data.totalTurnover === 'number' ? data.totalTurnover : 0;
+
+      // --- 1. KES 20 Signup Promo Status ---
+      if (signupClaimed) {
+        if (btnSignupDash) {
+          btnSignupDash.disabled = true;
+          btnSignupDash.style.opacity = '0.65';
+          if (txtSignupDash) txtSignupDash.textContent = '✓ Claimed';
+        }
+        if (subSignupDash) {
+          subSignupDash.textContent = 'Signup bonus claimed and active in wallet • Cashed out once!';
+        }
+        if (btnSignupModal) {
+          btnSignupModal.disabled = true;
+          if (txtSignupModal) txtSignupModal.textContent = '✓ KES 20 Claimed (Active in Wallet)';
+        }
+        if (tagSignupModal) tagSignupModal.textContent = '✓ Claimed';
+      } else {
+        if (btnSignupDash) {
+          btnSignupDash.disabled = false;
+          btnSignupDash.style.opacity = '1';
+          if (txtSignupDash) txtSignupDash.textContent = 'Claim KES 20';
+        }
+        if (subSignupDash) {
+          subSignupDash.textContent = 'Ready to claim! Click to credit KES 20.00 instant freebet.';
+        }
+        if (btnSignupModal) {
+          btnSignupModal.disabled = false;
+          if (txtSignupModal) txtSignupModal.textContent = 'Claim KES 20 Freebet Now';
+        }
+        if (tagSignupModal) tagSignupModal.textContent = 'Unclaimed Freebet';
+      }
+
+      // --- 2. 500 Stake for 100 Bob Casino Bonus Status ---
+      const pct = Math.min(100, (turnover / 500) * 100);
+      if (casinoClaimed) {
+        if (btnCasinoDash) {
+          btnCasinoDash.disabled = true;
+          btnCasinoDash.style.opacity = '0.65';
+          if (txtCasinoDash) txtCasinoDash.textContent = '✓ 100 Bob Claimed';
+        }
+        if (subCasinoDash) {
+          subCasinoDash.textContent = 'Casino freebet bonus credited • KES 500 stake completed!';
+        }
+        if (btnCasinoModal) {
+          btnCasinoModal.disabled = true;
+          if (txtCasinoModal) txtCasinoModal.textContent = '✓ 100 Bob Bonus Claimed';
+        }
+        if (lblProgress) lblProgress.textContent = `Completed (KES ${turnover.toFixed(0)} Staked)`;
+        if (barProgress) barProgress.style.width = '100%';
+      } else if (turnover >= 500) {
+        if (btnCasinoDash) {
+          btnCasinoDash.disabled = false;
+          btnCasinoDash.style.opacity = '1';
+          if (txtCasinoDash) txtCasinoDash.textContent = 'Claim 100 Bob';
+        }
+        if (subCasinoDash) {
+          subCasinoDash.textContent = 'Target reached! Click to claim your KES 100 Casino Freebet.';
+        }
+        if (btnCasinoModal) {
+          btnCasinoModal.disabled = false;
+          if (txtCasinoModal) txtCasinoModal.textContent = 'Claim 100 Bob Freebet';
+        }
+        if (lblProgress) lblProgress.textContent = `KES 500.00 / 500.00 (100% Ready!)`;
+        if (barProgress) barProgress.style.width = '100%';
+      } else {
+        const remaining = 500 - turnover;
+        if (btnCasinoDash) {
+          btnCasinoDash.disabled = false;
+          btnCasinoDash.style.opacity = '1';
+          if (txtCasinoDash) txtCasinoDash.textContent = `${remaining.toFixed(0)} Bob Left`;
+        }
+        if (subCasinoDash) {
+          subCasinoDash.textContent = `Stake KES ${remaining.toFixed(0)} more in Aviator or Casino to unlock 100 Bob!`;
+        }
+        if (btnCasinoModal) {
+          btnCasinoModal.disabled = false;
+          if (txtCasinoModal) txtCasinoModal.textContent = 'Fly Aviator to Qualify';
+        }
+        if (lblProgress) lblProgress.textContent = `KES ${turnover.toFixed(2)} / 500.00 (${pct.toFixed(0)}%)`;
+        if (barProgress) barProgress.style.width = `${pct}%`;
+      }
+
+    } catch (e) {
+      console.warn('[Promos] Status update notice:', e.message);
+    }
   }
 
   onGameModeChanged(mode, balance) {
@@ -389,6 +591,7 @@ class AviatorApp {
       if (phoneLabel) phoneLabel.textContent = 'M-PESA Phone (your registered number):';
       if (phoneNote) phoneNote.textContent = 'STK Push will be sent to your registered number.';
     } else {
+      phoneInp.value = '';
       phoneInp.readOnly = false;
       phoneInp.style.opacity = '1';
       phoneInp.style.cursor = '';
@@ -407,26 +610,14 @@ class AviatorApp {
       phoneInp.readOnly = true;
       phoneInp.style.opacity = '0.8';
     } else {
+      phoneInp.value = '';
       phoneInp.readOnly = false;
       phoneInp.style.opacity = '1';
     }
   }
 
   async _updatePayHeroFloatStatus() {
-    try {
-      const res = await fetch('/api/payhero/service-wallet');
-      const data = await res.json();
-      const floatEl = document.getElementById('merchant-float-display');
-      if (floatEl) {
-        if (data.success && typeof data.availableBalance === 'number') {
-          floatEl.textContent = `(Float: KES ${data.availableBalance.toFixed(2)})`;
-        } else {
-          floatEl.textContent = '';
-        }
-      }
-    } catch (e) {
-      // silently ignore
-    }
+    // Float display removed from user-facing UI
   }
 
   async updateWalletAmlStatus() {
@@ -520,17 +711,17 @@ class AviatorApp {
       } else if (t.cashedOut) {
         targetClass = 'state-stake';
         mainText = 'BET';
-        subText = 'NEXT ROUND';
+        subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       } else {
         targetClass = 'state-stake';
         mainText = 'BET';
-        subText = 'NEXT ROUND';
+        subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       }
     } else if (gameState === 'CRASHED') {
       if (t.queuedForNextRound) {
         targetClass = 'state-cancel';
         mainText = 'CANCEL';
-        subText = 'QUEUED NEXT ROUND';
+        subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       } else if (t.staked && !t.cashedOut && t.stakedInRound) {
         targetClass = 'state-lost';
         mainText = 'FLEW AWAY';
@@ -538,11 +729,11 @@ class AviatorApp {
       } else if (t.cashedOut) {
         targetClass = 'state-stake';
         mainText = 'BET';
-        subText = 'NEXT ROUND';
+        subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       } else {
         targetClass = 'state-stake';
         mainText = 'BET';
-        subText = 'NEXT ROUND';
+        subText = `${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} KES`;
       }
     }
 
@@ -780,131 +971,6 @@ class AviatorApp {
       });
     }
 
-    // --- SUBTABS: STK PUSH vs BUY GOODS TILL 9956081 ---
-    const tabDepStk = document.getElementById('tab-dep-stk');
-    const tabDepTill = document.getElementById('tab-dep-till');
-    const secDepStk = document.getElementById('deposit-section-stk');
-    const secDepTill = document.getElementById('deposit-section-till');
-
-    if (tabDepStk && tabDepTill) {
-      tabDepStk.addEventListener('click', () => {
-        tabDepStk.classList.add('active');
-        tabDepStk.style.borderColor = '#2ecc71';
-        tabDepStk.style.background = '#1e2029';
-        tabDepStk.style.color = '#fff';
-        tabDepTill.classList.remove('active');
-        tabDepTill.style.borderColor = 'var(--border-main)';
-        tabDepTill.style.background = '#14151a';
-        tabDepTill.style.color = '#9aa1ad';
-        if (secDepStk) secDepStk.style.display = 'block';
-        if (secDepTill) secDepTill.style.display = 'none';
-        this.soundEngine.playClick();
-      });
-
-      tabDepTill.addEventListener('click', () => {
-        tabDepTill.classList.add('active');
-        tabDepTill.style.borderColor = '#2ecc71';
-        tabDepTill.style.background = '#1e2029';
-        tabDepTill.style.color = '#fff';
-        tabDepStk.classList.remove('active');
-        tabDepStk.style.borderColor = 'var(--border-main)';
-        tabDepStk.style.background = '#14151a';
-        tabDepStk.style.color = '#9aa1ad';
-        if (secDepStk) secDepStk.style.display = 'none';
-        if (secDepTill) secDepTill.style.display = 'block';
-        this.soundEngine.playClick();
-      });
-    }
-
-    // Copy Till Number Button
-    const btnCopyTill = document.getElementById('btn-copy-till');
-    if (btnCopyTill) {
-      btnCopyTill.addEventListener('click', () => {
-        navigator.clipboard?.writeText('9956081');
-        btnCopyTill.textContent = '✅ Copied!';
-        this.authManager?.showToast('📋 Buy Goods Till 9956081 copied to clipboard!');
-        this.soundEngine.playClick();
-        setTimeout(() => { btnCopyTill.textContent = '📋 Copy Till'; }, 2000);
-      });
-    }
-
-    // Verify Direct Till Receipt Button
-    const btnVerifyReceipt = document.getElementById('btn-verify-receipt');
-    const manualReceiptInp = document.getElementById('manual-receipt-input');
-    if (btnVerifyReceipt) {
-      btnVerifyReceipt.addEventListener('click', async () => {
-        const receiptCode = (manualReceiptInp?.value || '').trim().toUpperCase();
-        if (!receiptCode || receiptCode.length < 8) {
-          if (depositStatusMsg) {
-            depositStatusMsg.className = 'deposit-status-msg error';
-            depositStatusMsg.textContent = 'Please enter a valid M-PESA confirmation receipt code (e.g. UAO234VA8A).';
-            depositStatusMsg.style.display = 'block';
-          }
-          return;
-        }
-
-        const phone = this.authManager?.user?.phone || document.getElementById('deposit-phone-input')?.value || '';
-        btnVerifyReceipt.disabled = true;
-        btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">⏳</span><span>Verifying with PayHero...</span>`;
-        if (depositStatusMsg) depositStatusMsg.style.display = 'none';
-
-        try {
-          const res = await fetch('/api/payhero/verify-mpesa-code', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              mpesaCode: receiptCode,
-              phone: phone,
-              amount: parseFloat(document.getElementById('deposit-amount-input')?.value || 49)
-            })
-          });
-          const data = await res.json();
-          if (!data.success) {
-            throw new Error(data.error || 'Receipt verification failed.');
-          }
-
-          // Credit balance in UI
-          if (typeof data.realBalance === 'number') {
-            this.stakingManager.setRealBalance(data.realBalance);
-            if (this.authManager?.user) {
-              this.authManager.user.balance = data.realBalance;
-              this.authManager.user.realBalance = data.realBalance;
-            }
-          } else {
-            this.stakingManager.topUp(data.creditedAmount || 49, true);
-          }
-
-          this.stakingManager.setGameMode('REAL');
-          if (typeof updateRealModeUI === 'function') updateRealModeUI('REAL');
-
-          this.soundEngine.playCashout();
-          this.authManager?.showToast(`🎉 ${data.message}`);
-          this.updateWalletAmlStatus();
-
-          if (depositStatusMsg) {
-            depositStatusMsg.className = 'deposit-status-msg';
-            depositStatusMsg.textContent = `✅ ${data.message}`;
-            depositStatusMsg.style.display = 'block';
-          }
-
-          setTimeout(() => {
-            depositModal?.classList.remove('show');
-            btnVerifyReceipt.disabled = false;
-            btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">✅</span><span>Verify & Credit Deposit</span>`;
-          }, 1500);
-
-        } catch (err) {
-          btnVerifyReceipt.disabled = false;
-          btnVerifyReceipt.innerHTML = `<span class="btn-dep-icon">✅</span><span>Verify & Credit Deposit</span>`;
-          if (depositStatusMsg) {
-            depositStatusMsg.className = 'deposit-status-msg error';
-            depositStatusMsg.textContent = err.message;
-            depositStatusMsg.style.display = 'block';
-          }
-        }
-      });
-    }
-
     // Top Up Float Prompt Button
     const btnTopupFloat = document.getElementById('btn-topup-float-prompt');
     if (btnTopupFloat) {
@@ -1049,17 +1115,14 @@ class AviatorApp {
 
           const data = await res.json();
           if (!data.success) {
-            // If PayHero service wallet is empty, guide player to Lipa na M-PESA Till 9956081
+            // If PayHero service wallet is empty
             if (data.requiresTill || data.code === 'INSUFFICIENT_SERVICE_FLOAT') {
               btnConfirmDeposit.disabled = false;
               btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Deposit KES ${amt.toFixed(2)} via PayHero</span>`;
               if (waitingCard) waitingCard.style.display = 'none';
-              if (tabDepTill) tabDepTill.click();
               if (depositStatusMsg) {
-                depositStatusMsg.className = 'deposit-status-msg';
-                depositStatusMsg.style.borderLeftColor = '#f59e0b';
-                depositStatusMsg.style.color = '#fbbf24';
-                depositStatusMsg.textContent = '💡 STK Push requires service float. Please pay directly via Buy Goods Till 9956081 above and enter your receipt code to credit instantly!';
+                depositStatusMsg.className = 'deposit-status-msg error';
+                depositStatusMsg.textContent = data.error || 'Payment gateway float is low. Please try again in a few moments.';
                 depositStatusMsg.style.display = 'block';
               }
               return;
@@ -1136,7 +1199,7 @@ class AviatorApp {
                 btnConfirmDeposit.innerHTML = `<span class="btn-dep-icon">⚡</span><span>Check Again</span>`;
                 if (depositStatusMsg) {
                   depositStatusMsg.className = 'deposit-status-msg error';
-                  depositStatusMsg.textContent = 'Payment confirmation is taking longer than usual. If paid, enter your receipt in the Buy Goods Till tab.';
+                  depositStatusMsg.textContent = 'Payment confirmation is taking longer than usual. If you entered your M-PESA PIN, your balance will update automatically in a few moments.';
                   depositStatusMsg.style.display = 'block';
                 }
               }
@@ -1328,6 +1391,15 @@ class AviatorApp {
       });
     }
 
+    // Chat Button (Screenshot 2)
+    const chatBtn = document.getElementById('btn-header-chat');
+    if (chatBtn) {
+      chatBtn.addEventListener('click', () => {
+        this.soundEngine?.playClick();
+        this.authManager?.showToast('💬 Pilot Chat: Room #2 live signals are active. Fly safely!');
+      });
+    }
+
     // 4. Hamburger Settings Menu
     const hamburgerBtn = document.getElementById('btn-hamburger');
     const dropdownMenu = document.getElementById('spribe-dropdown-menu');
@@ -1378,21 +1450,39 @@ class AviatorApp {
       });
     }
 
-    // 6. Round History Modal
+    // 6. Round History Dropdown (Screenshot 3) & Modal Table
     const roundHistoryModal = document.getElementById('round-history-modal');
-    const openHistoryBtns = [document.getElementById('btn-open-round-history'), document.getElementById('menu-btn-history')];
+    const rhDropdown = document.getElementById('round-history-dropdown');
+    const btnOpenRh = document.getElementById('btn-open-round-history');
+    const btnCloseRhDropdown = document.getElementById('btn-close-rh-dropdown');
+    const menuBtnHistory = document.getElementById('menu-btn-history');
     const closeHistoryBtn = document.getElementById('btn-close-round-history');
 
-    openHistoryBtns.forEach(btn => {
-      if (btn) {
-        btn.addEventListener('click', () => {
-          dropdownMenu?.classList.remove('show');
-          roundHistoryModal?.classList.add('show');
-          this.historyBar.renderHistoryTable();
-          this.soundEngine.playClick();
-        });
-      }
-    });
+    if (btnOpenRh && rhDropdown) {
+      btnOpenRh.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = rhDropdown.style.display === 'none';
+        rhDropdown.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) this.historyBar.renderHistoryTable();
+        this.soundEngine?.playClick();
+      });
+    }
+
+    if (btnCloseRhDropdown && rhDropdown) {
+      btnCloseRhDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rhDropdown.style.display = 'none';
+      });
+    }
+
+    if (menuBtnHistory) {
+      menuBtnHistory.addEventListener('click', () => {
+        dropdownMenu?.classList.remove('show');
+        roundHistoryModal?.classList.add('show');
+        this.historyBar.renderHistoryTable();
+        this.soundEngine?.playClick();
+      });
+    }
 
     if (closeHistoryBtn && roundHistoryModal) {
       closeHistoryBtn.addEventListener('click', () => {
@@ -1400,6 +1490,47 @@ class AviatorApp {
       });
       roundHistoryModal.addEventListener('click', (e) => {
         if (e.target === roundHistoryModal) roundHistoryModal.classList.remove('show');
+      });
+    }
+
+    // Top Nav Go Back & Fullscreen buttons (Screenshot 2)
+    const btnAviatorBack = document.getElementById('btn-aviator-back');
+    if (btnAviatorBack) {
+      btnAviatorBack.addEventListener('click', () => {
+        this.soundEngine?.playClick();
+        this.switchView('home');
+      });
+    }
+
+    const btnAviatorFullscreen = document.getElementById('btn-aviator-fullscreen');
+    if (btnAviatorFullscreen) {
+      btnAviatorFullscreen.addEventListener('click', () => {
+        this.soundEngine?.playClick();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      });
+    }
+
+    // Daily Crown Promo Banner (Screenshot 2 & 3)
+    const btnDailyCrownAction = document.getElementById('btn-promo-banner-action');
+    if (btnDailyCrownAction) {
+      btnDailyCrownAction.addEventListener('click', () => {
+        this.soundEngine?.playClick();
+        const freeBetsModal = document.getElementById('freebets-modal');
+        if (freeBetsModal) freeBetsModal.classList.add('show');
+      });
+    }
+
+    // Game Room #2 Flyout Menu Button (Screenshot 4)
+    const menuBtnGameRoom = document.getElementById('menu-btn-gameroom');
+    if (menuBtnGameRoom) {
+      menuBtnGameRoom.addEventListener('click', () => {
+        this.soundEngine?.playClick();
+        dropdownMenu?.classList.remove('show');
+        this.authManager?.showToast('Connected to Game Room: Room #2 (Live Synchronized)');
       });
     }
 
@@ -1504,11 +1635,19 @@ class AviatorApp {
         });
       }
 
-      // Stepper Buttons (- and + by 50 KES, clamped at min 100)
+      // Stepper Buttons (- and + by 10 or 50 KES, clamped at min 10)
       const btnMinus = termEl.querySelector('.btn-step-minus');
       const btnPlus = termEl.querySelector('.btn-step-plus');
-      if (btnMinus) btnMinus.addEventListener('click', () => this.stakingManager.adjustAmount(id, -50));
-      if (btnPlus) btnPlus.addEventListener('click', () => this.stakingManager.adjustAmount(id, 50));
+      if (btnMinus) btnMinus.addEventListener('click', () => {
+        const current = this.stakingManager.getTerminal(id)?.amount || 10;
+        const step = current > 100 ? 50 : 10;
+        this.stakingManager.adjustAmount(id, -step);
+      });
+      if (btnPlus) btnPlus.addEventListener('click', () => {
+        const current = this.stakingManager.getTerminal(id)?.amount || 10;
+        const step = current >= 100 ? 50 : 10;
+        this.stakingManager.adjustAmount(id, step);
+      });
 
       // Quick Chips (100, 200, 500, 10000)
       termEl.querySelectorAll('.chip-btn').forEach(chip => {
@@ -1803,21 +1942,19 @@ class AviatorApp {
       });
     }
 
-    // 21. ShiftStack 4-Tab Bottom Navigation Bar (Aviator | Home | Sports | Casino)
+    // 21. ShiftStack 5-Tab Flat Bottom Navigation Bar (Home | Sports | Casino | Aviator | Me)
     const bnavAviator = document.getElementById('bnav-aviator');
     const bnavHome = document.getElementById('bnav-home');
     const bnavSports = document.getElementById('bnav-sports');
     const bnavCasino = document.getElementById('bnav-casino');
-
-    if (bnavAviator) {
-      bnavAviator.addEventListener('click', () => {
-        this.switchView('terminal');
-      });
-    }
+    const bnavMe = document.getElementById('bnav-me');
 
     if (bnavHome) {
       bnavHome.addEventListener('click', () => {
-        this.switchView('home');
+        this.switchView('sports');
+        const allBnav = document.querySelectorAll('.bottom-nav-item');
+        allBnav.forEach(b => b.classList.remove('active'));
+        bnavHome.classList.add('active');
       });
     }
 
@@ -1833,7 +1970,426 @@ class AviatorApp {
       });
     }
 
-    // 22. ShiftStack Account Hub Actions (view-home)
+    if (bnavAviator) {
+      bnavAviator.addEventListener('click', () => {
+        this.switchView('terminal');
+      });
+    }
+
+    if (bnavMe) {
+      bnavMe.addEventListener('click', () => {
+        this.switchView('home');
+      });
+    }
+
+    // 22. Authentic Betika / ShiftStack Wallet Page (Screenshot 1)
+    const depInput = document.getElementById('wallet-dep-input');
+    const wthInput = document.getElementById('wallet-wth-input');
+    const btnDepMinus = document.getElementById('btn-dep-minus');
+    const btnDepPlus = document.getElementById('btn-dep-plus');
+    const btnWthMinus = document.getElementById('btn-wth-minus');
+    const btnWthPlus = document.getElementById('btn-wth-plus');
+
+    // Live 5% Withholding Tax Preview
+    const updateTaxPreview = () => {
+      const val = Math.max(0, parseFloat(wthInput?.value) || 0);
+      const tax = Math.round(val * 0.05 * 100) / 100;
+      const net = Math.max(0, Math.round((val - tax) * 100) / 100);
+      const grossEl = document.getElementById('tax-gross-display');
+      const taxEl = document.getElementById('tax-amount-display');
+      const netEl = document.getElementById('tax-net-display');
+      if (grossEl) grossEl.textContent = `KES ${val.toFixed(2)}`;
+      if (taxEl) taxEl.textContent = `-KES ${tax.toFixed(2)}`;
+      if (netEl) netEl.textContent = `KES ${net.toFixed(2)}`;
+    };
+
+    if (wthInput) {
+      wthInput.addEventListener('input', updateTaxPreview);
+      wthInput.addEventListener('change', updateTaxPreview);
+      updateTaxPreview();
+    }
+
+    if (btnDepMinus && depInput) {
+      btnDepMinus.addEventListener('click', () => {
+        const val = Math.max(10, (parseFloat(depInput.value) || 100) - 50);
+        depInput.value = val;
+        this.soundEngine?.playClick();
+      });
+    }
+    if (btnDepPlus && depInput) {
+      btnDepPlus.addEventListener('click', () => {
+        const val = Math.min(300000, (parseFloat(depInput.value) || 100) + 50);
+        depInput.value = val;
+        this.soundEngine?.playClick();
+      });
+    }
+    if (btnWthMinus && wthInput) {
+      btnWthMinus.addEventListener('click', () => {
+        const val = Math.max(50, (parseFloat(wthInput.value) || 50) - 50);
+        wthInput.value = val;
+        updateTaxPreview();
+        this.soundEngine?.playClick();
+      });
+    }
+    if (btnWthPlus && wthInput) {
+      btnWthPlus.addEventListener('click', () => {
+        const val = Math.min(300000, (parseFloat(wthInput.value) || 50) + 50);
+        wthInput.value = val;
+        updateTaxPreview();
+        this.soundEngine?.playClick();
+      });
+    }
+
+    // Wallet quick chips (+100, +200, +500, +1000)
+    document.querySelectorAll('.wallet-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.wallet-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const amt = parseFloat(chip.getAttribute('data-amt'));
+        if (depInput && !isNaN(amt)) {
+          depInput.value = amt;
+        }
+        this.soundEngine?.playClick();
+      });
+    });
+
+    // PayHero M-PESA STK Push directly from Wallet page (Screenshot 1)
+    const btnWalletDepMpesa = document.getElementById('wallet-btn-dep-mpesa');
+    const walletDepStatus = document.getElementById('wallet-dep-status');
+    const walletDepText = document.getElementById('wallet-dep-mpesa-text');
+
+    if (btnWalletDepMpesa) {
+      btnWalletDepMpesa.addEventListener('click', async () => {
+        const amt = parseFloat(depInput?.value || 100);
+        if (isNaN(amt) || amt < 10) {
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = 'Minimum deposit is KES 10.00. Please enter 10 KES or more.';
+            walletDepStatus.style.display = 'block';
+          }
+          return;
+        }
+
+        if (!this.authManager?.user) {
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = 'Please log in or register with your phone number to deposit.';
+            walletDepStatus.style.display = 'block';
+          }
+          this.authManager?.showToast('⚠️ Please log in or register with your phone number to deposit.');
+          this.authManager?.openAuthModal?.('login');
+          return;
+        }
+
+        const phone = this.authManager.user.phone || this.stakingManager?.userPhone;
+        if (!phone) {
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = 'Please log in with a valid phone number.';
+            walletDepStatus.style.display = 'block';
+          }
+          this.authManager?.openAuthModal?.('login');
+          return;
+        }
+        btnWalletDepMpesa.disabled = true;
+        if (walletDepText) walletDepText.textContent = 'Sending STK Push...';
+        if (walletDepStatus) {
+          walletDepStatus.className = 'wallet-status-banner pending';
+          walletDepStatus.textContent = `📲 Sending PayHero STK Push for KES ${amt.toFixed(2)} to ${phone}...`;
+          walletDepStatus.style.display = 'block';
+        }
+
+        try {
+          const res = await fetch('/api/payhero/stk-push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: phone,
+              amount: amt,
+              customerName: this.authManager?.user?.username || 'Aviator Pilot'
+            })
+          });
+
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to dispatch PayHero STK Push');
+          }
+
+          if (walletDepText) walletDepText.textContent = 'Awaiting M-PESA PIN...';
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner pending';
+            walletDepStatus.textContent = `📲 STK prompt sent to ${phone}! Enter your M-PESA PIN on your phone to complete deposit of KES ${amt.toFixed(2)}.`;
+            walletDepStatus.style.display = 'block';
+          }
+
+          // Poll for completion
+          const ref = data.reference;
+          let polls = 0;
+          const pollInterval = setInterval(async () => {
+            polls++;
+            try {
+              const sRes = await fetch(`/api/payhero/status?ref=${encodeURIComponent(ref)}`);
+              const sData = await sRes.json();
+              if (sData.status === 'SUCCESS') {
+                clearInterval(pollInterval);
+                btnWalletDepMpesa.disabled = false;
+                if (walletDepText) walletDepText.textContent = 'Deposit with Mpesa';
+
+                const newBal = typeof sData.realBalance === 'number' ? sData.realBalance : (this.stakingManager.realBalance + amt);
+                this.stakingManager.setRealBalance(newBal);
+                if (this.authManager?.user) {
+                  this.authManager.user.balance = newBal;
+                  this.authManager.user.realBalance = newBal;
+                }
+                this.stakingManager.setGameMode('REAL');
+                if (typeof updateRealModeUI === 'function') updateRealModeUI('REAL');
+
+                this.soundEngine?.playCashout();
+                this.authManager?.showToast(`🎉 Deposit Confirmed! +KES ${amt.toLocaleString()} credited to your wallet via PayHero (Ref: ${sData.receiptNumber || 'M-PESA'}).`);
+
+                if (walletDepStatus) {
+                  walletDepStatus.className = 'wallet-status-banner success';
+                  walletDepStatus.textContent = `✅ Confirmed! +KES ${amt.toFixed(2)} credited (Receipt: ${sData.receiptNumber || 'M-PESA'}).`;
+                  walletDepStatus.style.display = 'block';
+                }
+                this.updateWalletPageDisplay();
+                return;
+              }
+
+              if (sData.status === 'FAILED' || polls >= 25) {
+                clearInterval(pollInterval);
+                btnWalletDepMpesa.disabled = false;
+                if (walletDepText) walletDepText.textContent = 'Deposit with Mpesa';
+                if (walletDepStatus) {
+                  walletDepStatus.className = 'wallet-status-banner error';
+                  walletDepStatus.textContent = sData.status === 'FAILED'
+                    ? 'Payment was cancelled or failed on your phone.'
+                    : 'Payment confirmation taking longer than usual. Please check your SMS.';
+                  walletDepStatus.style.display = 'block';
+                }
+              }
+            } catch (pErr) {
+              console.warn('[Wallet PayHero Poll Notice]:', pErr.message);
+            }
+          }, 1500);
+
+        } catch (err) {
+          btnWalletDepMpesa.disabled = false;
+          if (walletDepText) walletDepText.textContent = 'Deposit with Mpesa';
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = err.message || 'PayHero connection error.';
+            walletDepStatus.style.display = 'block';
+          }
+        }
+      });
+    }
+
+    // M-PESA Withdrawal from Wallet page (Screenshot 1)
+    const btnWalletWthMpesa = document.getElementById('wallet-btn-wth-mpesa');
+    const walletWthStatus = document.getElementById('wallet-wth-status');
+    const walletWthText = document.getElementById('wallet-wth-mpesa-text');
+
+    if (btnWalletWthMpesa) {
+      btnWalletWthMpesa.addEventListener('click', async () => {
+        const amt = parseFloat(wthInput?.value || 50);
+        if (isNaN(amt) || amt < 50) {
+          if (walletWthStatus) {
+            walletWthStatus.className = 'wallet-status-banner error';
+            walletWthStatus.textContent = 'Minimum withdrawal is KES 50.00. Please enter 50 KES or more.';
+            walletWthStatus.style.display = 'block';
+          }
+          return;
+        }
+
+        if (!this.authManager?.user) {
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = 'Please log in or register with your phone number to deposit.';
+            walletDepStatus.style.display = 'block';
+          }
+          this.authManager?.showToast('⚠️ Please log in or register with your phone number to deposit.');
+          this.authManager?.openAuthModal?.('login');
+          return;
+        }
+
+        const phone = this.authManager.user.phone || this.stakingManager?.userPhone;
+        if (!phone) {
+          if (walletDepStatus) {
+            walletDepStatus.className = 'wallet-status-banner error';
+            walletDepStatus.textContent = 'Please log in with a valid phone number.';
+            walletDepStatus.style.display = 'block';
+          }
+          this.authManager?.openAuthModal?.('login');
+          return;
+        }
+        btnWalletWthMpesa.disabled = true;
+        if (walletWthText) walletWthText.textContent = 'Processing...';
+
+        try {
+          const res = await fetch('/api/wallet/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: phone,
+              amount: amt,
+              accountName: this.authManager?.user?.username || 'Aviator Pilot'
+            })
+          });
+
+          const data = await res.json();
+          btnWalletWthMpesa.disabled = false;
+          if (walletWthText) walletWthText.textContent = 'Withdraw to Mpesa';
+
+          if (!data.success) {
+            if (walletWthStatus) {
+              walletWthStatus.className = 'wallet-status-banner error';
+              walletWthStatus.textContent = data.error || 'Withdrawal could not be completed.';
+              walletWthStatus.style.display = 'block';
+            }
+            return;
+          }
+
+          if (typeof data.realBalance === 'number') {
+            this.stakingManager.setRealBalance(data.realBalance);
+            if (this.authManager?.user) {
+              this.authManager.user.balance = data.realBalance;
+              this.authManager.user.realBalance = data.realBalance;
+            }
+          }
+          this.soundEngine?.playCashout();
+
+          const gross = data.grossAmount || amt;
+          const tax = data.taxAmount !== undefined ? data.taxAmount : Math.round(gross * 0.05 * 100) / 100;
+          const net = data.netDisbursement !== undefined ? data.netDisbursement : Math.round((gross - tax) * 100) / 100;
+
+          this.authManager?.showToast(`✅ Withdrawal approved! KES ${net.toFixed(2)} sent to M-PESA (Tax: KES ${tax.toFixed(2)}).`);
+          if (walletWthStatus) {
+            walletWthStatus.className = 'wallet-status-banner success';
+            walletWthStatus.innerHTML = `<strong>✅ Withdrawal Approved &amp; Disbursed to ${phone}!</strong><br>` +
+              `• Gross Requested: <strong>KES ${gross.toFixed(2)}</strong><br>` +
+              `• 5% Gaming Withholding Tax: <strong style="color:#ef4444;">-KES ${tax.toFixed(2)}</strong><br>` +
+              `• Net Disbursed to M-PESA: <strong style="color:#22c55e;">KES ${net.toFixed(2)}</strong><br>` +
+              `<span style="font-size:10.5px; opacity:0.8;">Ref: ${data.reference}</span>`;
+            walletWthStatus.style.display = 'block';
+          }
+          this.updateWalletPageDisplay();
+
+        } catch (wErr) {
+          btnWalletWthMpesa.disabled = false;
+          if (walletWthText) walletWthText.textContent = 'Withdraw to Mpesa';
+          if (walletWthStatus) {
+            walletWthStatus.className = 'wallet-status-banner error';
+            walletWthStatus.textContent = wErr.message || 'Withdrawal connection issue.';
+            walletWthStatus.style.display = 'block';
+          }
+        }
+      });
+    }
+
+    // Freebets & Promos View All & Claim Actions
+    const btnViewFreebets = document.getElementById('wallet-btn-view-freebets');
+    const freeBetsModal = document.getElementById('free-bets-modal') || document.getElementById('freebets-modal');
+    if (btnViewFreebets && freeBetsModal) {
+      btnViewFreebets.addEventListener('click', () => {
+        this.updatePromosDisplay();
+        freeBetsModal.classList.add('show');
+        this.soundEngine?.playClick();
+      });
+    }
+
+    const handleClaimSignup = async () => {
+      this.soundEngine?.playClick();
+      const user = this.authManager?.user;
+      if (!user) {
+        if (freeBetsModal) freeBetsModal.classList.remove('show');
+        this.authManager?.openAuthModal('register');
+        this.authManager?.showToast('🎁 Register with your phone number to receive your KES 20 Signup Freebet!');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/promos/claim-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: user.phone })
+        });
+        const data = await res.json();
+        if (data.success) {
+          this.soundEngine?.playCashout();
+          const newBal = typeof data.realBalance === 'number' ? data.realBalance : (this.stakingManager.realBalance + 20);
+          this.stakingManager?.setRealBalance(newBal);
+          if (this.authManager?.user) {
+            this.authManager.user.realBalance = newBal;
+          }
+          this.authManager?.showToast(`🎉 ${data.message}`);
+          this.updateWalletPageDisplay();
+          this.updatePromosDisplay();
+        } else {
+          this.authManager?.showToast(`⚠️ ${data.message || data.error}`);
+        }
+      } catch (err) {
+        this.authManager?.showToast('Error claiming signup bonus: ' + err.message);
+      }
+    };
+
+    const handleClaimCasino = async () => {
+      this.soundEngine?.playClick();
+      const user = this.authManager?.user;
+      if (!user) {
+        if (freeBetsModal) freeBetsModal.classList.remove('show');
+        this.authManager?.openAuthModal('login');
+        this.authManager?.showToast('🎰 Please log in to track your 500 Bob stake progress!');
+        return;
+      }
+
+      try {
+        const wRes = await fetch(`/api/wallet?phone=${encodeURIComponent(user.phone)}&_t=${Date.now()}`);
+        const wData = await wRes.json();
+        const turnover = wData.totalTurnover || 0;
+        if (turnover < 500) {
+          if (freeBetsModal) freeBetsModal.classList.remove('show');
+          this.switchView('terminal');
+          this.authManager?.showToast(`✈️ Stake KES ${(500 - turnover).toFixed(0)} more on Aviator rounds to unlock your KES 100 bonus!`);
+          return;
+        }
+
+        const res = await fetch('/api/promos/claim-casino', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: user.phone })
+        });
+        const data = await res.json();
+        if (data.success) {
+          this.soundEngine?.playCashout();
+          const newBal = typeof data.realBalance === 'number' ? data.realBalance : (this.stakingManager.realBalance + 100);
+          this.stakingManager?.setRealBalance(newBal);
+          if (this.authManager?.user) {
+            this.authManager.user.realBalance = newBal;
+          }
+          this.authManager?.showToast(`🎰 ${data.message}`);
+          this.updateWalletPageDisplay();
+          this.updatePromosDisplay();
+        } else {
+          this.authManager?.showToast(`⚠️ ${data.message || data.error}`);
+        }
+      } catch (err) {
+        this.authManager?.showToast('Error claiming casino bonus: ' + err.message);
+      }
+    };
+
+    // Attach to Dashboard and Modal Promo Buttons
+    const btnSignupDash = document.getElementById('btn-claim-signup-bonus');
+    const btnSignupModal = document.getElementById('btn-modal-claim-signup');
+    if (btnSignupDash) btnSignupDash.addEventListener('click', handleClaimSignup);
+    if (btnSignupModal) btnSignupModal.addEventListener('click', handleClaimSignup);
+
+    const btnCasinoDash = document.getElementById('btn-claim-casino-bonus');
+    const btnCasinoModal = document.getElementById('btn-modal-claim-casino');
+    if (btnCasinoDash) btnCasinoDash.addEventListener('click', handleClaimCasino);
+    if (btnCasinoModal) btnCasinoModal.addEventListener('click', handleClaimCasino);
+
+    // ShiftStack Account Hub Actions (view-home)
     const homeBtnDeposit = document.getElementById('home-btn-deposit');
     if (homeBtnDeposit) {
       homeBtnDeposit.addEventListener('click', () => {
@@ -1982,10 +2538,10 @@ class AviatorApp {
       s.classList.toggle('active', s.id === `view-${targetView}`);
     });
 
-    // Synchronize Bottom Navigation Bar (Aviator | Home | Sports | Casino)
+    // Synchronize Bottom Navigation Bar (Home | Sports | Casino | Aviator | Me)
     const bnavMap = {
       'terminal': document.getElementById('bnav-aviator'),
-      'home': document.getElementById('bnav-home'),
+      'home': document.getElementById('bnav-me'),
       'sports': document.getElementById('bnav-sports'),
       'casino': document.getElementById('bnav-casino')
     };
@@ -2001,6 +2557,10 @@ class AviatorApp {
     // Update Sound Engine viewing state: Only 'terminal' plays Aviator flight audio
     const isAviatorActive = (targetView === 'terminal');
     this.soundEngine.setAviatorViewActive(isAviatorActive);
+
+    if (targetView === 'home') {
+      this.updateWalletPageDisplay();
+    }
 
     // Scroll to top of window smoothly when switching views
     window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -17,19 +17,28 @@ export class StakingTerminalManager {
       ? (localStorage.getItem('shiftstack_game_mode') || 'DEMO')
       : 'DEMO';
 
-    // Persisted Balances
-    const savedDemo = typeof localStorage !== 'undefined' ? localStorage.getItem('shiftstack_demo_balance') : null;
-    const savedReal = typeof localStorage !== 'undefined' ? localStorage.getItem('shiftstack_real_balance') : null;
-
-    this.demoBalance = savedDemo !== null ? parseFloat(savedDemo) : initialBalance;
-    this.realBalance = savedReal !== null ? parseFloat(savedReal) : 0.0;
-
     // Active user phone and account tracking for database sync
-    this.userPhone = typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('shiftstack_user_phone') || '254712345678')
-      : '254712345678';
+    const savedPhone = typeof localStorage !== 'undefined'
+      ? localStorage.getItem('shiftstack_user_phone')
+      : null;
+    this.userPhone = savedPhone || null;
     this.hasAccount = !!this.userPhone;
     this.userAccount = null;
+
+    // Strategic Caching: User-scoped balance keys to prevent cross-account/guest balance conflicts
+    let savedReal = null;
+    let savedDemo = null;
+    if (typeof localStorage !== 'undefined') {
+      if (this.userPhone) {
+        savedReal = localStorage.getItem(`shiftstack_real_balance_${this.userPhone}`) || localStorage.getItem('shiftstack_real_balance');
+        savedDemo = localStorage.getItem(`shiftstack_demo_balance_${this.userPhone}`) || localStorage.getItem('shiftstack_demo_balance');
+      } else {
+        savedDemo = localStorage.getItem('shiftstack_demo_balance_guest');
+      }
+    }
+
+    this.demoBalance = savedDemo !== null ? parseFloat(savedDemo) : initialBalance;
+    this.realBalance = (this.userPhone && savedReal !== null) ? parseFloat(savedReal) : 0.0;
 
     this.currentRoundNonce = 0;
     this.lastPreparedRoundNonce = null;
@@ -37,7 +46,7 @@ export class StakingTerminalManager {
     this.terminals = {
       1: {
         id: 1,
-        amount: 100,
+        amount: 10,
         staked: false,
         stakedInRound: false,
         cashedOut: false,
@@ -57,7 +66,7 @@ export class StakingTerminalManager {
       },
       2: {
         id: 2,
-        amount: 100,
+        amount: 10,
         staked: false,
         stakedInRound: false,
         cashedOut: false,
@@ -162,11 +171,20 @@ export class StakingTerminalManager {
   }
 
   clearAccount() {
+    const prevPhone = this.userPhone;
     this.hasAccount = false;
     this.userAccount = null;
     this.userPhone = null;
+    this.realBalance = 0.0;
+    this.demoBalance = 50000.0;
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('shiftstack_user_phone');
+      localStorage.removeItem('shiftstack_real_balance');
+      localStorage.removeItem('shiftstack_user_balance');
+      if (prevPhone) {
+        localStorage.removeItem(`shiftstack_real_balance_${prevPhone}`);
+        localStorage.removeItem(`shiftstack_demo_balance_${prevPhone}`);
+      }
     }
     if (this.onBalanceChange) {
       this.onBalanceChange(this.balance, this.gameMode);
@@ -176,19 +194,20 @@ export class StakingTerminalManager {
   async syncWalletWithServer() {
     if (!this.userPhone || typeof fetch === 'undefined') return;
     try {
-      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(this.userPhone)}`);
+      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(this.userPhone)}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
           if (typeof data.realBalance === 'number') {
             this.realBalance = data.realBalance;
-            if (typeof localStorage !== 'undefined') {
-              localStorage.setItem('shiftstack_real_balance', this.realBalance.toString());
-            }
           }
-          if (typeof data.demoBalance === 'number' && !localStorage.getItem('shiftstack_demo_balance')) {
+          if (typeof data.demoBalance === 'number') {
             this.demoBalance = data.demoBalance;
           }
+          this.saveBalance();
           if (this.onBalanceChange) {
             this.onBalanceChange(this.balance, this.gameMode);
           }
@@ -201,8 +220,15 @@ export class StakingTerminalManager {
 
   saveBalance() {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('shiftstack_demo_balance', this.demoBalance.toString());
-      localStorage.setItem('shiftstack_real_balance', this.realBalance.toString());
+      if (this.userPhone) {
+        localStorage.setItem(`shiftstack_real_balance_${this.userPhone}`, this.realBalance.toString());
+        localStorage.setItem(`shiftstack_demo_balance_${this.userPhone}`, this.demoBalance.toString());
+        localStorage.setItem('shiftstack_real_balance', this.realBalance.toString());
+        localStorage.setItem('shiftstack_demo_balance', this.demoBalance.toString());
+      } else {
+        localStorage.setItem('shiftstack_demo_balance_guest', this.demoBalance.toString());
+        localStorage.removeItem('shiftstack_real_balance');
+      }
       localStorage.setItem('shiftstack_user_balance', this.balance.toString());
     }
     if (this.onBalanceChange) {
@@ -297,7 +323,7 @@ export class StakingTerminalManager {
     const hasUnsettledBet = t && t.staked && !t.cashedOut &&
       (this.gameState === 'WAITING' || this.gameState === 'FLYING');
     if (!t || hasUnsettledBet || t.queuedForNextRound || !Number.isFinite(Number(amount))) return;
-    t.amount = Math.max(100, Math.min(100000, Math.round(amount)));
+    t.amount = Math.max(10, Math.min(100000, Math.round(amount)));
     this.notifyUpdate(id);
   }
 
@@ -378,9 +404,9 @@ export class StakingTerminalManager {
       };
     }
 
-    // Minimum bet rule strictly 100 KES
-    if (t.amount < 100) {
-      return { success: false, reason: 'MIN_STAKE', minStake: 100 };
+    // Minimum bet rule 10 KES (Matching Screenshot 2)
+    if (t.amount < 10) {
+      return { success: false, reason: 'MIN_STAKE', minStake: 10 };
     }
 
     // Check balance for the active mode
@@ -473,7 +499,7 @@ export class StakingTerminalManager {
     if (this.gameMode === 'REAL' && (!this.hasAccount || !this.userPhone)) {
       return { success: false, reason: 'ACCOUNT_REQUIRED' };
     }
-    if (t.amount < 100) return { success: false, reason: 'MIN_STAKE', minStake: 100 };
+    if (t.amount < 10) return { success: false, reason: 'MIN_STAKE', minStake: 10 };
     if (this.balance < t.amount) {
       return this.gameMode === 'REAL'
         ? { success: false, reason: 'INSUFFICIENT_REAL_FUNDS', balance: this.realBalance, needed: t.amount, minDeposit: 49 }

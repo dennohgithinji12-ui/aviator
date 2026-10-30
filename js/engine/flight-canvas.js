@@ -433,13 +433,48 @@ export class FlightCanvasEngine {
     const marginX = isMobile ? 35 : 55;
     const marginY = isMobile ? 30 : 45;
 
-    // Dark gradient backdrop
-    const safeH = Math.max(10, h);
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, safeH);
-    bgGrad.addColorStop(0, '#101217');
-    bgGrad.addColorStop(1, '#090a0d');
-    ctx.fillStyle = bgGrad;
+    // Dark base backdrop
+    ctx.fillStyle = '#0a0b0f';
     ctx.fillRect(0, 0, w, h);
+
+    // Radiating Sunburst Fan Rays (Authentic Spribe Aviator aesthetic matching Screenshot 2 & 3)
+    ctx.save();
+    const originX = marginX + (isMobile ? 10 : 20);
+    const originY = h - marginY;
+    const rayCount = 30;
+    const maxRadius = Math.sqrt(w * w + h * h) * 1.35;
+
+    for (let i = 0; i < rayCount; i++) {
+      const startAngle = -Math.PI / 2 + (i / rayCount) * (Math.PI / 2 + 0.38);
+      const endAngle = -Math.PI / 2 + ((i + 1) / rayCount) * (Math.PI / 2 + 0.38);
+
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.arc(originX, originY, maxRadius, startAngle, endAngle);
+      ctx.closePath();
+
+      // Alternating subtle ray shades
+      ctx.fillStyle = (i % 2 === 0) ? '#0d0f15' : '#141824';
+      ctx.fill();
+    }
+
+    // Radial vignette overlay to give rich depth
+    const radial = ctx.createRadialGradient(w * 0.45, h * 0.45, 30, w * 0.5, h * 0.5, maxRadius * 0.65);
+    radial.addColorStop(0, 'rgba(0, 0, 0, 0.02)');
+    radial.addColorStop(0.65, 'rgba(5, 6, 10, 0.42)');
+    radial.addColorStop(1, 'rgba(3, 4, 6, 0.82)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, w, h);
+
+    // Atmospheric purple/magenta ambient glow (Matching Screenshot 2 & 3)
+    const ambientGlow = ctx.createRadialGradient(w * 0.58, h * 0.42, 10, w * 0.58, h * 0.42, Math.min(w, h) * 0.72);
+    ambientGlow.addColorStop(0, 'rgba(125, 12, 68, 0.30)');
+    ambientGlow.addColorStop(0.5, 'rgba(70, 6, 42, 0.14)');
+    ambientGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = ambientGlow;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.restore();
 
     // Subtle coordinate lines
     ctx.save();
@@ -505,12 +540,12 @@ export class FlightCanvasEngine {
 
     ctx.save();
 
-    // 1. Glowing Red Gradient Fill Under the Curve
+    // 1. Shaded Crimson Wedge under the curve (Matching Screenshot 2)
     const topY = Math.min(plane.y, originY - 4);
     const fillGrad = ctx.createLinearGradient(0, topY, 0, originY);
-    fillGrad.addColorStop(0, 'rgba(255, 0, 59, 0.32)');
-    fillGrad.addColorStop(0.6, 'rgba(255, 0, 59, 0.08)');
-    fillGrad.addColorStop(1, 'rgba(255, 0, 59, 0.0)');
+    fillGrad.addColorStop(0, 'rgba(215, 12, 42, 0.88)');
+    fillGrad.addColorStop(0.65, 'rgba(165, 0, 28, 0.65)');
+    fillGrad.addColorStop(1, 'rgba(100, 0, 16, 0.42)');
 
     ctx.beginPath();
     ctx.moveTo(originX, originY);
@@ -532,10 +567,10 @@ export class FlightCanvasEngine {
     ctx.moveTo(originX, originY);
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, plane.x, plane.y);
 
-    ctx.strokeStyle = '#ff003b';
-    ctx.lineWidth = isMobile ? 3 : 4;
-    ctx.shadowColor = '#ff003b';
-    ctx.shadowBlur = isMobile ? 12 : 18;
+    ctx.strokeStyle = '#e50914';
+    ctx.lineWidth = isMobile ? 3.5 : 4.5;
+    ctx.shadowColor = '#ff1744';
+    ctx.shadowBlur = isMobile ? 14 : 20;
     ctx.stroke();
 
     ctx.restore();
@@ -599,6 +634,18 @@ export class FlightCanvasEngine {
     bodyGrad.addColorStop(1, '#990022');
     ctx.fillStyle = bodyGrad;
     ctx.fill();
+
+    // Tail fin 'X' insignia (Matching Screenshot 2)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-32, -12);
+    ctx.lineTo(-28, -6);
+    ctx.moveTo(-28, -12);
+    ctx.lineTo(-32, -6);
+    ctx.stroke();
+    ctx.restore();
 
     // White Racing Stripe across fuselage
     ctx.beginPath();
@@ -717,46 +764,36 @@ export class FlightCanvasEngine {
       ctx.fillText(`${this.countdownSeconds.toFixed(1)}s`, w / 2, h / 2 + (isMobile ? 18 : 22));
 
     } else if (this.state === 'FLYING') {
-      // Spribe Live Multiplier Display
+      // Live Multiplier Display (Matching Screenshot 2: Bold crisp white 24.42x)
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       const multStr = `${this.currentMultiplier.toFixed(2)}x`;
-      const baseFontSize = isMobile ? 46 : 64;
-      const fontSize = Math.min(isMobile ? 68 : 88, baseFontSize + Math.log10(this.currentMultiplier) * 16);
+      const baseFontSize = isMobile ? 54 : 76;
+      const fontSize = Math.min(isMobile ? 74 : 96, baseFontSize + Math.log10(this.currentMultiplier) * 14);
       ctx.font = `900 ${fontSize}px Outfit, sans-serif`;
 
-      let fillColor = '#ffffff';
-      let shadowColor = 'rgba(255, 255, 255, 0.5)';
-      if (this.currentMultiplier >= 10.0) {
-        fillColor = '#c017b4'; // Spribe Hot Pink / Magenta
-        shadowColor = '#c017b4';
-      } else if (this.currentMultiplier >= 2.0) {
-        fillColor = '#913ef8'; // Spribe Purple
-        shadowColor = '#913ef8';
-      }
-
-      ctx.fillStyle = fillColor;
-      ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = 24;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
+      ctx.shadowBlur = 18;
       ctx.fillText(multStr, w / 2, h / 2);
 
     } else if (this.state === 'CRASHED') {
-      // Spribe "FLEW AWAY!" Crash Banner
+      // "FLEW AWAY!" Crash Banner (Matching Screenshot 3: White FLEW AWAY! and Red final crash multiplier)
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      ctx.font = `900 ${isMobile ? 24 : 32}px Outfit, sans-serif`;
-      ctx.fillStyle = '#ff003b';
-      ctx.shadowColor = '#ff003b';
-      ctx.shadowBlur = 20;
-      ctx.fillText('FLEW AWAY!', w / 2, h / 2 - (isMobile ? 20 : 26));
-
-      ctx.font = `900 ${isMobile ? 44 : 58}px Outfit, sans-serif`;
+      ctx.font = `900 ${isMobile ? 26 : 34}px Outfit, sans-serif`;
       ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(255, 0, 59, 0.8)';
-      ctx.shadowBlur = 25;
-      ctx.fillText(`${this.targetCrashMultiplier.toFixed(2)}x`, w / 2, h / 2 + (isMobile ? 24 : 30));
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
+      ctx.shadowBlur = 15;
+      ctx.fillText('FLEW AWAY!', w / 2, h / 2 - (isMobile ? 24 : 30));
+
+      ctx.font = `900 ${isMobile ? 52 : 72}px Outfit, sans-serif`;
+      ctx.fillStyle = '#e50914';
+      ctx.shadowColor = '#ff1744';
+      ctx.shadowBlur = 24;
+      ctx.fillText(`${this.targetCrashMultiplier.toFixed(2)}x`, w / 2, h / 2 + (isMobile ? 24 : 32));
     }
 
     ctx.restore();

@@ -14,33 +14,8 @@ const STORAGE_SESSION_KEY = 'aviator_active_session_spark';
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const MAX_RESETS_PER_WEEK = 2;
 
-// Seed demo pilots with hashed passwords ('pilot123' and 'demo2026')
-const DEFAULT_DEMO_USERS = [
-  {
-    id: '849201',
-    phone: '+254712345678',
-    username: 'demo_58232',
-    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // 'admin' / '1234'
-    balance: 49980.00,
-    createdAt: 1727180000000,
-    lastLogin: Date.now(),
-    vipLevel: 'VIP Pilot',
-    avatar: 'pilot',
-    passwordResetHistory: [] // Array of timestamps
-  },
-  {
-    id: '592104',
-    phone: '+254798765432',
-    username: 'demo_52339',
-    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
-    balance: 50000.00,
-    createdAt: 1727180000000,
-    lastLogin: Date.now(),
-    vipLevel: 'Cadet Pilot',
-    avatar: 'balloon_a',
-    passwordResetHistory: []
-  }
-];
+// No default test accounts seeded (clean production setup)
+const DEFAULT_DEMO_USERS = [];
 
 export class AuthManager {
   constructor(stakingManager, soundEngine, onAuthChange) {
@@ -106,38 +81,35 @@ export class AuthManager {
 
   ensureSeedUsers() {
     try {
+      // Purge any legacy test accounts from localStorage
       const raw = localStorage.getItem(STORAGE_USERS_KEY);
-      if (!raw) {
-        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_DEMO_USERS));
-      } else {
-        const users = JSON.parse(raw);
-        if (!Array.isArray(users) || users.length === 0) {
-          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_DEMO_USERS));
+      if (raw) {
+        let users = JSON.parse(raw);
+        if (Array.isArray(users)) {
+          users = users.filter(u => {
+            const p = String(u.phone || '').replace(/[^\d]/g, '');
+            return p !== '254712345678' && p !== '254798765432' && u.username !== 'demo_58232' && u.username !== 'demo_52339' && u.username !== 'demo_pilot_vip';
+          });
+          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users));
         }
       }
 
-      // Clear any old auto-stored demo session from previous build
-      // so users who never explicitly logged in see the Login button
+      // Clear any leftover test session from legacy demo accounts
       const sessionId = localStorage.getItem(STORAGE_SESSION_KEY);
-      const hasRealSession = localStorage.getItem('aviator_explicit_login') === 'true';
-      if (sessionId && !hasRealSession) {
-        // Check if this session matches a default demo user id
-        const isDemoDefault = DEFAULT_DEMO_USERS.some(u => String(u.id) === String(sessionId));
-        if (isDemoDefault) {
-          localStorage.removeItem(STORAGE_SESSION_KEY);
-        }
+      if (sessionId === '849201' || sessionId === '592104') {
+        localStorage.removeItem(STORAGE_SESSION_KEY);
       }
     } catch (e) {
-      console.warn('[AuthManager] Local storage init notice:', e);
+      console.warn('[AuthManager] Local storage cleanup notice:', e);
     }
   }
 
   getAllUsers() {
     try {
       const raw = localStorage.getItem(STORAGE_USERS_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_DEMO_USERS;
+      return raw ? JSON.parse(raw) : [];
     } catch (e) {
-      return DEFAULT_DEMO_USERS;
+      return [];
     }
   }
 
@@ -379,18 +351,46 @@ export class AuthManager {
       return false;
     }
 
-    const user = this.findUserByPhone(normPhone);
+    let user = this.findUserByPhone(normPhone);
     if (!user) {
-      this.setStatus(`No account found for ${normPhone}. Click "Create Account" below to register instantly.`, true);
-      return false;
-    }
+      // Seamless Unified Register/Login flow (Screenshot 5)
+      const newId = String(Math.floor(100000 + Math.random() * 900000));
+      const username = 'pilot_' + newId.slice(-4);
+      const hashedInput = await hashPassword(rawPassword.trim());
+      user = {
+        id: newId,
+        phone: normPhone,
+        username: username,
+        passwordHash: hashedInput,
+        balance: 50000.00,
+        realBalance: 0.00,
+        createdAt: Date.now(),
+        lastLogin: Date.now(),
+        vipLevel: 'VIP Pilot',
+        avatar: 'pilot',
+        passwordResetHistory: []
+      };
+      const users = this.getAllUsers();
+      users.push(user);
+      this.saveAllUsers(users);
 
-    const hashedInput = await hashPassword(rawPassword.trim());
-    if (user.passwordHash && user.passwordHash !== hashedInput) {
-      // Check legacy plain password or demo default
-      if (rawPassword.trim() !== 'admin' && rawPassword.trim() !== '1234') {
-        this.setStatus('Incorrect password. Please try again or use "Forgot Password?" to reset.', true);
-        return false;
+      try {
+        await storeUserInDatabase({
+          uid: 'uid_' + newId,
+          phone: normPhone,
+          username: username,
+          balance: 50000.00,
+          realBalance: 0.00
+        });
+      } catch (e) {}
+    } else {
+      const hashedInput = await hashPassword(rawPassword.trim());
+      if (user.passwordHash && user.passwordHash !== hashedInput) {
+        // Check legacy plain password or demo default
+        if (rawPassword.trim() !== 'admin' && rawPassword.trim() !== '1234') {
+          this.setStatus('Incorrect password. Please try again or use "Forgot Password?" to reset.', true);
+          return false;
+        }
       }
     }
 
@@ -683,6 +683,9 @@ export class AuthManager {
       localStorage.setItem('aviator_explicit_logout', 'true');
       localStorage.removeItem('aviator_explicit_login');
       localStorage.removeItem(STORAGE_SESSION_KEY);
+      localStorage.removeItem('shiftstack_real_balance');
+      localStorage.removeItem('shiftstack_user_balance');
+      localStorage.removeItem('shiftstack_user_phone');
     } catch (e) {}
 
     this.user = null;
@@ -690,32 +693,41 @@ export class AuthManager {
       this.stakingManager.clearAccount();
     }
     this.renderLoggedOut();
+    if (window.aviatorApp?.updateWalletPageDisplay) {
+      window.aviatorApp.updateWalletPageDisplay();
+    }
     this.showToast('You have signed out. An account is required to place bets.');
     if (this.onAuthChange) this.onAuthChange(null);
   }
 
   renderLoggedIn() {
-    const phone = this.user?.phone || '+254712345678';
-    const masked = this.maskPhone(phone);
-    const username = this.user?.username || 'demo_58232';
-    const userId = this.user?.id || '849201';
+    const phone = this.user?.phone || '';
+    const masked = phone ? this.maskPhone(phone) : '';
+    const username = this.user?.username || 'Pilot';
+    const userId = this.user?.id || '';
 
     // Update hamburger menu user info
     const menuUsername = document.getElementById('menu-username-display');
     if (menuUsername) menuUsername.textContent = username;
 
     const menuPhone = document.getElementById('menu-phone-display');
-    if (menuPhone) menuPhone.textContent = `${masked} • #${userId}`;
+    if (menuPhone) menuPhone.textContent = masked ? `${masked} • #${userId}` : `#${userId}`;
+
+    const menuSignOutBtn = document.getElementById('menu-btn-signout');
+    if (menuSignOutBtn) {
+      menuSignOutBtn.innerHTML = `<span class="menu-link-icon">🚪</span><span>Sign Out</span>`;
+      menuSignOutBtn.className = 'menu-link-btn text-danger';
+    }
 
     // Update Account Hub elements (view-home)
     const homeName = document.getElementById('home-account-name');
     if (homeName) homeName.textContent = `${username} (ID #${userId})`;
 
     const homePhone = document.getElementById('home-account-phone');
-    if (homePhone) homePhone.textContent = `${masked} • Registered Demo Account`;
+    if (homePhone) homePhone.textContent = `${masked} • Registered Account`;
 
     const homeStatus = document.getElementById('home-account-status');
-    if (homeStatus) homeStatus.textContent = 'Demo Account Active • Verified';
+    if (homeStatus) homeStatus.textContent = 'Account Active • Verified';
 
     const homeAuthBtn = document.getElementById('home-btn-auth-action');
     if (homeAuthBtn) {
@@ -738,16 +750,28 @@ export class AuthManager {
     if (userPillWrapper) {
       userPillWrapper.style.display = 'flex';
       userPillWrapper.innerHTML = `
-        <div class="shiftstack-user-pill" id="shiftstack-user-pill" title="Demo Account #${userId} (${phone})">
+        <div class="shiftstack-user-pill" id="shiftstack-user-pill" title="Pilot #${userId} (${phone})">
           <span class="user-avatar-circle">✈️</span>
           <span class="user-name-tag desktop-only">${username}</span>
           <span class="user-demo-tag">#${userId}</span>
         </div>
       `;
       userPillWrapper.onclick = () => {
-        const navHome = document.querySelector('[data-view="home"], #nav-btn-home');
+        const navHome = document.querySelector('[data-view="home"], #nav-btn-home, #bnav-me');
         if (navHome) navHome.click();
       };
+    }
+
+    // Update Dashboard Bottom Logout Button
+    const walletLogoutBtn = document.getElementById('btn-wallet-dashboard-logout');
+    const walletLogoutLabel = document.getElementById('btn-wallet-logout-label');
+    const walletSessionNote = document.getElementById('wallet-session-status-text');
+    if (walletLogoutBtn) {
+      walletLogoutBtn.className = 'btn-wallet-logout';
+      if (walletLogoutLabel) walletLogoutLabel.textContent = 'Log Out';
+    }
+    if (walletSessionNote) {
+      walletSessionNote.textContent = 'Logged in securely • PayHero M-PESA Protected';
     }
   }
 
@@ -764,28 +788,56 @@ export class AuthManager {
 
     const menuUsername = document.getElementById('menu-username-display');
     if (menuUsername) {
-      menuUsername.textContent = 'Account Required';
+      menuUsername.textContent = 'Guest Pilot';
     }
 
     const menuPhone = document.getElementById('menu-phone-display');
     if (menuPhone) {
-      menuPhone.textContent = 'Sign In / Register to Play';
+      menuPhone.textContent = 'Tap to Log In';
+    }
+
+    const menuSignOutBtn = document.getElementById('menu-btn-signout');
+    if (menuSignOutBtn) {
+      menuSignOutBtn.innerHTML = `<span class="menu-link-icon">🔑</span><span>Log In / Register</span>`;
+      menuSignOutBtn.className = 'menu-link-btn text-success';
     }
 
     // Update Account Hub elements (view-home)
     const homeName = document.getElementById('home-account-name');
-    if (homeName) homeName.textContent = 'Account Required to Play';
+    if (homeName) homeName.textContent = 'Guest Pilot';
 
     const homePhone = document.getElementById('home-account-phone');
-    if (homePhone) homePhone.textContent = 'Login or Register with Phone Number to Play Demo';
+    if (homePhone) homePhone.textContent = 'Login or Register with Phone Number to Play';
 
     const homeStatus = document.getElementById('home-account-status');
-    if (homeStatus) homeStatus.textContent = '🔒 Account Required';
+    if (homeStatus) homeStatus.textContent = '🔒 Not Logged In';
 
     const homeAuthBtn = document.getElementById('home-btn-auth-action');
     if (homeAuthBtn) {
       homeAuthBtn.innerHTML = `<span>⚡</span><span>Login / Register with Phone</span>`;
       homeAuthBtn.className = 'btn-hub-action action-primary';
+    }
+
+    // Update Wallet view
+    const walletPhoneDisplay = document.getElementById('wallet-phone-display');
+    if (walletPhoneDisplay) {
+      walletPhoneDisplay.textContent = 'Guest Player';
+    }
+    const walletBalanceDisplay = document.getElementById('wallet-balance-kes');
+    if (walletBalanceDisplay) {
+      walletBalanceDisplay.textContent = 'KES 0.00';
+    }
+
+    // Update Dashboard Bottom Logout Button (turns into Sign In / Register for Guests)
+    const walletLogoutBtn = document.getElementById('btn-wallet-dashboard-logout');
+    const walletLogoutLabel = document.getElementById('btn-wallet-logout-label');
+    const walletSessionNote = document.getElementById('wallet-session-status-text');
+    if (walletLogoutBtn) {
+      walletLogoutBtn.className = 'btn-wallet-logout guest-mode';
+      if (walletLogoutLabel) walletLogoutLabel.textContent = 'Log In / Register with Phone';
+    }
+    if (walletSessionNote) {
+      walletSessionNote.textContent = 'Guest Mode • Sign in to access your real M-PESA wallet';
     }
   }
 
@@ -826,6 +878,17 @@ export class AuthManager {
           if (resetPhoneInp) resetPhoneInp.value = curPhone;
         }
         this.switchTab('reset');
+      };
+    }
+
+    // Password Eye toggle (Screenshot 5)
+    const btnToggleEye = document.getElementById('btn-toggle-login-pass');
+    const passInput = document.getElementById('auth-login-password');
+    if (btnToggleEye && passInput) {
+      btnToggleEye.onclick = () => {
+        const isPass = passInput.type === 'password';
+        passInput.type = isPass ? 'text' : 'password';
+        btnToggleEye.textContent = isPass ? '🙈' : '👁️';
       };
     }
 
@@ -943,13 +1006,42 @@ export class AuthManager {
       };
     }
 
-    // Menu Sign out button
+    // Menu Sign out / Sign in button
     const menuSignOutBtn = document.getElementById('menu-btn-signout');
     if (menuSignOutBtn) {
       menuSignOutBtn.onclick = () => {
         const menu = document.getElementById('spribe-dropdown-menu');
         if (menu) menu.classList.remove('show');
-        this.logout();
+        if (this.user) {
+          this.logout();
+        } else {
+          this.openAuthModal('login');
+        }
+      };
+    }
+
+    // Menu user card (click to log in if guest)
+    const menuUserCard = document.querySelector('.shiftstack-menu-user-card, .kessbet-menu-user-card');
+    if (menuUserCard) {
+      menuUserCard.style.cursor = 'pointer';
+      menuUserCard.onclick = () => {
+        if (!this.user) {
+          const menu = document.getElementById('spribe-dropdown-menu');
+          if (menu) menu.classList.remove('show');
+          this.openAuthModal('login');
+        }
+      };
+    }
+
+    // Dashboard Bottom Logout / Session Button
+    const walletDashboardLogoutBtn = document.getElementById('btn-wallet-dashboard-logout');
+    if (walletDashboardLogoutBtn) {
+      walletDashboardLogoutBtn.onclick = () => {
+        if (this.user) {
+          this.logout();
+        } else {
+          this.openAuthModal('login');
+        }
       };
     }
   }

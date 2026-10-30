@@ -238,8 +238,27 @@ function getLiveRoundState(time = Date.now()) {
 }
 
 const server = http.createServer((req, res) => {
-  let parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-  let pathname = decodeURIComponent(parsedUrl.pathname);
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost:3000'}`);
+  } catch (e) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('400 Bad Request');
+  }
+
+  let pathname = parsedUrl.pathname;
+  try {
+    pathname = decodeURIComponent(parsedUrl.pathname);
+  } catch (e) {
+    pathname = parsedUrl.pathname;
+  }
+
+  // Request logger for active visibility
+  res.on('finish', () => {
+    if (pathname !== '/api/round-state') {
+      console.log(`[HTTP ${req.method}] ${pathname} -> ${res.statusCode}`);
+    }
+  });
 
   // Authoritative API endpoint for real-time round sync across all players
   if (pathname === '/api/round-state') {
@@ -409,7 +428,7 @@ const server = http.createServer((req, res) => {
         }
 
         if (matchedTx) {
-          const creditedAmount = Math.max(49, parseFloat(matchedTx.amount) || parseFloat(data.amount) || 49);
+          const creditedAmount = Math.max(10, parseFloat(matchedTx.amount) || parseFloat(data.amount) || 10);
           const ref = `PH_TILL_${rawCode}`;
           db.createDeposit(ref, phone, creditedAmount);
           db.completeDeposit(ref, rawCode);
@@ -429,7 +448,7 @@ const server = http.createServer((req, res) => {
 
         // If not yet found in transactions list, check if sandbox test mode is active
         if (data.isSandbox === true || process.env.PAYHERO_SANDBOX === 'true') {
-          const creditedAmount = Math.max(49, parseFloat(data.amount) || 49);
+          const creditedAmount = Math.max(10, parseFloat(data.amount) || 10);
           const ref = `PH_TEST_${rawCode}`;
           db.createDeposit(ref, phone, creditedAmount);
           db.completeDeposit(ref, rawCode);
@@ -481,15 +500,15 @@ const server = http.createServer((req, res) => {
           phone = '254' + phone;
         }
 
-        // Strict 49 Bob validation
-        if (isNaN(amount) || amount < 49) {
+        // Minimum deposit validation (Min 10 KES matching Screenshot 1)
+        if (isNaN(amount) || amount < 10) {
           res.writeHead(400, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           });
           return res.end(JSON.stringify({
             success: false,
-            error: 'Minimum deposit is KES 49.00 (49 Bob). Please enter 49 KES or more.'
+            error: 'Minimum deposit is KES 10.00. Please enter 10 KES or more.'
           }));
         }
 
@@ -565,11 +584,8 @@ const server = http.createServer((req, res) => {
                 return res.end(JSON.stringify({
                   success: false,
                   code: 'INSUFFICIENT_SERVICE_FLOAT',
-                  error: 'PayHero service float is currently 0 KES. Please pay directly via Lipa na M-PESA Buy Goods Till 9956081 below, or top up the float.',
-                  tillNumber: '9956081',
-                  secondaryTillNumber: '6310357',
+                  error: 'PayHero service float is currently low. Please try again shortly.',
                   reference: reference,
-                  requiresTill: true,
                   payheroResponse: phJson
                 }));
               }
@@ -582,13 +598,18 @@ const server = http.createServer((req, res) => {
               }));
             }
 
+            if (phJson.reference) txRecord.payheroReference = phJson.reference;
+            if (phJson.CheckoutRequestID) txRecord.checkoutRequestId = phJson.CheckoutRequestID;
+            PAYHERO_TRANSACTIONS.set(reference, txRecord);
+
             res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
             return res.end(JSON.stringify({
               success: true,
               status: 'PENDING',
               reference: reference,
-              message: `STK Push sent to 0${phone.substring(3)}. Enter your M-PESA PIN to complete deposit of KES ${amount}.`,
+              payheroReference: phJson.reference,
               checkoutRequestId: phJson.CheckoutRequestID,
+              message: `STK Push sent to 0${phone.substring(3)}. Enter your M-PESA PIN to complete deposit of KES ${amount}.`,
               payheroResponse: phJson
             }));
 
@@ -598,8 +619,7 @@ const server = http.createServer((req, res) => {
             return res.end(JSON.stringify({
               success: false,
               code: 'PAYHERO_API_ERROR',
-              error: `PayHero connection issue: ${liveErr.message}. Please pay directly via Buy Goods Till 9956081.`,
-              tillNumber: '9956081'
+              error: `PayHero connection issue: ${liveErr.message}. Please try again shortly.`
             }));
           }
         } else {
@@ -644,48 +664,68 @@ const server = http.createServer((req, res) => {
       }
     }
 
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      'Access-Control-Allow-Origin': '*'
-    });
     if (!tx) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*'
+      });
       return res.end(JSON.stringify({ success: false, status: 'NOT_FOUND' }));
     }
 
-    // If still pending, check PayHero transactions API
-    if (tx.status === 'PENDING' && process.env.PAYHERO_API_KEY) {
-      callPayHeroApi('transactions?page=1&per_page=20', 'GET')
-        .then(tRes => {
+    // Reconcile pending status with PayHero transactions API
+    (async () => {
+      if (tx.status === 'PENDING' && process.env.PAYHERO_API_KEY) {
+        try {
+          const tRes = await callPayHeroApi('transactions?page=1&per_page=25', 'GET');
           if (tRes.body && Array.isArray(tRes.body.transactions)) {
             const match = tRes.body.transactions.find(t => {
               const ext = String(t.external_reference || '');
+              const txRef = String(t.transaction_reference || '');
               const desc = String(t.description || '');
-              return (ext && ext === tx.reference) || (tx.phone && desc.includes(tx.phone.slice(-9)));
+              const ben = String(t.beneficiary_number || '');
+              const prov = String(t.provider_reference || '');
+
+              const matchRef = (ext && ext === tx.reference);
+              const matchPayheroRef = (tx.payheroReference && txRef === tx.payheroReference);
+              const matchPhone = (tx.phone && (desc.includes(tx.phone.slice(-9)) || ben.includes(tx.phone.slice(-9))));
+
+              return (matchRef || matchPayheroRef || matchPhone) && !prov.startsWith('cost_');
             });
+
             if (match) {
               const receipt = match.provider_reference || ('NL' + Math.random().toString(36).substring(2, 9).toUpperCase());
               tx.status = 'SUCCESS';
               tx.receiptNumber = receipt;
+              if (match.amount) tx.amount = parseFloat(match.amount);
               PAYHERO_TRANSACTIONS.set(ref, tx);
               db.completeDeposit(tx.reference, receipt);
+              console.log(`[PayHero Status] Reconciled deposit ${tx.reference} via PayHero API -> Receipt: ${receipt}`);
             }
           }
-        })
-        .catch(() => {});
-    }
+        } catch (apiErr) {
+          console.warn('[PayHero Status Reconcile Warning]:', apiErr.message);
+        }
+      }
 
-    const balances = db.getBalances(tx.phone);
-    return res.end(JSON.stringify({
-      success: true,
-      status: tx.status,
-      reference: tx.reference,
-      amount: tx.amount,
-      phone: tx.phone,
-      receiptNumber: tx.receiptNumber || null,
-      realBalance: balances.realBalance,
-      demoBalance: balances.demoBalance
-    }));
+      const balances = db.getBalances(tx.phone);
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end(JSON.stringify({
+        success: true,
+        status: tx.status,
+        reference: tx.reference,
+        amount: tx.amount,
+        phone: tx.phone,
+        receiptNumber: tx.receiptNumber || null,
+        realBalance: balances.realBalance,
+        demoBalance: balances.demoBalance
+      }));
+    })();
+    return;
   }
 
   // PayHero Webhook Callback Endpoint (NotebookLM Section 7.1, 7.2, 7.3)
@@ -737,7 +777,10 @@ const server = http.createServer((req, res) => {
 
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
       'Access-Control-Allow-Origin': '*'
     });
     return res.end(JSON.stringify({
@@ -748,6 +791,52 @@ const server = http.createServer((req, res) => {
       turnoverCompleted,
       turnoverRequired: Math.max(0, totalDeposits - totalTurnover)
     }));
+  }
+
+  // Promo API: Claim KES 20 Signup Freebet Bonus (Cashed out once per new account)
+  if (pathname === '/api/promos/claim-signup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone ? String(data.phone).trim() : '';
+        if (!phone || phone === 'guest') {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'LOGIN_REQUIRED', message: 'Please register or log in with your phone to claim your KES 20 signup freebet.' }));
+        }
+        const result = db.claimSignupBonus(phone);
+        res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Promo API: Claim 100 Bob Casino Stake Bonus (Stake KES 500)
+  if (pathname === '/api/promos/claim-casino' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const phone = data.phone ? String(data.phone).trim() : '';
+        if (!phone || phone === 'guest') {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: 'LOGIN_REQUIRED', message: 'Please register or log in to track your 500 Bob stake progress.' }));
+        }
+        const result = db.claimCasinoStakeBonus(phone);
+        res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
   }
 
   // Wallet API: Withdraw Funds with Automated Risk Engine (NotebookLM Section 8.1, 8.2, 8.3 & Section 10)
@@ -804,17 +893,27 @@ const server = http.createServer((req, res) => {
           }));
         }
 
+        // --- 5% Withholding Gaming Tax (Kenyan Finance Act & BCLB Regulations) ---
+        const TAX_RATE = 0.05;
+        const grossAmount = amount;
+        const taxAmount = Math.round((grossAmount * TAX_RATE) * 100) / 100;
+        const netDisbursement = Math.max(0, Math.round((grossAmount - taxAmount) * 100) / 100);
+
         // --- RULE 2: Registered Phone Verification (Account Identity Match) ---
         if (normTarget !== normPhone) {
           const reference = `WTH_HOLD_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          db.updateBalance(normPhone, 'REAL', -amount);
-          db.createWithdrawal(normPhone, amount, reference, 'MANUAL_HOLD_PHONE_MISMATCH', 80, 'Destination phone mismatch');
+          db.updateBalance(normPhone, 'REAL', -grossAmount);
+          db.createWithdrawal(normPhone, grossAmount, reference, 'MANUAL_HOLD_PHONE_MISMATCH', 80, 'Destination phone mismatch', taxAmount, netDisbursement);
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           return res.end(JSON.stringify({
             success: true,
             status: 'PROCESSING',
             reference: reference,
-            message: 'Withdrawal Submitted - Processing'
+            grossAmount: grossAmount,
+            taxRate: '5%',
+            taxAmount: taxAmount,
+            netDisbursement: netDisbursement,
+            message: `Withdrawal of KES ${grossAmount.toFixed(2)} submitted for verification. 5% Gaming Tax (KES ${taxAmount.toFixed(2)}) reserved.`
           }));
         }
 
@@ -822,43 +921,50 @@ const server = http.createServer((req, res) => {
         const dailyCount = db.getDailyWithdrawalCount(normPhone);
         if (dailyCount >= 2) {
           const reference = `WTH_HOLD_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-          db.updateBalance(normPhone, 'REAL', -amount);
-          db.createWithdrawal(normPhone, amount, reference, 'MANUAL_HOLD_VELOCITY_EXCEEDED', 60, 'Velocity exceeded (>2 in 24h)');
+          db.updateBalance(normPhone, 'REAL', -grossAmount);
+          db.createWithdrawal(normPhone, grossAmount, reference, 'MANUAL_HOLD_VELOCITY_EXCEEDED', 60, 'Velocity exceeded (>2 in 24h)', taxAmount, netDisbursement);
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           return res.end(JSON.stringify({
             success: true,
             status: 'PROCESSING',
             reference: reference,
-            message: 'Withdrawal Submitted - Processing'
+            grossAmount: grossAmount,
+            taxRate: '5%',
+            taxAmount: taxAmount,
+            netDisbursement: netDisbursement,
+            message: `Withdrawal of KES ${grossAmount.toFixed(2)} queued. 5% Gaming Tax (KES ${taxAmount.toFixed(2)}) reserved.`
           }));
         }
 
         // --- RULE 4: Auto-Approval Ceiling (Max 5,000.00 KES automated) ---
         const AUTO_DISBURSEMENT_LIMIT = 5000.00;
         const reference = `WTH_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-        db.updateBalance(normPhone, 'REAL', -amount);
+        db.updateBalance(normPhone, 'REAL', -grossAmount);
 
         let status = 'SETTLED';
         let riskScore = 10;
         let riskReason = 'Approved automated B2C payout';
 
-        if (amount > AUTO_DISBURSEMENT_LIMIT) {
+        if (grossAmount > AUTO_DISBURSEMENT_LIMIT) {
           status = 'MANUAL_HOLD_HIGH_VALUE';
           riskScore = 50;
-          riskReason = `Amount KES ${amount} exceeds automated ceiling of KES 5,000.00`;
+          riskReason = `Amount KES ${grossAmount} exceeds automated ceiling of KES 5,000.00`;
         }
 
-        db.createWithdrawal(normPhone, amount, reference, status, riskScore, riskReason);
+        db.createWithdrawal(normPhone, grossAmount, reference, status, riskScore, riskReason, taxAmount, netDisbursement);
         const updatedBal = db.getBalances(normPhone);
 
-        // --- RULE 5: Frontend Status Abstraction (Uniform status for player security) ---
+        // --- RULE 5: Itemized Tax & Net Payout Response ---
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         return res.end(JSON.stringify({
           success: true,
           status: 'PROCESSING',
           reference: reference,
-          amount: amount,
-          message: 'Withdrawal Submitted - Processing',
+          grossAmount: grossAmount,
+          taxRate: '5%',
+          taxAmount: taxAmount,
+          netDisbursement: netDisbursement,
+          message: `Withdrawal of KES ${grossAmount.toFixed(2)} processed! 5% Gaming Tax (KES ${taxAmount.toFixed(2)}) deducted. KES ${netDisbursement.toFixed(2)} disbursed to M-PESA ${normPhone}.`,
           realBalance: updatedBal.realBalance,
           demoBalance: updatedBal.demoBalance
         }));
@@ -1018,9 +1124,9 @@ const server = http.createServer((req, res) => {
           return res.end(JSON.stringify({
             success: false,
             code: 'INSUFFICIENT_REAL_FUNDS',
-            message: `Insufficient Real Money balance (KES ${currentBal.realBalance.toFixed(2)}). Please deposit at least 49 Bob via PayHero M-PESA to place this KES ${amount} bet.`,
+            message: `Insufficient Real Money balance (KES ${currentBal.realBalance.toFixed(2)}). Please deposit at least 10 KES via PayHero M-PESA to place this KES ${amount} bet.`,
             realBalance: currentBal.realBalance,
-            minDeposit: 49,
+            minDeposit: 10,
             neededAmount: amount
           }));
         }
@@ -1070,7 +1176,18 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body || '{}');
-        const phone = data.phone || '254712345678';
+        const phone = data.phone ? String(data.phone).trim() : '';
+        if (!phone || phone === 'guest') {
+          res.writeHead(401, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          return res.end(JSON.stringify({
+            success: false,
+            code: 'ACCOUNT_REQUIRED',
+            message: 'An active account is required to cash out winnings. Please log in.'
+          }));
+        }
         const mode = (data.mode === 'REAL') ? 'REAL' : 'DEMO';
         const betId = parseInt(data.betId) || 0;
         const multiplier = parseFloat(data.multiplier) || 1.0;
@@ -1148,7 +1265,10 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/database/stats' && req.method === 'GET') {
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
       'Access-Control-Allow-Origin': '*'
     });
     return res.end(JSON.stringify(db.getStats()));
@@ -1202,6 +1322,20 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`[ShiftStack Aviator Simulator] Running at http://localhost:${PORT}`);
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ [Server Notice] Port ${PORT} is currently in use.`);
+    console.error(`   A server instance is already running at: http://localhost:${PORT}`);
+    console.error(`   To run on another port: PORT=3001 node server.js\n`);
+  } else {
+    console.error('\n❌ [Server Error]:', err.message);
+  }
+  process.exit(1);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 [ShiftStack Aviator Simulator] Running at http://localhost:${PORT}`);
+  console.log(`   Local:   http://localhost:${PORT}`);
+  console.log(`   Network: http://127.0.0.1:${PORT}`);
+  console.log(`   Binding: 0.0.0.0 (Accepts all incoming IPv4 & localhost connections)\n`);
 });

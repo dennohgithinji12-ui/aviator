@@ -67,12 +67,15 @@ db.exec(`
     timestamp INTEGER NOT NULL
   );
 
-  -- Withdrawals Table (PostgreSQL / SQLite Model per NotebookLM Blueprint)
+  -- Withdrawals Table (With 5% Gaming Withholding Tax Enforcement)
   CREATE TABLE IF NOT EXISTS withdrawals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
     phone TEXT NOT NULL,
     amount REAL NOT NULL,
+    tax_amount REAL DEFAULT 0,
+    net_amount REAL DEFAULT 0,
+    tax_rate REAL DEFAULT 0.05,
     reference TEXT UNIQUE NOT NULL,
     status TEXT NOT NULL, -- 'REQUESTED', 'PROCESSING', 'SETTLED', 'MANUAL_HOLD_HIGH_VALUE', 'MANUAL_HOLD_VELOCITY', 'REJECTED'
     risk_score INTEGER DEFAULT 0,
@@ -106,6 +109,15 @@ try {
   // column already exists
 }
 
+// Safe migrations for 5% Withholding Gaming Tax columns in withdrawals
+try { db.exec("ALTER TABLE withdrawals ADD COLUMN tax_amount REAL DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE withdrawals ADD COLUMN net_amount REAL DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE withdrawals ADD COLUMN tax_rate REAL DEFAULT 0.05;"); } catch (e) {}
+
+// Safe migrations for Promos (KES 20 Signup Bonus & 500-for-100 Casino Stake Bonus)
+try { db.exec("ALTER TABLE users ADD COLUMN signup_bonus_claimed INTEGER DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE users ADD COLUMN casino_bonus_claimed INTEGER DEFAULT 0;"); } catch (e) {}
+
 function normalizePhone(raw) {
   if (!raw) return '';
   let phone = String(raw).trim().replace(/[^\d+]/g, '');
@@ -119,18 +131,7 @@ function normalizePhone(raw) {
   return phone;
 }
 
-// Seed default demo pilot accounts if empty
-const countStmt = db.prepare('SELECT COUNT(*) as count FROM users');
-const row = countStmt.get();
-if (!row || row.count === 0) {
-  const insertUser = db.prepare(`
-    INSERT INTO users (phone, username, password_hash, real_balance, demo_balance, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  insertUser.run('254712345678', 'demo_pilot_vip', 'admin', 0.0, 50000.0, Date.now());
-  insertUser.run('254798765432', 'demo_cadet', 'admin', 0.0, 50000.0, Date.now());
-  console.log('[SQLite Database] Seeded default VIP and Cadet demo accounts in data/shiftstack.db');
-}
+// Clean database mode: No test accounts auto-seeded
 
 const DatabaseService = {
   db,
@@ -204,7 +205,7 @@ const DatabaseService = {
   getBalances(phone) {
     const norm = normalizePhone(phone);
     if (!norm) {
-      return { phone: '', realBalance: 0.0, demoBalance: 50000.0 };
+      return { phone: '', realBalance: 0.0, demoBalance: 50000.0, signupBonusClaimed: false, casinoBonusClaimed: false };
     }
     const user = this.getUser(norm);
     if (user) {
@@ -212,10 +213,84 @@ const DatabaseService = {
         phone: user.phone,
         username: user.username,
         realBalance: parseFloat(user.real_balance || 0),
-        demoBalance: parseFloat(user.demo_balance || 50000)
+        demoBalance: parseFloat(user.demo_balance || 50000),
+        signupBonusClaimed: !!user.signup_bonus_claimed,
+        casinoBonusClaimed: !!user.casino_bonus_claimed
       };
     }
-    return { phone: norm, realBalance: 0.0, demoBalance: 50000.0 };
+    return { phone: norm, realBalance: 0.0, demoBalance: 50000.0, signupBonusClaimed: false, casinoBonusClaimed: false };
+  },
+
+  claimSignupBonus(phone) {
+    const norm = normalizePhone(phone);
+    if (!norm) return { success: false, error: 'PHONE_REQUIRED', message: 'Valid phone required' };
+    const user = this.getUser(norm);
+    if (!user) return { success: false, error: 'USER_NOT_FOUND', message: 'Account not found. Please register first.' };
+    if (user.signup_bonus_claimed) {
+      return { success: false, error: 'ALREADY_CLAIMED', message: 'Signup bonus of KES 20 has already been claimed for this account.' };
+    }
+
+    const now = Date.now();
+    const ref = `SIGNUP_BONUS_${norm}_${now}`;
+    
+    // Credit KES 20 and mark as claimed
+    const updateStmt = db.prepare('UPDATE users SET real_balance = real_balance + 20, signup_bonus_claimed = 1 WHERE phone = ?');
+    updateStmt.run(norm);
+
+    const depStmt = db.prepare(`
+      INSERT INTO deposits (reference, phone, amount, status, receipt_number, created_at, completed_at)
+      VALUES (?, ?, 20, 'SUCCESS', 'SIGNUP_FREEBET_20', ?, ?)
+    `);
+    depStmt.run(ref, norm, now, now);
+
+    const updated = this.getUser(norm);
+    return {
+      success: true,
+      amount: 20,
+      realBalance: parseFloat(updated.real_balance || 0),
+      message: '🎉 Congratulations! KES 20.00 Signup Freebet credited to your account!'
+    };
+  },
+
+  claimCasinoStakeBonus(phone) {
+    const norm = normalizePhone(phone);
+    if (!norm) return { success: false, error: 'PHONE_REQUIRED', message: 'Valid phone required' };
+    const user = this.getUser(norm);
+    if (!user) return { success: false, error: 'USER_NOT_FOUND', message: 'Account not found' };
+    if (user.casino_bonus_claimed) {
+      return { success: false, error: 'ALREADY_CLAIMED', message: 'KES 100 Casino Bonus has already been claimed for this account.' };
+    }
+
+    const turnover = this.getTotalTurnover(norm);
+    if (turnover < 500) {
+      return {
+        success: false,
+        error: 'INSUFFICIENT_TURNOVER',
+        turnover,
+        required: 500,
+        message: `You need KES 500 total stakes to unlock this bonus. Current progress: KES ${turnover.toFixed(2)} / 500.00`
+      };
+    }
+
+    const now = Date.now();
+    const ref = `CASINO_BONUS_100_${norm}_${now}`;
+    
+    const updateStmt = db.prepare('UPDATE users SET real_balance = real_balance + 100, casino_bonus_claimed = 1 WHERE phone = ?');
+    updateStmt.run(norm);
+
+    const depStmt = db.prepare(`
+      INSERT INTO deposits (reference, phone, amount, status, receipt_number, created_at, completed_at)
+      VALUES (?, ?, 100, 'SUCCESS', 'CASINO_BONUS_100', ?, ?)
+    `);
+    depStmt.run(ref, norm, now, now);
+
+    const updated = this.getUser(norm);
+    return {
+      success: true,
+      amount: 100,
+      realBalance: parseFloat(updated.real_balance || 0),
+      message: '🎰 Awesome! KES 100.00 Casino Bonus Freebet credited to your wallet!'
+    };
   },
 
   updateBalance(phone, mode, delta) {
@@ -432,21 +507,25 @@ const DatabaseService = {
 
   // --- WITHDRAWALS & AUTOMATED RISK ENGINE (NotebookLM Blueprint) ---
 
-  createWithdrawal(phone, amount, reference, status = 'PROCESSING', riskScore = 0, riskReason = '') {
+  createWithdrawal(phone, amount, reference, status = 'PROCESSING', riskScore = 0, riskReason = '', taxAmount = 0, netAmount = null) {
     const norm = normalizePhone(phone);
     const user = this.getUser(norm);
     const userId = user ? user.id : null;
     const now = Date.now();
+    const net = (netAmount !== null) ? netAmount : Math.max(0, Math.round((amount - taxAmount) * 100) / 100);
+    const tax = Math.round(taxAmount * 100) / 100;
     const stmt = db.prepare(`
-      INSERT INTO withdrawals (user_id, phone, amount, reference, status, risk_score, risk_reason, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO withdrawals (user_id, phone, amount, tax_amount, net_amount, reference, status, risk_score, risk_reason, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(userId, norm, amount, reference, status, riskScore, riskReason, now);
+    stmt.run(userId, norm, amount, tax, net, reference, status, riskScore, riskReason, now);
 
     return {
       reference,
       phone: norm,
-      amount,
+      grossAmount: amount,
+      taxAmount: tax,
+      netAmount: net,
       status,
       riskScore,
       riskReason,

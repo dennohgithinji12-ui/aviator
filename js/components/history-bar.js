@@ -91,9 +91,13 @@ export class HistoryBarComponent {
   }
 
   renderHistoryTable() {
-    // 1. Populate Compact Grid View (Screenshot 2)
-    const grid = document.getElementById('round-history-grid');
-    if (grid) {
+    // 1. Populate Compact Grid View and Dropdown Grid (Screenshot 2 & 3)
+    const grids = [
+      document.getElementById('round-history-grid'),
+      document.getElementById('round-history-dropdown-grid')
+    ].filter(Boolean);
+
+    grids.forEach(grid => {
       grid.innerHTML = '';
       this.history.slice(0, 40).forEach((item) => {
         const pill = document.createElement('button');
@@ -107,7 +111,7 @@ export class HistoryBarComponent {
         });
         grid.appendChild(pill);
       });
-    }
+    });
 
     // 2. Populate Detailed Table View
     const tbody = document.getElementById('round-history-tbody');
