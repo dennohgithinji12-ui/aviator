@@ -538,15 +538,15 @@ const server = http.createServer((req, res) => {
           phone = '254' + phone;
         }
 
-        // Minimum deposit validation (Min 10 KES matching Screenshot 1)
-        if (isNaN(amount) || amount < 10) {
+        // Minimum deposit validation (Min 49 Bob per PayHero policy)
+        if (isNaN(amount) || amount < 49) {
           res.writeHead(400, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           });
           return res.end(JSON.stringify({
             success: false,
-            error: 'Minimum deposit is KES 10.00. Please enter 10 KES or more.'
+            error: 'Minimum deposit is KES 49.00 (49 Bob). Please enter 49 KES or more.'
           }));
         }
 

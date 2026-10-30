@@ -2293,7 +2293,7 @@ class AviatorApp {
 
     // Freebets & Promos View All & Claim Actions
     const btnViewFreebets = document.getElementById('wallet-btn-view-freebets');
-    const freeBetsModal = document.getElementById('free-bets-modal') || document.getElementById('freebets-modal');
+    // Note: freeBetsModal is already scoped from line 1820 above
     if (btnViewFreebets && freeBetsModal) {
       btnViewFreebets.addEventListener('click', () => {
         this.updatePromosDisplay();
