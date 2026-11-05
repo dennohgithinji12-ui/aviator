@@ -1,4 +1,6 @@
 node_modules/
+.next/
+.impeccable/
 .DS_Store
 Thumbs.db
 *.log
@@ -11,4 +13,3 @@ android/.gradle/
 android/build/
 android/app/build/
 New folder (5)/
-

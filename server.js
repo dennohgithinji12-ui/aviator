@@ -276,6 +276,16 @@ const server = http.createServer((req, res) => {
     pathname = parsedUrl.pathname;
   }
 
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '600'
+    });
+    return res.end();
+  }
+
   // Request logger for active visibility
   res.on('finish', () => {
     if (pathname !== '/api/round-state') {
@@ -608,7 +618,7 @@ const server = http.createServer((req, res) => {
               provider: 'm-pesa',
               external_reference: reference,
               customer_name: data.customerName || 'Aviator Pilot',
-              callback_url: `http://${req.headers.host}/api/payhero/callback`
+              callback_url: `${process.env.PUBLIC_BASE_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`}/api/payhero/callback`
             });
 
             const phJson = phRes.body || {};
