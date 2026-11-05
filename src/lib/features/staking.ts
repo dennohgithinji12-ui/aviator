@@ -154,20 +154,20 @@ export class StakingTerminalManager {
   }
 
   set balance(val: number) {
-    const num = Math.max(0, parseFloat(val) || 0);
+    const num: number = Math.max(0, parseFloat(String(val)) || 0);
     if (this.gameMode === 'REAL') {
       this.realBalance = num;
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('shiftstack_real_balance', this.realBalance.toString());
+        localStorage.setItem('shiftstack_real_balance', String(this.realBalance));
       }
     } else {
       this.demoBalance = num;
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('shiftstack_demo_balance', this.demoBalance.toString());
+        localStorage.setItem('shiftstack_demo_balance', String(this.demoBalance));
       }
     }
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('shiftstack_user_balance', num.toString());
+      localStorage.setItem('shiftstack_user_balance', String(num));
     }
     if (this.onBalanceChange) {
       this.onBalanceChange(this.balance, this.gameMode);
@@ -178,7 +178,7 @@ export class StakingTerminalManager {
     this.gameMode = (newMode === 'REAL') ? 'REAL' : 'DEMO';
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('shiftstack_game_mode', this.gameMode);
-      localStorage.setItem('shiftstack_user_balance', this.balance.toString());
+      localStorage.setItem('shiftstack_user_balance', String(this.balance));
     }
     if (this.onBalanceChange) {
       this.onBalanceChange(this.balance, this.gameMode);
@@ -243,7 +243,8 @@ export class StakingTerminalManager {
   async syncWalletWithServer(): Promise<void> {
     if (!this.userPhone || typeof fetch === 'undefined') return;
     try {
-      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(this.userPhone)}&_t=${Date.now()}`, {
+      const timestamp = String(Date.now());
+      const res = await fetch(`/api/wallet?phone=${encodeURIComponent(this.userPhone)}&_t=${timestamp}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
@@ -263,12 +264,12 @@ export class StakingTerminalManager {
   saveBalance(): void {
     const num = this.balance;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('shiftstack_user_balance', num.toString());
+      localStorage.setItem('shiftstack_user_balance', String(num));
       if (this.userPhone) {
-        localStorage.setItem(`shiftstack_real_balance_${this.userPhone}`, this.realBalance.toString());
-        localStorage.setItem(`shiftstack_demo_balance_${this.userPhone}`, this.demoBalance.toString());
+        localStorage.setItem(`shiftstack_real_balance_${this.userPhone}`, String(this.realBalance));
+        localStorage.setItem(`shiftstack_demo_balance_${this.userPhone}`, String(this.demoBalance));
       } else {
-        localStorage.setItem('shiftstack_demo_balance_guest', this.demoBalance.toString());
+        localStorage.setItem('shiftstack_demo_balance_guest', String(this.demoBalance));
       }
     }
   }

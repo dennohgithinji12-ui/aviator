@@ -1,8 +1,156 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { FlightCanvas } from './FlightCanvas';
+import { DualBettingTerminals } from './DualBettingTerminals';
+import { LiveStakers } from './LiveStakers';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface TerminalState {
+  amount: number;
+  mode: 'manual' | 'auto';
+  autoStakeEnabled: boolean;
+  autoCashoutEnabled: boolean;
+  autoCashoutMultiplier: number;
+  staked: boolean;
+  cashedOut: boolean;
+}
 
 export function AviatorConsole() {
+  const { user, isAuthenticated, login, signup, logout, updateBalance } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [gameState, setGameState] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
+  const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
+  const [balance, setBalance] = useState(user?.realBalance || 50000);
+  const [terminal2Visible, setTerminal2Visible] = useState(false);
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>(isAuthenticated ? 'REAL' : 'DEMO');
+
+  // Update balance when user changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      setBalance(user.realBalance);
+      setGameMode('REAL');
+    } else {
+      setBalance(50000);
+      setGameMode('DEMO');
+    }
+  }, [isAuthenticated, user]);
+
+  const [terminal1, setTerminal1] = useState<TerminalState>({
+    amount: 10,
+    mode: 'manual',
+    autoStakeEnabled: false,
+    autoCashoutEnabled: false,
+    autoCashoutMultiplier: 2.0,
+    staked: false,
+    cashedOut: false
+  });
+
+  const [terminal2, setTerminal2] = useState<TerminalState>({
+    amount: 10,
+    mode: 'manual',
+    autoStakeEnabled: false,
+    autoCashoutEnabled: false,
+    autoCashoutMultiplier: 1.5,
+    staked: false,
+    cashedOut: false
+  });
+
+  // Fetch round state from API
+  useEffect(() => {
+    const fetchRoundState = async () => {
+      try {
+        const response = await fetch('/api/round-state');
+        const data = await response.json();
+        setGameState(data.state);
+        setCurrentMultiplier(data.crashMultiplier);
+      } catch (error) {
+        console.error('Failed to fetch round state:', error);
+      }
+    };
+
+    fetchRoundState();
+    const interval = setInterval(fetchRoundState, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  const [roundNonce, setRoundNonce] = useState(0);
+  const [countdownSeconds, setCountdownSeconds] = useState(5);
+
+  // Track round nonce for stakers
+  useEffect(() => {
+    if (gameState === 'WAITING') {
+      setRoundNonce(prev => prev + 1);
+      setCountdownSeconds(5);
+    }
+  }, [gameState]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (gameState === 'WAITING' && countdownSeconds > 0) {
+      const timer = setInterval(() => {
+        setCountdownSeconds(prev => Math.max(0, prev - 0.1));
+      }, 100);
+      return () => clearInterval(timer);
+    }
+  }, [gameState, countdownSeconds]);
+
+  const handleTerminal1Bet = (amount: number) => {
+    if (balance >= amount && gameState === 'WAITING') {
+      setBalance(balance - amount);
+      setTerminal1({ ...terminal1, staked: true, amount });
+    }
+  };
+
+  const handleTerminal2Bet = (amount: number) => {
+    if (balance >= amount && gameState === 'WAITING') {
+      setBalance(balance - amount);
+      setTerminal2({ ...terminal2, staked: true, amount });
+    }
+  };
+
+  const handleTerminal1Cashout = () => {
+    if (terminal1.staked && !terminal1.cashedOut) {
+      const payout = terminal1.amount * currentMultiplier;
+      setBalance(balance + payout);
+      setTerminal1({ ...terminal1, cashedOut: true });
+    }
+  };
+
+  const handleTerminal2Cashout = () => {
+    if (terminal2.staked && !terminal2.cashedOut) {
+      const payout = terminal2.amount * currentMultiplier;
+      setBalance(balance + payout);
+      setTerminal2({ ...terminal2, cashedOut: true });
+    }
+  };
+
+  const handleTerminal1Cancel = () => {
+    if (terminal1.staked && !terminal1.cashedOut && gameState === 'WAITING') {
+      setBalance(balance + terminal1.amount);
+      setTerminal1({ ...terminal1, staked: false });
+    }
+  };
+
+  const handleTerminal2Cancel = () => {
+    if (terminal2.staked && !terminal2.cashedOut && gameState === 'WAITING') {
+      setBalance(balance + terminal2.amount);
+      setTerminal2({ ...terminal2, staked: false });
+    }
+  };
+
+  // Reset terminals on crash
+  useEffect(() => {
+    if (gameState === 'CRASHED') {
+      setTimeout(() => {
+        setTerminal1({ ...terminal1, staked: false, cashedOut: false });
+        setTerminal2({ ...terminal2, staked: false, cashedOut: false });
+      }, 3000);
+    }
+  }, [gameState]);
+
   return (
     <section className="view-section active" id="view-terminal">
       {/* Top Go Back & Fullscreen Header */}
@@ -54,7 +202,9 @@ export function AviatorConsole() {
         {/* Main Flight Stage */}
         <div className="console-main-stage">
           {/* FUN MODE Banner */}
-          <div className="shiftstack-fun-banner kessbet-fun-banner">FUN MODE</div>
+          <div className={`shiftstack-fun-banner ${gameMode === 'DEMO' ? 'kessbet-fun-banner' : 'kessbet-real-banner'}`}>
+            {gameMode === 'DEMO' ? 'FUN MODE' : 'REAL MODE'}
+          </div>
 
           {/* Flight Canvas Component */}
           <FlightCanvas />
@@ -91,7 +241,15 @@ export function AviatorConsole() {
           </div>
 
           {/* Real Mode Badge */}
-          <span className="badge-real-mode" id="btn-real-mode-toggle" title="Switch between Fun Mode and Real Mode">Real &gt;</span>
+          {isAuthenticated ? (
+            <span className="badge-real-mode" id="btn-real-mode-toggle" title="Switch between Fun Mode and Real Mode" onClick={() => setGameMode(gameMode === 'REAL' ? 'DEMO' : 'REAL')}>
+              {gameMode === 'REAL' ? 'Demo &gt;' : 'Real &gt;'}
+            </span>
+          ) : (
+            <span className="badge-real-mode" id="btn-login-toggle" title="Login to play for real money" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>
+              Login &gt;
+            </span>
+          )}
 
           {/* Real Mode Deposit Alert */}
           <div id="real-mode-deposit-alert" className="real-mode-deposit-alert" style={{ display: 'none' }}>
@@ -108,14 +266,50 @@ export function AviatorConsole() {
           </button>
 
           {/* Dual Betting Terminals */}
-          <div className="dual-betting-terminals" id="dual-terminals-wrapper">
-            {/* Terminal 1 and 2 will be added here */}
-            <p style={{ padding: '20px', textAlign: 'center', color: '#8c9ba5' }}>
-              Betting terminals will be integrated here
-            </p>
-          </div>
+          <DualBettingTerminals
+            terminal1={terminal1}
+            terminal2={terminal2}
+            terminal2Visible={terminal2Visible}
+            balance={balance}
+            gameState={gameState}
+            currentMultiplier={currentMultiplier}
+            onTerminal1Change={(state) => setTerminal1({ ...terminal1, ...state })}
+            onTerminal2Change={(state) => setTerminal2({ ...terminal2, ...state })}
+            onTerminal1Bet={handleTerminal1Bet}
+            onTerminal2Bet={handleTerminal2Bet}
+            onTerminal1Cashout={handleTerminal1Cashout}
+            onTerminal2Cashout={handleTerminal2Cashout}
+            onTerminal1Cancel={handleTerminal1Cancel}
+            onTerminal2Cancel={handleTerminal2Cancel}
+            onToggleTerminal2={() => setTerminal2Visible(!terminal2Visible)}
+          />
         </div>
+
+        {/* LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar */}
+        <LiveStakers
+          terminal1Staked={terminal1.staked}
+          terminal1Amount={terminal1.amount}
+          terminal1CashedOut={terminal1.cashedOut}
+          terminal1AutoCashoutMultiplier={terminal1.autoCashoutMultiplier}
+          terminal2Staked={terminal2.staked}
+          terminal2Amount={terminal2.amount}
+          terminal2CashedOut={terminal2.cashedOut}
+          terminal2AutoCashoutMultiplier={terminal2.autoCashoutMultiplier}
+          gameState={gameState}
+          currentMultiplier={currentMultiplier}
+          countdownSeconds={countdownSeconds}
+          roundNonce={roundNonce}
+        />
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={login}
+        onSignup={signup}
+        mode={authMode}
+      />
     </section>
   );
 }

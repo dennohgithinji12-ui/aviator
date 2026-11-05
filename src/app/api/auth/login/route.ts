@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/db/operations';
+import { generateToken } from '@/lib/auth';
+import { verifyPassword } from '@/lib/password';
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
     const phone = data.phone;
-    const passwordHash = data.passwordHash;
+    const password = data.password;
 
     if (!phone) {
       return NextResponse.json({
@@ -22,15 +24,33 @@ export async function POST(req: NextRequest) {
       }, { status: 404 });
     }
 
-    if (user.passwordHash && passwordHash && user.passwordHash !== passwordHash) {
-      return NextResponse.json({
-        success: false,
-        error: 'Incorrect password'
-      }, { status: 401 });
+    // Verify password if user has one set
+    if (user.passwordHash) {
+      if (!password) {
+        return NextResponse.json({
+          success: false,
+          error: 'Password is required'
+        }, { status: 400 });
+      }
+
+      const isValid = await verifyPassword(password, user.passwordHash);
+      if (!isValid) {
+        return NextResponse.json({
+          success: false,
+          error: 'Incorrect password'
+        }, { status: 401 });
+      }
     }
+
+    const token = generateToken({
+      userId: user.id,
+      phone: user.phone,
+      username: user.username || undefined
+    });
 
     return NextResponse.json({
       success: true,
+      token,
       user: {
         id: user.id,
         phone: user.phone,

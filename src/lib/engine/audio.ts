@@ -408,32 +408,32 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
 
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.85);
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const bufferSize = Math.floor(this.ctx!.sampleRate * 0.85);
+    const noiseBuffer = this.ctx!.createBuffer(1, bufferSize, this.ctx!.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
       output[i] = (Math.random() * 2 - 1) * 0.85;
     }
 
-    const noiseSource = this.ctx.createBufferSource();
+    const noiseSource = this.ctx!.createBufferSource();
     noiseSource.buffer = noiseBuffer;
 
-    const bandpass = this.ctx.createBiquadFilter();
+    const bandpass = this.ctx!.createBiquadFilter();
     bandpass.type = 'bandpass';
     bandpass.Q.setValueAtTime(4.2, t);
     bandpass.frequency.setValueAtTime(2200, t);
     bandpass.frequency.exponentialRampToValueAtTime(110, t + 0.78);
 
-    const noiseGain = this.ctx.createGain();
+    const noiseGain = this.ctx!.createGain();
     noiseGain.gain.setValueAtTime(0.001, t);
     noiseGain.gain.linearRampToValueAtTime(0.48, t + 0.05);
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.80);
 
     let panner: StereoPannerNode | null = null;
-    if (typeof this.ctx.createStereoPanner === 'function') {
-      panner = this.ctx.createStereoPanner();
+    if (typeof this.ctx!.createStereoPanner === 'function') {
+      panner = this.ctx!.createStereoPanner();
       panner.pan.setValueAtTime(0.0, t);
       panner.pan.linearRampToValueAtTime(0.85, t + 0.65);
     }
@@ -442,22 +442,22 @@ export class SoundEngine {
     bandpass.connect(noiseGain);
     if (panner) {
       noiseGain.connect(panner);
-      panner.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+      panner.connect(this.sfxGain || this.masterGain || this.ctx!.destination);
     } else {
-      noiseGain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+      noiseGain.connect(this.sfxGain || this.masterGain || this.ctx!.destination);
     }
 
     noiseSource.start(t);
     noiseSource.stop(t + 0.85);
 
-    const glideOsc = this.ctx.createOscillator();
-    const glideGain = this.ctx.createGain();
+    const glideOsc = this.ctx!.createOscillator();
+    const glideGain = this.ctx!.createGain();
 
     glideOsc.type = 'sawtooth';
     glideOsc.frequency.setValueAtTime(460, t);
     glideOsc.frequency.exponentialRampToValueAtTime(65, t + 0.70);
 
-    const glideFilter = this.ctx.createBiquadFilter();
+    const glideFilter = this.ctx!.createBiquadFilter();
     glideFilter.type = 'lowpass';
     glideFilter.frequency.setValueAtTime(1100, t);
     glideFilter.frequency.exponentialRampToValueAtTime(90, t + 0.70);
@@ -468,13 +468,7 @@ export class SoundEngine {
 
     glideOsc.connect(glideFilter);
     glideFilter.connect(glideGain);
-    if (this.sfxGain) {
-      glideGain.connect(this.sfxGain);
-    } else if (this.masterGain) {
-      glideGain.connect(this.masterGain);
-    } else {
-      glideGain.connect(this.ctx.destination);
-    }
+    this.connectToDestination(glideGain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
     glideOsc.start(t);
     glideOsc.stop(t + 0.75);
@@ -484,12 +478,25 @@ export class SoundEngine {
     this.playFlewAway();
   }
 
+  private connectToDestination(source: AudioNode, destination: AudioNode | AudioDestinationNode | null): void {
+    if (destination) {
+      source.connect(destination);
+    }
+  }
+
+  private getDestination(): AudioNode | AudioDestinationNode {
+    if (!this.ctx) {
+      this.initContext();
+    }
+    return this.sfxGain || this.masterGain || this.ctx!.destination;
+  }
+
   playCashout(): void {
     if (this.soundMuted || !this.isUserViewingApp()) return;
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
 
     const bellPings = [
       { freq: 1479.98, delay: 0.00, dur: 0.65 },
@@ -499,8 +506,8 @@ export class SoundEngine {
     bellPings.forEach(({ freq, delay, dur }) => {
       const pingTime = t + delay;
 
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, pingTime);
 
@@ -508,8 +515,8 @@ export class SoundEngine {
       gain.gain.linearRampToValueAtTime(0.38, pingTime + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, pingTime + dur);
 
-      const overtone1 = this.ctx.createOscillator();
-      const overtone1Gain = this.ctx.createGain();
+      const overtone1 = this.ctx!.createOscillator();
+      const overtone1Gain = this.ctx!.createGain();
       overtone1.type = 'triangle';
       overtone1.frequency.setValueAtTime(freq * 2.0, pingTime);
 
@@ -517,8 +524,8 @@ export class SoundEngine {
       overtone1Gain.gain.linearRampToValueAtTime(0.14, pingTime + 0.010);
       overtone1Gain.gain.exponentialRampToValueAtTime(0.0001, pingTime + dur * 0.55);
 
-      const overtone2 = this.ctx.createOscillator();
-      const overtone2Gain = this.ctx.createGain();
+      const overtone2 = this.ctx!.createOscillator();
+      const overtone2Gain = this.ctx!.createGain();
       overtone2.type = 'sine';
       overtone2.frequency.setValueAtTime(freq * 3.01, pingTime);
 
@@ -530,10 +537,10 @@ export class SoundEngine {
       overtone1.connect(overtone1Gain);
       overtone2.connect(overtone2Gain);
 
-      const destination = this.sfxGain || this.masterGain || this.ctx.destination;
-      gain.connect(destination);
-      overtone1Gain.connect(destination);
-      overtone2Gain.connect(destination);
+      const destination = this.sfxGain || this.masterGain || this.ctx!.destination;
+      this.connectToDestination(gain, destination);
+      this.connectToDestination(overtone1Gain, destination);
+      this.connectToDestination(overtone2Gain, destination);
 
       osc.start(pingTime);
       osc.stop(pingTime + dur);
@@ -549,12 +556,12 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
     const isFinal = secondsLeft <= 1;
 
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
+    const osc = this.ctx!.createOscillator();
+    const gain = this.ctx!.createGain();
+    const filter = this.ctx!.createBiquadFilter();
 
     if (isFinal) {
       osc.type = 'sine';
@@ -566,8 +573,7 @@ export class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
 
       osc.connect(gain);
-      const destination = this.sfxGain || this.masterGain || this.ctx.destination;
-      gain.connect(destination);
+      this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
       osc.start(t);
       osc.stop(t + 0.075);
@@ -586,8 +592,7 @@ export class SoundEngine {
 
       osc.connect(filter);
       filter.connect(gain);
-      const destination = this.sfxGain || this.masterGain || this.ctx.destination;
-      gain.connect(destination);
+      this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
       osc.start(t);
       osc.stop(t + 0.042);
@@ -599,10 +604,10 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const filter = this.ctx.createBiquadFilter();
-    const gain = this.ctx.createGain();
+    const t = this.ctx!.currentTime;
+    const osc = this.ctx!.createOscillator();
+    const filter = this.ctx!.createBiquadFilter();
+    const gain = this.ctx!.createGain();
 
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(95, t);
@@ -618,7 +623,7 @@ export class SoundEngine {
 
     osc.connect(filter);
     filter.connect(gain);
-    gain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+    this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
     osc.start(t);
     osc.stop(t + 0.40);
@@ -629,12 +634,12 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
 
     [0.0, 0.024].forEach((delay, idx) => {
       const pingTime = t + delay;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
 
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(idx === 0 ? 1650 : 640, pingTime);
@@ -644,7 +649,7 @@ export class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, pingTime + 0.025);
 
       osc.connect(gain);
-      gain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+      this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
       osc.start(pingTime);
       osc.stop(pingTime + 0.03);
@@ -660,11 +665,11 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
 
     if (tier === 2.0) {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(1760, t);
       gain.gain.setValueAtTime(0.001, t);
@@ -672,15 +677,15 @@ export class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
 
       osc.connect(gain);
-      gain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+      this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
       osc.start(t);
       osc.stop(t + 0.36);
     } else if (tier >= 10.0) {
       const notes = [1046.50, 1318.51, 1567.98];
       notes.forEach((freq, idx) => {
         const pingTime = t + (idx * 0.08);
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, pingTime);
         gain.gain.setValueAtTime(0.001, pingTime);
@@ -688,7 +693,7 @@ export class SoundEngine {
         gain.gain.exponentialRampToValueAtTime(0.0001, pingTime + 0.50);
 
         osc.connect(gain);
-        gain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+        this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
         osc.start(pingTime);
         osc.stop(pingTime + 0.52);
       });
@@ -700,13 +705,13 @@ export class SoundEngine {
     this.initContext();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    const t = this.ctx!.currentTime;
     const notes = [1046.50, 1318.51, 1567.98, 2093.00];
 
     notes.forEach((freq, idx) => {
       const noteTime = t + (idx * 0.065);
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, noteTime);
@@ -716,7 +721,7 @@ export class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.45);
 
       osc.connect(gain);
-      gain.connect(this.sfxGain || this.masterGain || this.ctx.destination);
+      this.connectToDestination(gain, this.sfxGain || this.masterGain || this.ctx!.destination);
 
       osc.start(noteTime);
       osc.stop(noteTime + 0.48);
@@ -744,12 +749,12 @@ export class SoundEngine {
 
       const { bass, chord } = progression[chordIdx % progression.length];
       chordIdx++;
-      const t = this.ctx.currentTime;
+      const t = this.ctx!.currentTime;
       const duration = 3.6;
 
-      const bassOsc = this.ctx.createOscillator();
-      const bassGain = this.ctx.createGain();
-      const bassFilter = this.ctx.createBiquadFilter();
+      const bassOsc = this.ctx!.createOscillator();
+      const bassGain = this.ctx!.createGain();
+      const bassFilter = this.ctx!.createBiquadFilter();
 
       bassOsc.type = 'sine';
       bassOsc.frequency.setValueAtTime(bass, t);
@@ -763,15 +768,16 @@ export class SoundEngine {
 
       bassOsc.connect(bassFilter);
       bassFilter.connect(bassGain);
-      bassGain.connect(this.musicGain || this.masterGain || this.ctx.destination);
+      const musicDestination = this.musicGain || this.masterGain || this.ctx!.destination;
+      this.connectToDestination(bassGain, musicDestination);
 
       bassOsc.start(t);
       bassOsc.stop(t + duration);
 
       chord.forEach(freq => {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const filter = this.ctx.createBiquadFilter();
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        const filter = this.ctx!.createBiquadFilter();
 
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, t);
@@ -787,7 +793,7 @@ export class SoundEngine {
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(this.musicGain || this.masterGain || this.ctx.destination);
+        this.connectToDestination(gain, musicDestination);
 
         osc.start(t);
         osc.stop(t + duration);
