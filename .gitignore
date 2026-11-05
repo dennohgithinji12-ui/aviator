@@ -3,6 +3,7 @@ node_modules/
 Thumbs.db
 *.log
 .env
+.env.local
 data/
 *.db
 *.mp4
@@ -11,4 +12,7 @@ android/.gradle/
 android/build/
 android/app/build/
 New folder (5)/
+.next/
 
+
+/generated/prisma

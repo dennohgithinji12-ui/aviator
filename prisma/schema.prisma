@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                     Int       @id @default(autoincrement())
+  firebaseUid            String?   @unique
+  phone                  String    @unique
+  username               String?
+  passwordHash           String?
+  realBalance            Decimal   @default(0) @db.Decimal(10, 2)
+  demoBalance            Decimal   @default(50000) @db.Decimal(10, 2)
+  createdAt              BigInt
+  lastLogin              BigInt?
+  signupBonusClaimed     Boolean   @default(false)
+  casinoBonusClaimed     Boolean   @default(false)
+
+  deposits               Deposit[]
+  bets                   Bet[]
+  withdrawals            Withdrawal[]
+  passwordResets         PasswordReset[]
+  stkAttempts            StkAttempt[]
+
+  @@index([phone])
+}
+
+model Deposit {
+  id             Int      @id @default(autoincrement())
+  reference      String   @unique
+  phone          String
+  amount         Decimal  @db.Decimal(10, 2)
+  status         String
+  receiptNumber  String?
+  createdAt      BigInt
+  completedAt   BigInt?
+  user           User     @relation(fields: [phone], references: [phone])
+
+  @@index([reference])
+  @@index([phone])
+}
+
+model Bet {
+  id               Int      @id @default(autoincrement())
+  phone            String
+  mode             String
+  terminalId       Int
+  amount           Decimal  @db.Decimal(10, 2)
+  roundNonce       Int
+  cashedOut        Int      @default(0)
+  multiplier       Decimal  @default(0) @db.Decimal(10, 2)
+  payout           Decimal  @default(0) @db.Decimal(10, 2)
+  profit           Decimal  @default(0) @db.Decimal(10, 2)
+  status           String   @default("ACTIVE")
+  createdAt        BigInt
+  user             User     @relation(fields: [phone], references: [phone])
+
+  @@index([phone])
+}
+
+model Withdrawal {
+  id           Int      @id @default(autoincrement())
+  userId       Int?
+  phone        String
+  amount       Decimal  @db.Decimal(10, 2)
+  taxAmount    Decimal  @default(0) @db.Decimal(10, 2)
+  netAmount    Decimal  @default(0) @db.Decimal(10, 2)
+  taxRate      Decimal  @default(0.05) @db.Decimal(10, 2)
+  reference    String   @unique
+  status       String
+  riskScore    Int      @default(0)
+  riskReason   String?
+  createdAt    BigInt
+  completedAt  BigInt?
+  user         User     @relation(fields: [phone], references: [phone])
+
+  @@index([phone])
+  @@index([reference])
+}
+
+model PasswordReset {
+  id        Int   @id @default(autoincrement())
+  phone     String
+  timestamp BigInt
+  user      User  @relation(fields: [phone], references: [phone])
+
+  @@index([phone, timestamp])
+}
+
+model StkAttempt {
+  id        Int      @id @default(autoincrement())
+  phone     String
+  status    String
+  timestamp BigInt
+  user      User     @relation(fields: [phone], references: [phone])
+
+  @@index([phone, timestamp])
+}

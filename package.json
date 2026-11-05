@@ -4,11 +4,49 @@
   "description": "ShiftStack Aviator Staking Simulator - Authentic crash mechanics, round staking, liquidity vault, and provably fair engine",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx prisma/seed.ts",
     "sync:apk": "node -e \"const fs=require('fs'); fs.cpSync('prediction-apk', 'prediction apk', {recursive:true}); console.log('✓ Synced prediction-apk -> prediction apk');\""
   },
-  "keywords": ["aviator", "staking", "shiftstack", "crash-simulator", "provably-fair"],
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "keywords": [
+    "aviator",
+    "staking",
+    "shiftstack",
+    "crash-simulator",
+    "provably-fair"
+  ],
   "author": "ShiftStack Staking Protocol",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dennohgithinji12-ui/aviator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dennohgithinji12-ui/aviator/issues"
+  },
+  "homepage": "https://github.com/dennohgithinji12-ui/aviator#readme",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "next": "^16.4.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
 }
