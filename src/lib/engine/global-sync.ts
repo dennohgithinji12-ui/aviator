@@ -134,7 +134,6 @@ export class GlobalRoundSyncEngine {
   EPOCH_BASE: number;
   COUNTDOWN_DURATION: number;
   CRASHED_PAUSE_DURATION: number;
-  MASTER_SECRET: string;
   PUBLIC_CLIENT_SEED: string;
   clockOffset: number;
   lastState: RoundState | null;
@@ -144,7 +143,6 @@ export class GlobalRoundSyncEngine {
     this.EPOCH_BASE = options.epochBase || 1727180000000;
     this.COUNTDOWN_DURATION = 5.0;
     this.CRASHED_PAUSE_DURATION = 3.0;
-    this.MASTER_SECRET = 'shiftstack_aviator_provably_fair_master_chain_2026';
     this.PUBLIC_CLIENT_SEED = 'global_aviator_network_shared_seed_100x';
     this.clockOffset = 0;
     this.lastState = null;
@@ -157,7 +155,7 @@ export class GlobalRoundSyncEngine {
     }
 
     this.initServerSync();
-    setInterval(() => this.initServerSync(), 30000);
+    setInterval(() => this.initServerSync(), 200);
 
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
@@ -189,38 +187,9 @@ export class GlobalRoundSyncEngine {
   }
 
   computeClientPhase(serverState: RoundState): RoundState {
-    const adjustedTime = Date.now() + this.clockOffset;
-    const elapsedInRoundMs = adjustedTime - serverState.roundStartTime;
-    const countdownDurationMs = this.COUNTDOWN_DURATION * 1000;
-    const flightDurationMs = serverState.flightDuration * 1000;
-
-    let phase: 'WAITING' | 'FLYING' | 'CRASHED' = 'WAITING';
-    let remainingSeconds = 0;
-    let elapsedFlightSeconds = 0;
-    let currentMultiplier = 1.00;
-
-    if (elapsedInRoundMs < countdownDurationMs) {
-      phase = 'WAITING';
-      remainingSeconds = (countdownDurationMs - elapsedInRoundMs) / 1000;
-    } else if (elapsedInRoundMs < countdownDurationMs + flightDurationMs) {
-      phase = 'FLYING';
-      elapsedFlightSeconds = (elapsedInRoundMs - countdownDurationMs) / 1000;
-      currentMultiplier = Math.min(
-        serverState.crashMultiplier,
-        this.computeMultiplierFromTime(elapsedFlightSeconds)
-      );
-    } else {
-      phase = 'CRASHED';
-      currentMultiplier = serverState.crashMultiplier;
-    }
-
-    return {
-      ...serverState,
-      phase,
-      currentMultiplier,
-      remainingSeconds: Math.max(0, remainingSeconds),
-      elapsedFlightSeconds: Math.max(0, elapsedFlightSeconds)
-    };
+    // Round phase and multiplier are server-authoritative. Reconstructing them
+    // in the browser would require sending the unrevealed crash outcome.
+    return serverState;
   }
 
   computeMultiplierFromTime(t: number): number {

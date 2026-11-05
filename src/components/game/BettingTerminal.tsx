@@ -57,7 +57,7 @@ export function BettingTerminal({
   };
 
   const handleStep = (delta: number) => {
-    const newAmount = Math.max(10, localAmount + delta);
+    const newAmount = Math.max(100, localAmount + delta);
     setLocalAmount(newAmount);
     onAmountChange(terminalId, newAmount);
   };
@@ -74,7 +74,7 @@ export function BettingTerminal({
     onCancel(terminalId);
   };
 
-  const isDisabled = gameState === 'CRASHED' || balance < localAmount;
+  const isDisabled = gameState !== 'WAITING' || balance < localAmount;
   const canCashout = staked && !cashedOut && gameState === 'FLYING';
   const canCancel = staked && !cashedOut && gameState === 'WAITING';
 
@@ -115,7 +115,7 @@ export function BettingTerminal({
                 <button
                   className="btn-step btn-step-minus"
                   title="Decrease stake"
-                  onClick={() => handleStep(-10)}
+                  onClick={() => handleStep(-100)}
                 >
                   −
                 </button>
@@ -124,14 +124,14 @@ export function BettingTerminal({
                     type="number"
                     className="terminal-stake-input"
                     value={localAmount}
-                    min="10"
+                    min="100"
                     max="100000"
-                    step="10"
+                    step="100"
                     title="Stake Amount"
                     aria-label="Stake Amount"
                     placeholder="10.00"
                     onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
+                      const val = parseFloat(e.target.value) || 100;
                       setLocalAmount(val);
                       onAmountChange(terminalId, val);
                     }}
@@ -141,7 +141,7 @@ export function BettingTerminal({
                 <button
                   className="btn-step btn-step-plus"
                   title="Increase stake"
-                  onClick={() => handleStep(10)}
+                  onClick={() => handleStep(100)}
                 >
                   +
                 </button>

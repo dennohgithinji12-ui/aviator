@@ -2392,6 +2392,48 @@ h1, h2, h3, h4 {
   }
 }
 
+/* Operations dashboard */
+.admin-shell { min-height: 100vh; padding: 36px clamp(16px, 4vw, 56px) 60px; background: #080a10; color: #f4f5f8; }
+.admin-header, .admin-table-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.admin-header { max-width: 1320px; margin: 0 auto 30px; }
+.admin-eyebrow { color: #e8b840; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
+.admin-header h1 { margin: 8px 0; font-size: clamp(28px, 4vw, 42px); }
+.admin-header p, .admin-access-card p, .admin-table-title p { margin: 0; color: #9da3b1; }
+.admin-refresh, .admin-access-card button { border: 0; border-radius: 8px; padding: 12px 18px; color: #17130a; background: #e8b840; font-weight: 800; cursor: pointer; }
+.admin-refresh:disabled, .admin-access-card button:disabled { opacity: .65; cursor: wait; }
+.admin-access-card { width: min(100%, 440px); margin: 12vh auto; padding: 28px; border: 1px solid #262b37; border-radius: 14px; background: #11141c; }
+.admin-access-card h2 { margin: 0 0 8px; }
+.admin-access-card label { display: block; margin: 24px 0 8px; color: #c4c8d1; font-size: 13px; }
+.admin-access-card input { width: 100%; margin-bottom: 14px; border: 1px solid #343a49; border-radius: 8px; padding: 12px; color: white; background: #090b11; }
+.admin-error { margin-top: 16px; color: #ff7c88; font-size: 13px; }
+.admin-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 1320px; margin: 0 auto 22px; }
+.admin-metric, .admin-table-card { border: 1px solid #262b37; border-radius: 12px; background: #11141c; }
+.admin-metric { display: grid; gap: 12px; padding: 20px; }
+.admin-metric span, .admin-table-title > span { color: #9da3b1; font-size: 12px; }
+.admin-metric strong { font-size: clamp(17px, 2vw, 24px); overflow-wrap: anywhere; }
+.admin-table-card { max-width: 1320px; margin: 0 auto; overflow: hidden; }
+.admin-table-title { padding: 20px 22px; }
+.admin-table-title h2 { margin: 0 0 5px; font-size: 18px; }
+.admin-table-scroll { overflow-x: auto; }
+.admin-table-card table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.admin-table-card th, .admin-table-card td { padding: 13px 16px; border-top: 1px solid #252a35; text-align: left; white-space: nowrap; font-size: 13px; }
+.admin-table-card th { color: #a8aebb; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.admin-status { display: inline-block; border-radius: 20px; padding: 4px 8px; background: #252a35; color: #ccd0d8; font-size: 10px; font-weight: 800; }
+.status-won { background: #123b2d; color: #65d6a6; }.status-active { background: #3b3115; color: #f1cf6b; }.status-lost { background: #3b1d25; color: #ff8893; }
+.admin-empty { padding: 30px !important; color: #9da3b1; text-align: center !important; }
+.admin-logout { display: block; margin: 18px auto; border: 0; background: transparent; color: #a8aebb; cursor: pointer; }
+@media (max-width: 760px) { .admin-header { align-items: flex-start; flex-direction: column; }.admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.admin-metric { padding: 15px; }.admin-table-title { align-items: flex-start; flex-direction: column; } }
+.predictor-shell { min-height: 100vh; padding: 28px 16px; color: #f4f5f8; background: #080a10; }
+.predictor-back { display: block; width: min(100%, 760px); margin: 0 auto 18px; color: #c9a84c; text-decoration: none; }
+.predictor-card { width: min(100%, 760px); margin: 0 auto; padding: clamp(22px, 5vw, 42px); border: 1px solid #262b37; border-radius: 16px; background: #11141c; }
+.predictor-card h1 { margin: 10px 0; font-size: clamp(28px, 5vw, 42px); }
+.predictor-disclaimer, .predictor-note { color: #aeb4c1; line-height: 1.6; }
+.predictor-readout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 26px 0; }
+.predictor-readout div { display: grid; gap: 8px; padding: 17px; border-radius: 10px; background: #090b11; }
+.predictor-readout span { color: #939baa; font-size: 12px; }.predictor-readout strong { font-size: 22px; }
+.predictor-proof { margin: 22px 0; color: #c9a84c; }.predictor-proof code { display: block; margin-top: 10px; overflow-wrap: anywhere; color: #aeb4c1; font-size: 11px; }
+.predictor-note { border-top: 1px solid #272c38; padding-top: 18px; font-size: 13px; }
+
 /* 9. Ultra-Narrow Smartphones & Foldable Covers (320px to 360px, e.g. iPhone SE, Galaxy A-series) */
 @media (max-width: 360px) {
   .app-header {

@@ -12,6 +12,7 @@ interface Staker {
   isUser: boolean;
   terminalId?: number;
   color: string;
+  status?: string;
 }
 
 interface HistoryEntry {
@@ -64,35 +65,7 @@ export function LiveStakers({
   const [currentTab, setCurrentTab] = useState<'all' | 'my' | 'top'>('all');
   const [activeStakers, setActiveStakers] = useState<Staker[]>([]);
   const [myHistory, setMyHistory] = useState<HistoryEntry[]>([]);
-  const [topWins, setTopWins] = useState<TopWin[]>([
-    { user: 's***8', stake: 10000, multiplier: 84.50, payout: 845000, time: '3m ago' },
-    { user: 'k***2', stake: 5000, multiplier: 42.10, payout: 210500, time: '7m ago' },
-    { user: 'w***7', stake: 8000, multiplier: 24.80, payout: 198400, time: '11m ago' },
-    { user: 'o***9', stake: 2500, multiplier: 33.40, payout: 83500, time: '18m ago' },
-    { user: 'a***5', stake: 3000, multiplier: 21.05, payout: 63150, time: '26m ago' },
-    { user: 'm***4', stake: 15000, multiplier: 18.20, payout: 273000, time: '34m ago' },
-    { user: 'j***1', stake: 2000, multiplier: 67.80, payout: 135600, time: '41m ago' },
-    { user: 'b***6', stake: 6000, multiplier: 16.40, payout: 98400, time: '52m ago' }
-  ]);
-
-  const simulatedNames = [
-    'b***3', 'w***1', 'k***8', 'a***9', 'o***4',
-    'd***2', 'f***7', 'm***0', 'j***5', 'v***1',
-    'n***6', 'h***2', 'g***8', 'c***4', 'p***9',
-    'e***1', 'r***5', 't***8', 'l***2', 's***6',
-    'z***3', 'y***7', 'x***4', 'u***9', 'i***2',
-    'q***5', 'k***4', 'm***9', 'j***7', 'b***8',
-    'o***2', 'w***5', 'd***9', 'f***3', 's***1',
-    'a***4', 'c***7', 'p***2', 'v***6', 't***1',
-    'r***8', 'e***4', 'l***9', 'g***3', 'n***5',
-    'h***8', 'z***7', 'y***2', 'x***8', 'u***3'
-  ];
-
-  const avatarColors = [
-    '#e74c3c', '#3498db', '#9b59b6', '#1abc9c',
-    '#f39c12', '#2ecc71', '#e67e22', '#16a085',
-    '#2980b9', '#8e44ad', '#d35400', '#27ae60'
-  ];
+  const [topWins, setTopWins] = useState<TopWin[]>([]);
 
   const lastRoundNonce = useRef<number | null>(null);
 
@@ -102,48 +75,47 @@ export function LiveStakers({
     return 'badge-low';
   };
 
-  // Generate simulated stakers for each round
+  // Show recorded bets for the actual server round.
   useEffect(() => {
-    if (roundNonce !== lastRoundNonce.current) {
-      lastRoundNonce.current = roundNonce;
-      generateRoundStakers();
-    }
+    if (roundNonce === lastRoundNonce.current) return;
+    lastRoundNonce.current = roundNonce;
+    let active = true;
+    const loadBets = async () => {
+      try {
+        const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!active || !response.ok || !result.success) return;
+        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => ({
+          user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut: bet.status === 'WON',
+          cashedMultiplier: bet.multiplier, payout: bet.payout, isUser: false, terminalId: bet.terminalId,
+          color: bet.status === 'WON' ? '#2ecc71' : bet.status === 'LOST' ? '#e74c3c' : '#57606f', status: bet.status
+        }));
+        setActiveStakers(rows);
+        setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
+      } catch { /* The next round refresh retries. */ }
+    };
+    void loadBets();
+    return () => { active = false; };
   }, [roundNonce]);
 
-  // Simulate cashouts during flight
+  // Refresh recorded cashout state while the round is live.
   useEffect(() => {
-    if (gameState === 'FLYING') {
-      const interval = setInterval(() => {
-        setActiveStakers(prev => {
-          const updated = prev.map(staker => {
-            if (!staker.cashedOut && currentMultiplier >= staker.targetMultiplier) {
-              const cashedMultiplier = staker.targetMultiplier;
-              const payout = Math.floor(staker.stake * cashedMultiplier * 100) / 100;
-
-              if (cashedMultiplier >= 15.0 && !staker.isUser) {
-                setTopWins(prevTop => {
-                  const newWin = {
-                    user: staker.user,
-                    stake: staker.stake,
-                    multiplier: cashedMultiplier,
-                    payout,
-                    time: 'Just now'
-                  };
-                  return [newWin, ...prevTop].slice(0, 20);
-                });
-              }
-
-              return { ...staker, cashedOut: true, cashedMultiplier, payout };
-            }
-            return staker;
-          });
-          return updated;
-        });
-      }, 100);
-
-      return () => clearInterval(interval);
-    }
-  }, [currentMultiplier, gameState]);
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || !result.success) return;
+        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => ({
+          user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut: bet.status === 'WON',
+          cashedMultiplier: bet.multiplier, payout: bet.payout, isUser: false, terminalId: bet.terminalId,
+          color: bet.status === 'WON' ? '#2ecc71' : bet.status === 'LOST' ? '#e74c3c' : '#57606f', status: bet.status
+        }));
+        setActiveStakers(rows);
+        setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
+      } catch { /* Keep the most recent successful snapshot on temporary network errors. */ }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [roundNonce]);
 
   // Add user bets to history on crash
   useEffect(() => {
@@ -181,79 +153,6 @@ export function LiveStakers({
       }
     }
   }, [gameState, terminal1Staked, terminal1Amount, terminal1CashedOut, terminal1AutoCashoutMultiplier, terminal2Staked, terminal2Amount, terminal2CashedOut, terminal2AutoCashoutMultiplier, currentMultiplier]);
-
-  const generateRoundStakers = () => {
-    const stakers: Staker[] = [];
-    const count = 75 + Math.floor(Math.random() * 21);
-    const stakes = [200, 300, 400, 500, 750, 1000, 1500, 2000, 3500, 5000, 10000, 25000, 50000];
-
-    // Add user bets
-    if (terminal1Staked) {
-      stakers.push({
-        user: 'YOU (#1)',
-        stake: terminal1Amount,
-        targetMultiplier: terminal1AutoCashoutMultiplier || 999.0,
-        cashedOut: terminal1CashedOut,
-        cashedMultiplier: terminal1CashedOut ? terminal1AutoCashoutMultiplier : 0,
-        payout: terminal1CashedOut ? terminal1Amount * terminal1AutoCashoutMultiplier : 0,
-        isUser: true,
-        terminalId: 1,
-        color: '#ff003b'
-      });
-    }
-
-    if (terminal2Staked) {
-      stakers.push({
-        user: 'YOU (#2)',
-        stake: terminal2Amount,
-        targetMultiplier: terminal2AutoCashoutMultiplier || 999.0,
-        cashedOut: terminal2CashedOut,
-        cashedMultiplier: terminal2CashedOut ? terminal2AutoCashoutMultiplier : 0,
-        payout: terminal2CashedOut ? terminal2Amount * terminal2AutoCashoutMultiplier : 0,
-        isUser: true,
-        terminalId: 2,
-        color: '#ff003b'
-      });
-    }
-
-    // Add simulated stakers
-    for (let i = 0; i < count; i++) {
-      const name = simulatedNames[Math.floor(Math.random() * simulatedNames.length)];
-      let stake;
-      const r = Math.random();
-      if (r < 0.45) stake = stakes[Math.floor(Math.random() * 3)];
-      else if (r < 0.80) stake = stakes[3 + Math.floor(Math.random() * 4)];
-      else if (r < 0.95) stake = stakes[7 + Math.floor(Math.random() * 3)];
-      else stake = stakes[10 + Math.floor(Math.random() * 3)];
-
-      let target;
-      const targetRoll = Math.random();
-      if (targetRoll < 0.50) {
-        target = 1.15 + Math.random() * 1.05;
-      } else if (targetRoll < 0.80) {
-        target = 2.21 + Math.random() * 2.80;
-      } else if (targetRoll < 0.94) {
-        target = 5.02 + Math.random() * 9.50;
-      } else {
-        target = 15.0 + Math.random() * 55.0;
-      }
-
-      const color = avatarColors[i % avatarColors.length];
-
-      stakers.push({
-        user: name,
-        stake,
-        targetMultiplier: Math.round(target * 100) / 100,
-        cashedOut: false,
-        cashedMultiplier: 0,
-        payout: 0,
-        isUser: false,
-        color
-      });
-    }
-
-    setActiveStakers(stakers);
-  };
 
   const totalBets = activeStakers.length;
   const totalStaked = activeStakers.reduce((sum, s) => sum + s.stake, 0);
@@ -307,10 +206,10 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>CASHOUT</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {betsByStake.map((s, idx) => (
+              {betsByStake.length === 0 ? <div className="empty-state">No recorded bets in this round yet.</div> : betsByStake.map((s, idx) => (
                 <div
                   key={idx}
-                  className={`staker-row ${s.cashedOut ? 'row-cashed' : ''} ${s.isUser ? 'row-user-highlight' : ''}`}
+                  className={`staker-row ${s.cashedOut ? 'row-cashed' : s.status === 'LOST' ? 'row-lost' : ''} ${s.isUser ? 'row-user-highlight' : ''}`}
                   style={{ gridTemplateColumns: '1.1fr 1fr 0.8fr 1.1fr' }}
                 >
                   <div className="staker-user-cell">
@@ -319,7 +218,7 @@ export function LiveStakers({
                   </div>
                   <div className="staker-stake-cell">{s.stake.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                   <div style={{ textAlign: 'center' }}>
-                    {s.cashedOut ? (
+                    {s.status === 'LOST' ? <span className="font-crimson">LOST</span> : s.cashedOut ? (
                       <span className={`history-pill ${getBadgeClass(s.cashedMultiplier)}`} style={{ padding: '1px 6px', fontSize: '10px', fontWeight: 800 }}>
                         {s.cashedMultiplier.toFixed(2)}x
                       </span>
@@ -328,7 +227,7 @@ export function LiveStakers({
                     )}
                   </div>
                   <div className="staker-payout-cell">
-                    {s.cashedOut ? (
+                    {s.status === 'LOST' ? <span className="font-crimson">Lost</span> : s.cashedOut ? (
                       <span className="cashout-amount font-emerald" style={{ fontSize: '11px', fontWeight: 800 }}>
                         {s.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>

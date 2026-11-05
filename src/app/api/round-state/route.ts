@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 // Game Constants (Preserved from server.js)
-const MASTER_SECRET = 'shiftstack_aviator_provably_fair_master_chain_2026';
+const MASTER_SECRET = process.env.GAME_MASTER_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-round-secret-change-before-deploy');
 const PUBLIC_CLIENT_SEED = 'global_aviator_network_shared_seed_100x';
 const EPOCH_BASE = 1727180000000;
 const COUNTDOWN_DURATION = 5.0;
@@ -20,11 +20,16 @@ interface RoundState {
   roundStartTime: number;
   roundEndTime: number;
   serverHash: string;
+  serverSeed: string;
   clientSeed: string;
 }
 
+function getRoundSeed(nonce: number): string {
+  return crypto.createHmac('sha256', MASTER_SECRET).update(`round-seed:${nonce}`).digest('hex');
+}
+
 function getCrashMultiplier(nonce: number): number {
-  const hmac = crypto.createHmac('sha256', MASTER_SECRET);
+  const hmac = crypto.createHmac('sha256', getRoundSeed(nonce));
   hmac.update(`${PUBLIC_CLIENT_SEED}:${nonce}`);
   const hexHash = hmac.digest('hex');
 
@@ -59,6 +64,7 @@ function computeMultiplierFromTime(t: number): number {
 
 interface ServerRound {
   nonce: number;
+  serverSeed: string;
   crashMultiplier: number;
   flightDuration: number;
   roundStartTime: number;
@@ -104,11 +110,13 @@ function computeServerPhaseForRound(round: ServerRound, time: number): RoundStat
     roundStartTime: round.roundStartTime,
     roundEndTime: round.roundEndTime,
     serverHash: round.serverHash,
+    serverSeed: phase === 'CRASHED' ? round.serverSeed : '',
     clientSeed: PUBLIC_CLIENT_SEED
   };
 }
 
-function getLiveRoundState(time: number = Date.now()): RoundState {
+export function getLiveRoundState(time: number = Date.now()): RoundState {
+  if (!MASTER_SECRET) throw new Error('GAME_MASTER_SECRET must be configured before serving game rounds');
   if (cachedServerRound && time >= cachedServerRound.roundStartTime && time < cachedServerRound.roundEndTime) {
     return computeServerPhaseForRound(cachedServerRound, time);
   }
@@ -130,6 +138,7 @@ function getLiveRoundState(time: number = Date.now()): RoundState {
 
   while (true) {
     const crashMultiplier = getCrashMultiplier(currentNonce);
+    const serverSeed = getRoundSeed(currentNonce);
     const flightDuration = getFlightDuration(crashMultiplier);
     const totalDuration = COUNTDOWN_DURATION + flightDuration + CRASHED_PAUSE_DURATION;
     const totalDurationMs = totalDuration * 1000;
@@ -138,11 +147,12 @@ function getLiveRoundState(time: number = Date.now()): RoundState {
     if (time >= roundStart && time < roundEnd) {
       cachedServerRound = {
         nonce: currentNonce,
+        serverSeed,
         crashMultiplier,
         flightDuration,
         roundStartTime: roundStart,
         roundEndTime: roundEnd,
-        serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex')
+        serverHash: crypto.createHash('sha256').update(serverSeed).digest('hex')
       };
       return computeServerPhaseForRound(cachedServerRound, time);
     }
@@ -154,16 +164,27 @@ function getLiveRoundState(time: number = Date.now()): RoundState {
 
   const fallback: ServerRound = {
     nonce: currentNonce,
+    serverSeed: getRoundSeed(currentNonce),
     crashMultiplier: 2.00,
     flightDuration: 6.10,
     roundStartTime: time,
     roundEndTime: time + 14300,
-    serverHash: crypto.createHash('sha256').update(`${MASTER_SECRET}:${currentNonce}`).digest('hex')
+    serverHash: crypto.createHash('sha256').update(getRoundSeed(currentNonce)).digest('hex')
   };
   cachedServerRound = fallback;
   return computeServerPhaseForRound(fallback, time);
 }
 
 export async function GET() {
-  return NextResponse.json(getLiveRoundState());
+  let state: RoundState;
+  try { state = getLiveRoundState(); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Round service unavailable' }, { status: 503 }); }
+  // Publish only values required to animate the active round. The outcome is
+  // disclosed after the crash, never while bets can still be placed.
+  return NextResponse.json({
+    ...state,
+    crashMultiplier: state.phase === 'CRASHED' ? state.crashMultiplier : 0,
+    flightDuration: state.phase === 'CRASHED' ? state.flightDuration : 0,
+    roundEndTime: state.phase === 'CRASHED' ? state.roundEndTime : 0
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

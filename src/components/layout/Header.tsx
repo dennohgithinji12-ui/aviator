@@ -39,6 +39,7 @@ export function Header() {
           <button className="nav-tab-btn" data-view="rollover" id="nav-btn-rollover">
             <span>Rollover</span>
           </button>
+          <a className="nav-tab-btn" href="/predictor"><span>Round monitor</span></a>
         </nav>
       </div>
 
