@@ -5,10 +5,17 @@ import { FlightCanvasEngine } from '@/lib/engine/flight-canvas';
 import { GlobalRoundSyncEngine, RoundState } from '@/lib/engine/global-sync';
 import { SoundEngine } from '@/lib/engine/audio';
 
-export function FlightCanvas() {
+type CashoutNotice = { id: number; terminalId: 1 | 2; multiplier: number; payout: number };
+
+export function FlightCanvas({ syncRef: sharedSyncRef, cashoutNotices = [], onDismissCashout }: {
+  syncRef?: { current: GlobalRoundSyncEngine | null };
+  cashoutNotices?: CashoutNotice[];
+  onDismissCashout?: (id: number) => void;
+} = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<FlightCanvasEngine | null>(null);
-  const syncRef = useRef<GlobalRoundSyncEngine | null>(null);
+  const internalSyncRef = useRef<GlobalRoundSyncEngine | null>(null);
+  const syncRef = sharedSyncRef ?? internalSyncRef;
   const soundRef = useRef<SoundEngine | null>(null);
   const lastTickRef = useRef(0);
   
@@ -16,7 +23,7 @@ export function FlightCanvas() {
     if (!canvasRef.current) return;
 
     // Initialize global sync engine
-    syncRef.current = new GlobalRoundSyncEngine();
+    if (!syncRef.current) syncRef.current = new GlobalRoundSyncEngine();
     soundRef.current = new SoundEngine();
     const onSetting = (event: Event) => {
       const { setting, value } = (event as CustomEvent<{ setting: string; value: boolean }>).detail;
@@ -25,7 +32,9 @@ export function FlightCanvas() {
       if (setting === 'sound' && sound.soundMuted === value) sound.toggleSound();
       if (setting === 'music' && sound.musicMuted === value) sound.toggleMusic();
     };
+    const onCashoutSuccess = () => soundRef.current?.playCashout();
     window.addEventListener('aviator:setting', onSetting);
+    window.addEventListener('aviator:cashout-success', onCashoutSuccess);
 
     // Initialize flight canvas engine
     const engine = new FlightCanvasEngine(
@@ -57,15 +66,11 @@ export function FlightCanvas() {
 
     engineRef.current = engine;
 
-    // Periodic state sync
-    const interval = setInterval(() => {
-      // GlobalRoundSyncEngine owns ordered server snapshots and smooth clock interpolation.
-    }, 250);
-
     return () => {
-      clearInterval(interval);
       window.removeEventListener('aviator:setting', onSetting);
-      if (syncRef.current?.syncTimer) clearInterval(syncRef.current.syncTimer);
+      window.removeEventListener('aviator:cashout-success', onCashoutSuccess);
+      syncRef.current?.stop();
+      syncRef.current = null;
       soundRef.current?.stopEngine();
       if (engineRef.current) {
         engineRef.current.destroy();
@@ -76,6 +81,13 @@ export function FlightCanvas() {
   return (
     <div className="flight-canvas-container" id="flight-canvas-container">
       <canvas ref={canvasRef} id="flight-canvas" />
+      <div className="cashout-popup-stack" aria-live="polite">
+        {cashoutNotices.map((notice) => <div className="cashout-popup" role="status" key={notice.id}>
+          <div className="cashout-popup-result"><span>You cashed out · Bet {notice.terminalId}</span><strong>{notice.multiplier.toFixed(2)}x</strong></div>
+          <div className="cashout-popup-winnings"><span>WIN, KES</span><strong>{notice.payout.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+          <button type="button" className="cashout-popup-close" aria-label="Dismiss cashout result" onClick={() => onDismissCashout?.(notice.id)}>×</button>
+        </div>)}
+      </div>
       <div className="ufc-partners-overlay">
         <span className="ufc-logo-tag">UFC</span><span>|</span>
         <span className="partner-mark"><svg width="14" height="12" viewBox="0 0 40 32" fill="#ff003b"><path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" /></svg> OFFICIAL PARTNERS</span>

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      id: session.userId,
       ...balances,
       totalDeposits,
       totalTurnover,

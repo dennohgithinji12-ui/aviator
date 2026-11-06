@@ -143,6 +143,9 @@ export class GlobalRoundSyncEngine {
   syncInFlight: boolean;
   syncTimer: ReturnType<typeof setInterval> | null;
   serverClockAnchor: number;
+  fallbackRoundStartTime: number;
+  visibilityHandler: (() => void) | null;
+  stopped: boolean;
 
   constructor(options: { epochBase?: number } = {}) {
     this.EPOCH_BASE = options.epochBase || 1727180000000;
@@ -156,6 +159,9 @@ export class GlobalRoundSyncEngine {
     this.syncInFlight = false;
     this.syncTimer = null;
     this.serverClockAnchor = 0;
+    this.fallbackRoundStartTime = Date.now();
+    this.visibilityHandler = null;
+    this.stopped = false;
 
     if (typeof BroadcastChannel !== 'undefined') {
       try {
@@ -164,35 +170,55 @@ export class GlobalRoundSyncEngine {
     }
 
     this.initServerSync();
+    // Keep server correction frequent enough to catch a crash promptly; odds
+    // remain interpolated between these small, database-free state reads.
     this.syncTimer = setInterval(() => { void this.initServerSync(); }, 250);
 
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
+      this.visibilityHandler = () => {
         if (document.visibilityState === 'visible') {
-          this.initServerSync();
+          void this.initServerSync();
         }
-      });
+      };
+      document.addEventListener('visibilitychange', this.visibilityHandler);
     }
   }
 
+  stop(): void {
+    this.stopped = true;
+    if (this.syncTimer) clearInterval(this.syncTimer);
+    this.syncTimer = null;
+    this.broadcastChannel?.close();
+    this.broadcastChannel = null;
+    if (typeof document !== 'undefined' && this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+    }
+    this.visibilityHandler = null;
+  }
+
   async initServerSync(): Promise<void> {
-    if (this.syncInFlight) return;
+    if (this.stopped || this.syncInFlight) return;
     this.syncInFlight = true;
     const requestStartedAt = performance.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
     try {
-      const res = await fetch('/api/round-state', { cache: 'no-store' });
+      const res = await fetch('/api/round-state', { cache: 'no-store', signal: controller.signal });
       if (res.ok) {
         const state: RoundState = await res.json();
-        // Discard delayed responses so an old phase can never rewind the UI.
-        if (this.lastState && (state.nonce < this.lastState.nonce || (state.nonce === this.lastState.nonce && state.serverTime < this.lastState.serverTime))) return;
+        if (this.stopped) return;
+        // The legacy schedule can reset its nonce at an hour boundary, so
+        // response ordering must use the round's timestamp rather than nonce.
+        if (this.lastState && (state.roundStartTime < this.lastState.roundStartTime || (state.roundStartTime === this.lastState.roundStartTime && state.serverTime < this.lastState.serverTime))) return;
         this.lastState = state;
         this.lastSyncReceivedAt = performance.now();
         this.serverClockAnchor = state.serverTime + (this.lastSyncReceivedAt - requestStartedAt) / 2;
         this.clockOffset = this.serverClockAnchor - Date.now();
       }
     } catch (e) {
-      console.warn('[Global Sync] Server sync failed:', e);
+      if (!this.stopped && !(e instanceof DOMException && e.name === 'AbortError')) console.warn('[Global Sync] Server sync failed:', e);
     } finally {
+      clearTimeout(timeout);
       this.syncInFlight = false;
     }
   }
@@ -205,20 +231,22 @@ export class GlobalRoundSyncEngine {
   }
 
   computeClientPhase(serverState: RoundState): RoundState {
-    // Animate from the server's shared timeline on every render frame. Only
-    // the deterministic takeoff transition is inferred locally; the crash
-    // phase and crash value still come from the server.
+    // Animate smoothly between server snapshots, but stop advancing if the
+    // endpoint becomes stale. Otherwise a disconnected tab can invent an
+    // arbitrarily long flight and display impossible odds.
     const serverTime = this.serverClockAnchor + (performance.now() - this.lastSyncReceivedAt);
     const flightStartsAt = serverState.roundStartTime + this.COUNTDOWN_DURATION * 1000;
+    const snapshotAgeSeconds = Math.max(0, (serverTime - serverState.serverTime) / 1000);
+    const interpolationSeconds = Math.min(snapshotAgeSeconds, 1.25);
     if (serverState.phase === 'WAITING' && serverTime < flightStartsAt) {
       return { ...serverState, serverTime, remainingSeconds: Math.max(0, (flightStartsAt - serverTime) / 1000) };
     }
     if (serverState.phase === 'WAITING' && serverTime >= flightStartsAt) {
-      const elapsedFlightSeconds = Math.max(0, (serverTime - flightStartsAt) / 1000);
+      const elapsedFlightSeconds = Math.min(1.25, Math.max(0, (serverTime - flightStartsAt) / 1000));
       return { ...serverState, phase: 'FLYING', serverTime, remainingSeconds: 0, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
     }
     if (serverState.phase === 'FLYING') {
-      const elapsedFlightSeconds = Math.max(serverState.elapsedFlightSeconds, (serverTime - flightStartsAt) / 1000);
+      const elapsedFlightSeconds = Math.max(serverState.elapsedFlightSeconds, serverState.elapsedFlightSeconds + interpolationSeconds);
       return { ...serverState, serverTime, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
     }
     return { ...serverState, serverTime };
@@ -227,7 +255,7 @@ export class GlobalRoundSyncEngine {
   computeMultiplierFromTime(t: number): number {
     if (t <= 0) return 1.00;
     const val = Math.pow(Math.E, 0.072 * t) + (0.012 * t * t);
-    return Math.max(1.00, val);
+    return Math.max(1.00, Math.floor(val * 100) / 100);
   }
 
   computeFallbackState(): RoundState {
@@ -240,8 +268,8 @@ export class GlobalRoundSyncEngine {
       currentMultiplier: 1.00,
       remainingSeconds: 5.0,
       elapsedFlightSeconds: 0,
-      roundStartTime: Date.now(),
-      roundEndTime: Date.now() + 10000,
+      roundStartTime: this.fallbackRoundStartTime,
+      roundEndTime: this.fallbackRoundStartTime + 10000,
       serverHash: '',
       clientSeed: this.PUBLIC_CLIENT_SEED
     };

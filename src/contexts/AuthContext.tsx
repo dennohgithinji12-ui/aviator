@@ -31,15 +31,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load token and user from localStorage on mount
-    const savedToken = localStorage.getItem('shiftstack_auth_token');
-    const savedUser = localStorage.getItem('shiftstack_user');
-
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    let active = true;
+    const restoreSession = async () => {
+      const savedToken = localStorage.getItem('shiftstack_auth_token');
+      if (!savedToken) { if (active) setIsLoading(false); return; }
+      try {
+        const response = await fetch('/api/wallet', { headers: { Authorization: `Bearer ${savedToken}` }, cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error('Session expired');
+        if (active) {
+          const restoredUser: User = {
+            id: Number(data.id || 0), phone: String(data.phone), username: data.username || undefined,
+            realBalance: Number(data.realBalance), demoBalance: Number(data.demoBalance)
+          };
+          setToken(savedToken);
+          setUser(restoredUser);
+          localStorage.setItem('shiftstack_user', JSON.stringify(restoredUser));
+        }
+      } catch {
+        localStorage.removeItem('shiftstack_auth_token');
+        localStorage.removeItem('shiftstack_user');
+        if (active) { setToken(null); setUser(null); }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    void restoreSession();
+    return () => { active = false; };
   }, []);
 
   const login = async (phone: string, password?: string) => {
@@ -66,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await fetch('/api/auth/phone-signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, username, passwordHash: password })
+      body: JSON.stringify({ phone, username, password })
     });
 
     const data = await response.json();
@@ -75,11 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(data.error || 'Signup failed');
     }
 
-    setToken(data.token);
-    setUser(data.user);
-
-    localStorage.setItem('shiftstack_auth_token', data.token);
-    localStorage.setItem('shiftstack_user', JSON.stringify(data.user));
+    // Registration deliberately does not start a session. The user signs in
+    // with the phone number and password they just created.
   };
 
   const completeFirebaseAuth = async (idToken: string, username?: string) => {

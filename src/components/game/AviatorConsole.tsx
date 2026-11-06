@@ -7,6 +7,7 @@ import { LiveStakers } from './LiveStakers';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { RoundHistoryRibbon } from './RoundHistoryRibbon';
+import { GlobalRoundSyncEngine } from '@/lib/engine/global-sync';
 
 interface TerminalState {
   amount: number;
@@ -19,38 +20,61 @@ interface TerminalState {
   queued: boolean;
   cashedOutMultiplier: number;
   payout: number;
+  cashoutPending: boolean;
+  cashoutRequestedMultiplier: number;
+  betMode: 'REAL' | 'DEMO' | null;
+  queuedMode: 'REAL' | 'DEMO' | null;
 }
 
 export function AviatorConsole() {
-  const { user, token, isAuthenticated, completeFirebaseAuth, logout, updateBalance } = useAuth();
+  const { user, token, isAuthenticated, isLoading: authLoading, login, signup, updateBalance } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [gameState, setGameState] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
-  const [balance, setBalance] = useState(user?.realBalance || 50000);
+  const [balance, setBalance] = useState(user?.demoBalance || 0);
   // Keep both independent betting panels visible, matching the legacy layout.
   const [terminal2Visible, setTerminal2Visible] = useState(true);
-  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>(isAuthenticated ? 'REAL' : 'DEMO');
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
   const [serverNonce, setServerNonce] = useState(0);
+  const [serverTime, setServerTime] = useState(0);
+  const [countdownSeconds, setCountdownSeconds] = useState(5);
   const [actionMessage, setActionMessage] = useState('');
   const [roundHistoryOpen, setRoundHistoryOpen] = useState(false);
   const [cashoutNotices, setCashoutNotices] = useState<{ id: number; terminalId: 1 | 2; multiplier: number; payout: number }[]>([]);
   const betIds = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
+  const roundSyncRef = useRef<GlobalRoundSyncEngine | null>(null);
   const automaticAction = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
   const betRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
+  const cashoutRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
   const autoBetRoundAttempt = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
   const autoBetSkipRound = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
 
   // Update balance when user changes
   useEffect(() => {
     if (isAuthenticated && user) {
-      setBalance(user.realBalance);
-      setGameMode('REAL');
+      const savedMode = localStorage.getItem('shiftstack_game_mode');
+      const selectedMode = savedMode === 'REAL' ? 'REAL' : 'DEMO';
+      setGameMode(selectedMode);
+      setBalance(selectedMode === 'REAL' ? user.realBalance : user.demoBalance);
+      window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: selectedMode }));
     } else {
-      setBalance(50000);
+      setBalance(0);
       setGameMode('DEMO');
     }
   }, [isAuthenticated, user]);
+
+  const selectGameMode = (mode: 'REAL' | 'DEMO') => {
+    if (!isAuthenticated || !user) {
+      setAuthMode('login');
+      setShowAuthModal(true);
+      return;
+    }
+    setGameMode(mode);
+    setBalance(mode === 'REAL' ? user.realBalance : user.demoBalance);
+    localStorage.setItem('shiftstack_game_mode', mode);
+    window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: mode }));
+  };
 
   const [terminal1, setTerminal1] = useState<TerminalState>({
     amount: 100,
@@ -62,7 +86,11 @@ export function AviatorConsole() {
     cashedOut: false,
     queued: false,
     cashedOutMultiplier: 0,
-    payout: 0
+    payout: 0,
+    cashoutPending: false,
+    cashoutRequestedMultiplier: 1,
+    betMode: null,
+    queuedMode: null
   });
 
   const [terminal2, setTerminal2] = useState<TerminalState>({
@@ -75,25 +103,28 @@ export function AviatorConsole() {
     cashedOut: false,
     queued: false,
     cashedOutMultiplier: 0,
-    payout: 0
+    payout: 0,
+    cashoutPending: false,
+    cashoutRequestedMultiplier: 1,
+    betMode: null,
+    queuedMode: null
   });
 
-  // Fetch round state from API
+  // Read the same interpolated engine state that drives the canvas. This keeps
+  // betting controls, community feed timing, and the flight visually aligned.
   useEffect(() => {
-    const fetchRoundState = async () => {
-      try {
-        const response = await fetch('/api/round-state');
-        const data = await response.json();
-        setGameState(data.phase);
-        setCurrentMultiplier(data.currentMultiplier);
-        setServerNonce(data.nonce);
-      } catch (error) {
-        console.error('Failed to fetch round state:', error);
-      }
+    const syncUiState = () => {
+      const sync = roundSyncRef.current;
+      if (!sync) return;
+      const state = sync.getGlobalRoundState();
+      setGameState(state.phase);
+      setCurrentMultiplier(state.currentMultiplier);
+      setServerNonce(state.nonce);
+      setServerTime(state.serverTime);
+      setCountdownSeconds(state.remainingSeconds);
     };
-
-    fetchRoundState();
-    const interval = setInterval(fetchRoundState, 200);
+    const interval = setInterval(syncUiState, 100);
+    syncUiState();
     return () => clearInterval(interval);
   }, []);
 
@@ -111,32 +142,20 @@ export function AviatorConsole() {
   };
 
   const roundNonce = serverNonce;
-  const [countdownSeconds, setCountdownSeconds] = useState(5);
 
-  // Track round nonce for stakers
-  useEffect(() => {
-    if (gameState === 'WAITING') {
-      setCountdownSeconds(5);
-    }
-  }, [gameState]);
-
-  // Countdown timer
-  useEffect(() => {
-    if (gameState === 'WAITING' && countdownSeconds > 0) {
-      const timer = setInterval(() => {
-        setCountdownSeconds(prev => Math.max(0, prev - 0.1));
-      }, 100);
-      return () => clearInterval(timer);
-    }
-  }, [gameState, countdownSeconds]);
-
-  const handleBet = async (terminalId: 1 | 2, amount: number) => {
+  const handleBet = async (terminalId: 1 | 2, amount: number, modeOverride: 'REAL' | 'DEMO' = gameMode) => {
     if (betRequestInFlight.current[terminalId]) return;
-    if (balance < amount) { setActionMessage('Insufficient balance for this bet.'); return; }
+    if (!isAuthenticated || !token) {
+      setAuthMode('login');
+      setShowAuthModal(true);
+      return;
+    }
+    const availableBalance = modeOverride === 'REAL' ? Number(user?.realBalance || 0) : Number(user?.demoBalance || 0);
+    if (availableBalance < amount) { setActionMessage('Insufficient balance for this bet.'); return; }
     const currentTerminal = terminalId === 1 ? terminal1 : terminal2;
     if (gameState === 'FLYING') {
-      if (!currentTerminal.staked && !currentTerminal.queued) {
-        const update = (state: TerminalState) => ({ ...state, amount, queued: true });
+      if ((!currentTerminal.staked || currentTerminal.cashedOut) && !currentTerminal.queued) {
+        const update = (state: TerminalState) => ({ ...state, amount, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0, queued: true, queuedMode: modeOverride });
         if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
         setActionMessage(`Bet ${terminalId} queued for the next round.`);
       }
@@ -146,18 +165,14 @@ export function AviatorConsole() {
     setActionMessage('');
     betRequestInFlight.current[terminalId] = true;
     try {
-      if (isAuthenticated && token) {
-        const response = await fetch('/api/wallet/bet', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ amount, mode: gameMode, terminalId, roundNonce: serverNonce }) });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Bet could not be placed');
-        betIds.current[terminalId] = result.betId;
-        const nextBalance = gameMode === 'REAL' ? result.realBalance : result.demoBalance;
-        setBalance(nextBalance);
-        updateBalance(result.realBalance, result.demoBalance);
-      } else {
-        setBalance((current) => current - amount);
-      }
-      const update = (state: TerminalState) => ({ ...state, staked: true, queued: false, cashedOut: false, cashedOutMultiplier: 0, payout: 0, amount });
+      const response = await fetch('/api/wallet/bet', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ amount, mode: modeOverride, terminalId, roundNonce: serverNonce }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Bet could not be placed');
+      betIds.current[terminalId] = result.betId;
+      const nextBalance = gameMode === 'REAL' ? result.realBalance : result.demoBalance;
+      setBalance(nextBalance);
+      updateBalance(result.realBalance, result.demoBalance);
+      const update = (state: TerminalState) => ({ ...state, staked: true, queued: false, queuedMode: null, betMode: modeOverride, cashedOut: false, cashoutPending: false, cashoutRequestedMultiplier: 1, cashedOutMultiplier: 0, payout: 0, amount });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
       setActionMessage('');
     } catch (error) {
@@ -168,42 +183,49 @@ export function AviatorConsole() {
   };
 
   const handleCashout = async (terminalId: 1 | 2) => {
+    if (cashoutRequestInFlight.current[terminalId]) return;
     const terminal = terminalId === 1 ? terminal1 : terminal2;
     const autoTarget = terminal.autoCashoutEnabled ? terminal.autoCashoutMultiplier : null;
     const autoAlreadyReached = autoTarget !== null && currentMultiplier >= autoTarget;
     if (!terminal.staked || terminal.cashedOut || (gameState !== 'FLYING' && !(gameState === 'CRASHED' && autoAlreadyReached))) return;
+    cashoutRequestInFlight.current[terminalId] = true;
+    setActionMessage('');
+    const settlementMode = terminal.betMode || gameMode;
+    const requestedAtMultiplier = autoTarget !== null && terminal.mode === 'auto' ? autoTarget : Math.floor(currentMultiplier * 100) / 100;
+    const markPending = (state: TerminalState) => ({ ...state, cashoutPending: true, cashoutRequestedMultiplier: requestedAtMultiplier });
+    if (terminalId === 1) setTerminal1(markPending); else setTerminal2(markPending);
     try {
       let settledMultiplier: number;
       let settledPayout: number;
       if (isAuthenticated && token) {
         if (!betIds.current[terminalId]) throw new Error('This bet is not linked to a recorded account bet. Refresh before trying again.');
-        const response = await fetch('/api/wallet/cashout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ betId: betIds.current[terminalId], mode: gameMode, ...(terminal.mode === 'auto' && terminal.autoCashoutEnabled ? { autoCashoutMultiplier: terminal.autoCashoutMultiplier } : {}) }) });
+        const response = await fetch('/api/wallet/cashout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000), body: JSON.stringify({ betId: betIds.current[terminalId], mode: settlementMode, ...(terminal.mode === 'auto' && terminal.autoCashoutEnabled ? { autoCashoutMultiplier: terminal.autoCashoutMultiplier } : {}) }) });
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Cashout failed');
         settledMultiplier = Number(result.multiplier);
         settledPayout = Number(result.payout);
         setBalance(gameMode === 'REAL' ? result.realBalance : result.demoBalance);
         updateBalance(result.realBalance, result.demoBalance);
-      } else {
-        settledMultiplier = autoTarget !== null && currentMultiplier >= autoTarget
-          ? autoTarget
-          : Math.floor(currentMultiplier * 100) / 100;
-        settledPayout = Math.floor(terminal.amount * settledMultiplier * 100) / 100;
-        setBalance((current) => current + settledPayout);
-      }
-      const update = (state: TerminalState) => ({ ...state, cashedOut: true, cashedOutMultiplier: settledMultiplier, payout: settledPayout });
+    } else throw new Error('Please log in again to cash out this bet.');
+      const update = (state: TerminalState) => ({ ...state, cashoutPending: false, cashedOut: true, cashedOutMultiplier: settledMultiplier, payout: settledPayout });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
       setCashoutNotices((current) => [...current, { id: Date.now() + terminalId, terminalId, multiplier: settledMultiplier, payout: settledPayout }]);
+      window.dispatchEvent(new CustomEvent('aviator:cashout-success'));
     } catch (error) {
-      automaticAction.current[terminalId] = false;
-      setActionMessage(error instanceof Error ? error.message : 'Cashout failed');
+      const clearPending = (state: TerminalState) => ({ ...state, cashoutPending: false });
+      if (terminalId === 1) setTerminal1(clearPending); else setTerminal2(clearPending);
+      setActionMessage(error instanceof DOMException && error.name === 'TimeoutError'
+        ? 'Cashout confirmation is taking longer than expected. Press Cash Out again to check the settlement.'
+        : error instanceof Error ? error.message : 'Cashout failed');
+    } finally {
+      cashoutRequestInFlight.current[terminalId] = false;
     }
   };
 
   const handleCancel = async (terminalId: 1 | 2) => {
     const terminal = terminalId === 1 ? terminal1 : terminal2;
     if (terminal.queued && !terminal.staked) {
-      const update = (state: TerminalState) => ({ ...state, queued: false });
+      const update = (state: TerminalState) => ({ ...state, queued: false, queuedMode: null });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
       if (terminal.mode === 'auto' && terminal.autoStakeEnabled) autoBetSkipRound.current[terminalId] = serverNonce + 1;
       setActionMessage('Queued bet cancelled.');
@@ -218,7 +240,7 @@ export function AviatorConsole() {
         setBalance(gameMode === 'REAL' ? result.realBalance : result.demoBalance);
         updateBalance(result.realBalance, result.demoBalance);
         betIds.current[terminalId] = null;
-      } else setBalance((current) => current + terminal.amount);
+      } else throw new Error('Please log in again to cancel this bet.');
       if (terminalId === 1) setTerminal1((state) => ({ ...state, staked: false }));
       else setTerminal2((state) => ({ ...state, staked: false }));
     } catch (error) {
@@ -238,20 +260,14 @@ export function AviatorConsole() {
       automaticAction.current = { 1: false, 2: false };
       if (serverNonce > 0 && autoBetSkipRound.current[1] !== serverNonce && (terminal1.queued || (terminal1.mode === 'auto' && terminal1.autoStakeEnabled)) && !terminal1.staked && autoBetRoundAttempt.current[1] !== serverNonce) {
         autoBetRoundAttempt.current[1] = serverNonce;
-        void handleBet(1, terminal1.amount);
+        void handleBet(1, terminal1.amount, terminal1.queued ? terminal1.queuedMode || gameMode : gameMode);
       }
       if (serverNonce > 0 && autoBetSkipRound.current[2] !== serverNonce && (terminal2.queued || (terminal2.mode === 'auto' && terminal2.autoStakeEnabled)) && !terminal2.staked && autoBetRoundAttempt.current[2] !== serverNonce) {
         autoBetRoundAttempt.current[2] = serverNonce;
-        void handleBet(2, terminal2.amount);
+        void handleBet(2, terminal2.amount, terminal2.queued ? terminal2.queuedMode || gameMode : gameMode);
       }
     }
-  }, [gameState, serverNonce, terminal1.mode, terminal1.autoStakeEnabled, terminal1.staked, terminal1.queued, terminal1.amount, terminal2.mode, terminal2.autoStakeEnabled, terminal2.staked, terminal2.queued, terminal2.amount]);
-
-  useEffect(() => {
-    if (gameState !== 'FLYING') return;
-    if (terminal1.mode === 'auto' && terminal1.autoStakeEnabled && autoBetSkipRound.current[1] !== serverNonce + 1 && !terminal1.staked && !terminal1.queued) void handleBet(1, terminal1.amount);
-    if (terminal2.mode === 'auto' && terminal2.autoStakeEnabled && autoBetSkipRound.current[2] !== serverNonce + 1 && !terminal2.staked && !terminal2.queued) void handleBet(2, terminal2.amount);
-  }, [gameState, serverNonce, terminal1.mode, terminal1.autoStakeEnabled, terminal1.staked, terminal1.queued, terminal1.amount, terminal2.mode, terminal2.autoStakeEnabled, terminal2.staked, terminal2.queued, terminal2.amount]);
+  }, [gameState, serverNonce, gameMode, terminal1.mode, terminal1.autoStakeEnabled, terminal1.staked, terminal1.queued, terminal1.queuedMode, terminal1.amount, terminal2.mode, terminal2.autoStakeEnabled, terminal2.staked, terminal2.queued, terminal2.queuedMode, terminal2.amount]);
 
   useEffect(() => {
     if (gameState !== 'FLYING' && gameState !== 'CRASHED') return;
@@ -269,8 +285,8 @@ export function AviatorConsole() {
   useEffect(() => {
     if (gameState === 'CRASHED') {
       setTimeout(() => {
-        setTerminal1({ ...terminal1, staked: false, cashedOut: false, cashedOutMultiplier: 0, payout: 0 });
-        setTerminal2({ ...terminal2, staked: false, cashedOut: false, cashedOutMultiplier: 0, payout: 0 });
+        setTerminal1((state) => ({ ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }));
+        setTerminal2((state) => ({ ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }));
         betIds.current = { 1: null, 2: null };
       }, 3000);
     }
@@ -337,18 +353,13 @@ export function AviatorConsole() {
           </div>
 
           {/* Flight Canvas Component */}
-          <FlightCanvas />
+          <FlightCanvas syncRef={roundSyncRef} cashoutNotices={cashoutNotices} onDismissCashout={(id) => setCashoutNotices((current) => current.filter((item) => item.id !== id))} />
 
           {/* Real Mode Badge */}
-          {isAuthenticated ? (
-            <span className="badge-real-mode" id="btn-real-mode-toggle" title="Switch between Fun Mode and Real Mode" onClick={() => setGameMode(gameMode === 'REAL' ? 'DEMO' : 'REAL')}>
-              {gameMode === 'REAL' ? 'Demo &gt;' : 'Real &gt;'}
-            </span>
-          ) : (
-            <span className="badge-real-mode" id="btn-login-toggle" title="Login to play for real money" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>
-              Login &gt;
-            </span>
-          )}
+          <div className="game-mode-controls" aria-label="Choose betting mode">
+            <button type="button" className={gameMode === 'DEMO' ? 'active' : ''} onClick={() => selectGameMode('DEMO')}>Demo</button>
+            <button type="button" className={gameMode === 'REAL' ? 'active' : ''} onClick={() => selectGameMode('REAL')}>Real</button>
+          </div>
 
           {/* Real Mode Deposit Alert */}
           <div id="real-mode-deposit-alert" className="real-mode-deposit-alert" style={{ display: 'none' }}>
@@ -365,6 +376,7 @@ export function AviatorConsole() {
           </button>
 
           {/* Dual Betting Terminals */}
+          <div className="betting-auth-gate">
           <DualBettingTerminals
             terminal1={terminal1}
             terminal2={terminal2}
@@ -382,6 +394,14 @@ export function AviatorConsole() {
             onTerminal2Cancel={handleTerminal2Cancel}
             onToggleTerminal2={() => setTerminal2Visible(!terminal2Visible)}
           />
+          {!isAuthenticated && !authLoading && <div className="auth-required-overlay">
+            <div className="auth-required-card">
+              <strong>Login required to play</strong>
+              <span>Sign in or create an account to place Demo or Real bets.</span>
+              <button type="button" className="auth-submit-btn" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>Login / Register</button>
+            </div>
+          </div>}
+          </div>
         </div>
 
         {/* LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar */}
@@ -398,6 +418,7 @@ export function AviatorConsole() {
           currentMultiplier={currentMultiplier}
           countdownSeconds={countdownSeconds}
           roundNonce={roundNonce}
+          serverTime={serverTime}
         />
       </div>
       {actionMessage && <div role="status" className="bet-action-message">{actionMessage}</div>}
@@ -406,16 +427,10 @@ export function AviatorConsole() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onFirebaseAuth={completeFirebaseAuth}
+        onLogin={login}
+        onSignup={signup}
         mode={authMode}
       />
-      <div className="cashout-popup-stack" aria-live="polite">
-        {cashoutNotices.map((notice) => <div className="cashout-popup" role="status" key={notice.id}>
-          <div className="cashout-popup-result"><span>You cashed out · Bet {notice.terminalId}</span><strong>{notice.multiplier.toFixed(2)}x</strong></div>
-          <div className="cashout-popup-winnings"><span>WIN, KES</span><strong>{notice.payout.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
-          <button type="button" className="cashout-popup-close" aria-label="Dismiss cashout result" onClick={() => setCashoutNotices((current) => current.filter((item) => item.id !== notice.id))}>×</button>
-        </div>)}
-      </div>
     </section>
   );
 }

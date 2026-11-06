@@ -23,7 +23,7 @@ export function RoundHistoryRibbon() {
   return <div className="history-scroll-container" aria-label="Recent completed round multipliers">
     {rounds.map((round) => {
       const tier = round.multiplier >= 10 ? 'badge-legendary' : round.multiplier >= 2 ? 'badge-high' : 'badge-low';
-      return <span key={round.nonce} className={`history-pill ${tier}`} title={`Round #${round.nonce} • ${new Date(round.timestamp).toLocaleString()} • Commitment ${round.commitment}`}>
+      return <span key={`${round.nonce}-${round.timestamp}`} className={`history-pill ${tier}`} title={`Round #${round.nonce} • ${new Date(round.timestamp).toLocaleString()} • Commitment ${round.commitment}`}>
         {round.multiplier.toFixed(2)}x
       </span>;
     })}

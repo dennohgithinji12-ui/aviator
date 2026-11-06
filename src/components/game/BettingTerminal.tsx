@@ -14,6 +14,8 @@ interface BettingTerminalProps {
   queued: boolean;
   cashedOutMultiplier: number;
   payout: number;
+  cashoutPending: boolean;
+  cashoutRequestedMultiplier: number;
   onAmountChange: (id: 1 | 2, amount: number) => void;
   onBet: (id: 1 | 2, amount: number) => void;
   onCashout: (id: 1 | 2) => void;
@@ -40,6 +42,8 @@ export function BettingTerminal({
   queued,
   cashedOutMultiplier,
   payout,
+  cashoutPending,
+  cashoutRequestedMultiplier,
   onAmountChange,
   onBet,
   onCashout,
@@ -225,6 +229,16 @@ export function BettingTerminal({
               <div className="action-btn-main">Cancel</div>
               <div className="action-btn-sub">QUEUED NEXT ROUND</div>
             </button>
+          ) : cashedOut ? (
+            <button
+              className="btn-terminal-action state-stake"
+              onClick={handleBet}
+              disabled={isDisabled}
+              title="Place a bet for the next round"
+            >
+              <div className="action-btn-main">Bet</div>
+              <div className="action-btn-sub">{gameState === 'FLYING' ? 'NEXT ROUND' : `${localAmount.toFixed(2)} KES`}</div>
+            </button>
           ) : !staked ? (
             <button
               className="btn-terminal-action state-stake"
@@ -241,6 +255,11 @@ export function BettingTerminal({
             >
               <div className="action-btn-main">Cancel</div>
               <div className="action-btn-sub">{localAmount.toFixed(2)} KES</div>
+            </button>
+          ) : cashoutPending ? (
+            <button className="btn-terminal-action state-cashout cashout-pending" disabled aria-live="polite">
+              <div className="action-btn-main">Cashing Out…</div>
+              <div className="action-btn-sub">{(amount * cashoutRequestedMultiplier).toFixed(2)} KES · {cashoutRequestedMultiplier.toFixed(2)}x</div>
             </button>
           ) : canCashout ? (
             <button

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 import { getUser } from '@/lib/db/operations';
 import { generateToken } from '@/lib/auth';
 import { verifyPassword } from '@/lib/password';
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
     const phone = data.phone;
     const password = data.password;
 
-    if (!phone) {
+    if (typeof phone !== 'string' || !phone.trim()) {
       return NextResponse.json({
         success: false,
         error: 'Phone number is required'
@@ -24,23 +25,21 @@ export async function POST(req: NextRequest) {
       }, { status: 404 });
     }
 
-    // Verify password if user has one set
-    if (user.passwordHash) {
-      if (!password) {
-        return NextResponse.json({
-          success: false,
-          error: 'Password is required'
-        }, { status: 400 });
-      }
-
-      const isValid = await verifyPassword(password, user.passwordHash);
-      if (!isValid) {
-        return NextResponse.json({
-          success: false,
-          error: 'Incorrect password'
-        }, { status: 401 });
-      }
+    if (typeof password !== 'string' || !password) {
+      return NextResponse.json({ success: false, error: 'Password is required' }, { status: 400 });
     }
+    if (!user.passwordHash) {
+      return NextResponse.json({ success: false, error: 'This account has no password yet. Contact support to recover access.' }, { status: 401 });
+    }
+    const isValid = await verifyPassword(password, user.passwordHash);
+    if (!isValid) {
+      return NextResponse.json({
+        success: false,
+        error: 'Incorrect phone number or password'
+      }, { status: 401 });
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLogin: BigInt(Date.now()) } });
 
     const token = generateToken({
       userId: user.id,

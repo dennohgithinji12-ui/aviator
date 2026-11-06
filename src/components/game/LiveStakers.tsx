@@ -14,6 +14,7 @@ interface Staker {
   color: string;
   status?: string;
   simulated?: boolean;
+  visibleAt?: number;
 }
 
 interface HistoryEntry {
@@ -47,6 +48,7 @@ interface LiveStakersProps {
   currentMultiplier: number;
   countdownSeconds: number;
   roundNonce: number;
+  serverTime: number;
 }
 
 export function LiveStakers({
@@ -61,7 +63,8 @@ export function LiveStakers({
   gameState,
   currentMultiplier,
   countdownSeconds,
-  roundNonce
+  roundNonce,
+  serverTime
 }: LiveStakersProps) {
   const [currentTab, setCurrentTab] = useState<'all' | 'my' | 'top'>('all');
   const [activeStakers, setActiveStakers] = useState<Staker[]>([]);
@@ -78,41 +81,17 @@ export function LiveStakers({
   };
 
   useEffect(() => {
-    // The legacy client displayed community traffic. Keep that visual activity
-    // in an explicitly labeled demo simulation and never store it as real play.
-    if (!roundNonce) return;
-    let seed = (roundNonce ^ 0x5f3759df) >>> 0;
-    const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
-    const names = ['a***4', 'm***8', 'k***2', 's***7', 'n***1', 'b***9', 'w***3', 'j***5', 't***6', 'c***0', 'f***2', 'r***8'];
-    const bets = names.map((name, index) => {
-      const stake = [100, 200, 250, 500, 750, 1000, 2500, 5000][Math.floor(random() * 8)];
-      const cashedMultiplier = Math.round((1.15 + random() * 4.5) * 100) / 100;
-      return { user: name, stake, targetMultiplier: cashedMultiplier, cashedOut: false, cashedMultiplier: 0, payout: 0, isUser: false, terminalId: index % 2 + 1, color: '#64748b', status: 'ACTIVE', simulated: true } as Staker;
+    if (gameState !== 'FLYING' && gameState !== 'CRASHED') return;
+    setSimulatedBets((current) => {
+      let changed = false;
+      const next = current.map((bet) => {
+        if (bet.cashedOut || currentMultiplier < bet.targetMultiplier) return bet;
+        changed = true;
+        return { ...bet, cashedOut: true, cashedMultiplier: bet.targetMultiplier, payout: Math.floor(bet.stake * bet.targetMultiplier * 100) / 100, status: 'WON' };
+      });
+      return changed ? next : current;
     });
-    // Shuffle both the betting order and the arrival times. The old UI made
-    // the entire crowd appear instantly; reveal them over seconds 0–4 instead.
-    for (let i = bets.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [bets[i], bets[j]] = [bets[j], bets[i]];
-    }
-    const startDelay = 0;
-    const revealWindow = 4000;
-    const offsets = bets.map(() => random() * revealWindow).sort((a, b) => a - b);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    setSimulatedBets([]);
-    bets.forEach((bet, index) => {
-      timers.push(setTimeout(() => setSimulatedBets((current) => [...current, bet]), startDelay + offsets[index]));
-    });
-    return () => timers.forEach(clearTimeout);
-  }, [roundNonce]);
-
-  useEffect(() => {
-    if (gameState !== 'FLYING') return;
-    setSimulatedBets((current) => current.map((bet) => {
-      if (bet.cashedOut || currentMultiplier < bet.targetMultiplier) return bet;
-      return { ...bet, cashedOut: true, cashedMultiplier: bet.targetMultiplier, payout: Math.floor(bet.stake * bet.targetMultiplier * 100) / 100, status: 'WON' };
-    }));
-  }, [gameState, currentMultiplier]);
+  }, [gameState, currentMultiplier, simulatedBets]);
 
   // Show recorded bets for the actual server round.
   useEffect(() => {
@@ -130,6 +109,19 @@ export function LiveStakers({
           color: bet.status === 'WON' ? '#2ecc71' : bet.status === 'LOST' ? '#e74c3c' : '#57606f', status: bet.status
         }));
         setActiveStakers(rows);
+        setSimulatedBets((result.simulatedBets || []).map((bet: { id: string; player: string; stake: number; multiplier: number; visibleAt: number }) => ({
+          user: bet.player,
+          stake: bet.stake,
+          targetMultiplier: bet.multiplier,
+          cashedOut: false,
+          cashedMultiplier: 0,
+          payout: 0,
+          isUser: false,
+          color: '#64748b',
+          status: 'ACTIVE',
+          simulated: true,
+          visibleAt: bet.visibleAt
+        })));
         setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
       } catch { /* The next round refresh retries. */ }
     };
@@ -193,11 +185,19 @@ export function LiveStakers({
     }
   }, [gameState, terminal1Staked, terminal1Amount, terminal1CashedOut, terminal1AutoCashoutMultiplier, terminal2Staked, terminal2Amount, terminal2CashedOut, terminal2AutoCashoutMultiplier, currentMultiplier]);
 
-  const displayedBets = [...activeStakers, ...simulatedBets];
+  const visibleSimulatedBets = gameState === 'WAITING'
+    ? simulatedBets.filter((bet) => (bet.visibleAt ?? 0) <= serverTime)
+    : simulatedBets;
+  const displayedBets = [...activeStakers, ...visibleSimulatedBets].sort((a, b) => b.stake - a.stake);
   const totalBets = displayedBets.length;
   const totalStaked = displayedBets.reduce((sum, s) => sum + s.stake, 0);
   const totalCashedOut = displayedBets.filter(s => s.cashedOut).length;
   const betsByStake = displayedBets;
+  const displayedTopWins = [...topWins, ...simulatedBets
+    .filter((bet) => bet.cashedOut && bet.cashedMultiplier >= 15)
+    .map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' }))]
+    .sort((a, b) => b.payout - a.payout)
+    .slice(0, 20);
 
   return (
     <aside className="console-sidebar" id="console-sidebar">
@@ -247,7 +247,7 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>CASHOUT</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {betsByStake.length === 0 ? <div className="empty-state">No recorded bets in this round yet.</div> : betsByStake.map((s, idx) => (
+              {betsByStake.length === 0 ? <div className="empty-state">Waiting for bets in this round…</div> : betsByStake.map((s, idx) => (
                 <div
                   key={idx}
                   className={`staker-row ${s.cashedOut ? 'row-cashed' : s.status === 'LOST' ? 'row-lost' : ''} ${s.isUser ? 'row-user-highlight' : ''}`}
@@ -332,7 +332,7 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>WIN (KES)</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {topWins.map((w, idx) => (
+              {displayedTopWins.map((w, idx) => (
                 <div
                   key={idx}
                   className="staker-row row-cashed"

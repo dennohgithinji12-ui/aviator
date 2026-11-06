@@ -35,6 +35,7 @@ export class FlightCanvasEngine {
   dpr: number;
 
   state: GameState;
+  roundStartTime: number | null;
   countdownSeconds: number;
   countdownStartTime: number;
   countdownDuration: number;
@@ -76,6 +77,7 @@ export class FlightCanvasEngine {
     this.dpr = window.devicePixelRatio || 1;
 
     this.state = 'WAITING';
+    this.roundStartTime = null;
     this.countdownSeconds = 5.0;
     this.countdownStartTime = 0;
     this.countdownDuration = 5000;
@@ -280,6 +282,24 @@ export class FlightCanvasEngine {
 
     if (this.globalSync) {
       const gState = this.globalSync.getGlobalRoundState();
+
+      // A page can miss the short CRASHED and WAITING phases while suspended.
+      // Reset per-round canvas state from the round identity, not just phases.
+      if (this.roundStartTime !== gState.roundStartTime) {
+        this.roundStartTime = gState.roundStartTime;
+        this.state = gState.phase === 'WAITING' ? 'CRASHED' : 'WAITING';
+        this.countdownStartTime = 0;
+        this.flightStartTime = 0;
+        this.elapsedFlightTime = 0;
+        this.currentMultiplier = 1.00;
+        this.particles = [];
+        this.explosionParticles = [];
+        this.shockwaveRadius = 0;
+        this.shockwaveAlpha = 0;
+        this.crashTime = 0;
+        this.maxX = 7;
+        this.maxY = 2.2;
+      }
 
       if (gState.phase === 'WAITING') {
         if (this.state !== 'WAITING') {

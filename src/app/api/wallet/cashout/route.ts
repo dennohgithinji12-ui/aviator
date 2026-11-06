@@ -19,29 +19,39 @@ export async function POST(req: NextRequest) {
     if (hasAutoTarget && (!Number.isFinite(requestedAutoMultiplier) || requestedAutoMultiplier < 1.01 || requestedAutoMultiplier > 1_000_000)) {
       return NextResponse.json({ success: false, code: 'INVALID_AUTO_CASHOUT', message: 'Auto cashout target must be at least 1.01x' }, { status: 400 });
     }
-    const round = await getLiveRoundState();
-    const autoTargetReached = hasAutoTarget && (round.phase === 'FLYING'
-      ? round.currentMultiplier >= requestedAutoMultiplier!
-      : round.phase === 'CRASHED' && round.crashMultiplier >= requestedAutoMultiplier!);
-    if ((!Number.isInteger(betId)) || (round.phase !== 'FLYING' && !autoTargetReached)) {
-      return NextResponse.json({ success: false, code: 'CASHOUT_CLOSED', message: 'Cashout is only available during flight' }, { status: 409 });
-    }
+    if (!Number.isInteger(betId) || betId <= 0) return NextResponse.json({ success: false, code: 'INVALID_BET', message: 'A valid bet is required to cash out' }, { status: 400 });
     const settled = await prisma.$transaction(async (tx) => {
+      const bet = await tx.bet.findFirst({ where: { id: betId, phone: session.phone, mode } });
+      if (!bet) throw new Error('BET_NOT_ACTIVE');
+
+      // Retrying after a slow or interrupted response returns the original
+      // settlement instead of paying twice or reporting a false failure.
+      if (bet.status === 'WON' && Number(bet.cashedOut) === 1) {
+        const user = await tx.user.findUniqueOrThrow({ where: { phone: session.phone } });
+        return { user, payout: Number(bet.payout), multiplier: Number(bet.multiplier) };
+      }
+      if (bet.status !== 'ACTIVE') throw new Error('BET_NOT_ACTIVE');
+
       const latestRound = await getLiveRoundState();
-      if (latestRound.nonce !== round.nonce) throw new Error('CASHOUT_CLOSED');
+      if (latestRound.nonce !== bet.roundNonce) throw new Error('CASHOUT_CLOSED');
       const latestAutoTargetReached = hasAutoTarget && (latestRound.phase === 'FLYING'
         ? latestRound.currentMultiplier >= requestedAutoMultiplier!
         : latestRound.phase === 'CRASHED' && latestRound.crashMultiplier >= requestedAutoMultiplier!);
       if (latestRound.phase !== 'FLYING' && !latestAutoTargetReached) throw new Error('CASHOUT_CLOSED');
       if (hasAutoTarget && !latestAutoTargetReached) throw new Error('AUTO_TARGET_NOT_REACHED');
-      const bet = await tx.bet.findFirst({ where: { id: betId, phone: session.phone, mode, roundNonce: round.nonce, status: 'ACTIVE' } });
-      if (!bet) throw new Error('BET_NOT_ACTIVE');
       const multiplier = hasAutoTarget
         ? requestedAutoMultiplier!
         : Math.floor(latestRound.currentMultiplier * 100) / 100;
       const payout = Math.floor(Number(bet.amount) * multiplier * 100) / 100;
       const changed = await tx.bet.updateMany({ where: { id: bet.id, status: 'ACTIVE' }, data: { cashedOut: 1, multiplier, payout, profit: payout - Number(bet.amount), status: 'WON' } });
-      if (!changed.count) throw new Error('BET_NOT_ACTIVE');
+      if (!changed.count) {
+        const settledBet = await tx.bet.findUnique({ where: { id: bet.id } });
+        if (settledBet?.status === 'WON' && Number(settledBet.cashedOut) === 1) {
+          const user = await tx.user.findUniqueOrThrow({ where: { phone: session.phone } });
+          return { user, payout: Number(settledBet.payout), multiplier: Number(settledBet.multiplier) };
+        }
+        throw new Error('BET_NOT_ACTIVE');
+      }
       const balanceField = mode === 'REAL' ? 'realBalance' : 'demoBalance';
       const user = await tx.user.update({ where: { phone: session.phone }, data: { [balanceField]: { increment: payout } } });
       const balanceAfter = Number(mode === 'REAL' ? user.realBalance : user.demoBalance);

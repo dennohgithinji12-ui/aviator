@@ -13,6 +13,8 @@ interface TerminalState {
   queued: boolean;
   cashedOutMultiplier: number;
   payout: number;
+  cashoutPending: boolean;
+  cashoutRequestedMultiplier: number;
 }
 
 interface DualBettingTerminalsProps {
@@ -64,6 +66,8 @@ export function DualBettingTerminals({
         queued={terminal1.queued}
         cashedOutMultiplier={terminal1.cashedOutMultiplier}
         payout={terminal1.payout}
+        cashoutPending={terminal1.cashoutPending}
+        cashoutRequestedMultiplier={terminal1.cashoutRequestedMultiplier}
         onAmountChange={(id, amount) => {
           if (id === 1) onTerminal1Change({ amount });
         }}
@@ -106,6 +110,8 @@ export function DualBettingTerminals({
           queued={terminal2.queued}
           cashedOutMultiplier={terminal2.cashedOutMultiplier}
           payout={terminal2.payout}
+          cashoutPending={terminal2.cashoutPending}
+          cashoutRequestedMultiplier={terminal2.cashoutRequestedMultiplier}
           onAmountChange={(id, amount) => {
             if (id === 2) onTerminal2Change({ amount });
           }}

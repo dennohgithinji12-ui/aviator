@@ -6,7 +6,7 @@ import { WalletModal } from '@/components/wallet/WalletModal';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function Header() {
-  const { user, token, isAuthenticated, isLoading, completeFirebaseAuth, logout, refreshBalance } = useAuth();
+  const { user, token, isAuthenticated, isLoading, login, signup, logout, refreshBalance } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
   const [pendingWalletOpen, setPendingWalletOpen] = useState(false);
@@ -15,6 +15,15 @@ export function Header() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [animationEnabled, setAnimationEnabled] = useState(true);
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem('shiftstack_game_mode');
+    if (savedMode === 'REAL' || savedMode === 'DEMO') setGameMode(savedMode);
+    const onModeChange = (event: Event) => setGameMode((event as CustomEvent<'REAL' | 'DEMO'>).detail);
+    window.addEventListener('aviator:game-mode', onModeChange);
+    return () => window.removeEventListener('aviator:game-mode', onModeChange);
+  }, []);
   const openWallet = () => {
     if (isAuthenticated) setShowWallet(true);
     else {
@@ -34,7 +43,7 @@ export function Header() {
     }
   }, [isAuthenticated, pendingWalletOpen]);
 
-  const displayedBalance = isAuthenticated ? Number(user?.realBalance || 0) : Number(user?.demoBalance || 50000);
+  const displayedBalance = isAuthenticated ? Number(gameMode === 'REAL' ? user?.realBalance || 0 : user?.demoBalance || 0) : 0;
   const openInfo = (title: string, body: string) => { setInfoPanel({ title, body }); setMenuOpen(false); };
   const dispatchSetting = (setting: string, value: boolean) => window.dispatchEvent(new CustomEvent('aviator:setting', { detail: { setting, value } }));
   return (
@@ -83,7 +92,7 @@ export function Header() {
       <div className="header-right">
         {/* User Wallet Balance */}
         <div className="header-balance-card" id="header-balance-card" title="Wallet Balance (Real vs Demo)">
-          <span className={`badge-mode-indicator ${isAuthenticated ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? 'REAL' : 'DEMO'}</span>
+          <span className={`badge-mode-indicator ${gameMode === 'REAL' ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? gameMode : 'LOGIN'}</span>
           <span className="bal-amount user-balance-value">{displayedBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES</span>
         </div>
 
@@ -200,7 +209,7 @@ export function Header() {
               <span className="menu-link-icon">📄</span>
               <span>Game Rules</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-pf" onClick={() => openInfo('Provably fair', 'Each round publishes a server-seed commitment before play and reveals the seed after the crash. Compare the revealed seed with the commitment shown in the round history.')}>
+            <button type="button" className="menu-link-btn" id="menu-btn-pf" onClick={() => openInfo('Provably fair', 'Each round is determined by the same public round schedule and multiplier formula as the legacy game. The round history records its commitment and final multiplier after the crash.')}>
               <span className="menu-link-icon">🛡️</span>
               <span>Provably Fair Settings</span>
             </button>
@@ -227,7 +236,7 @@ export function Header() {
         </div>
       </div>
     </header>
-    <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onFirebaseAuth={completeFirebaseAuth} />
+    <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onLogin={login} onSignup={signup} />
     <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} />
     {infoPanel && <div className="simple-modal-backdrop" role="presentation" onClick={() => setInfoPanel(null)}><section className="simple-modal" role="dialog" aria-modal="true" aria-labelledby="header-info-title" onClick={(e) => e.stopPropagation()}><button type="button" className="simple-modal-close" aria-label="Close" onClick={() => setInfoPanel(null)}>×</button><h2 id="header-info-title">{infoPanel.title}</h2><p>{infoPanel.body}</p><button type="button" className="simple-modal-action" onClick={() => setInfoPanel(null)}>Close</button></section></div>}
     </>
