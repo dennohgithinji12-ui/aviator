@@ -1,15 +1,12 @@
 'use client';
 
-import { Header } from '@/components/layout/Header';
+import { AppPageFrame } from '@/components/layout/AppPageFrame';
 import { AviatorConsole } from '@/components/game/AviatorConsole';
 
 export default function Home() {
   return (
-    <div className="aviator-app">
-      <Header />
-      <main className="app-main">
+    <AppPageFrame>
         <AviatorConsole />
-      </main>
-    </div>
+    </AppPageFrame>
   );
 }

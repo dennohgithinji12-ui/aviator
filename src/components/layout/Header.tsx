@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { WalletModal } from '@/components/wallet/WalletModal';
+import { MenuModals } from './MenuModals';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function Header() {
@@ -12,18 +15,33 @@ export function Header() {
   const [pendingWalletOpen, setPendingWalletOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoPanel, setInfoPanel] = useState<{ title: string; body: string } | null>(null);
+  const [menuModal, setMenuModal] = useState<'freebets' | 'history' | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [animationEnabled, setAnimationEnabled] = useState(true);
   const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
+  const pathname = usePathname();
 
   useEffect(() => {
     const savedMode = localStorage.getItem('shiftstack_game_mode');
     if (savedMode === 'REAL' || savedMode === 'DEMO') setGameMode(savedMode);
+    const savedSound = localStorage.getItem('shiftstack_sound_enabled');
+    const savedMusic = localStorage.getItem('shiftstack_music_enabled');
+    const savedAnimation = localStorage.getItem('shiftstack_animation_enabled');
+    if (savedSound !== null) setSoundEnabled(savedSound === 'true');
+    if (savedMusic !== null) setMusicEnabled(savedMusic === 'true');
+    if (savedAnimation !== null) setAnimationEnabled(savedAnimation === 'true');
     const onModeChange = (event: Event) => setGameMode((event as CustomEvent<'REAL' | 'DEMO'>).detail);
     window.addEventListener('aviator:game-mode', onModeChange);
     return () => window.removeEventListener('aviator:game-mode', onModeChange);
   }, []);
+
+  const changeGameMode = (mode: 'REAL' | 'DEMO') => {
+    if (!isAuthenticated && mode === 'REAL') { setShowAuth(true); return; }
+    setGameMode(mode);
+    localStorage.setItem('shiftstack_game_mode', mode);
+    window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: mode }));
+  };
   const openWallet = () => {
     if (isAuthenticated) setShowWallet(true);
     else {
@@ -75,25 +93,28 @@ export function Header() {
 
         {/* Sub-Nav Mode Tabs (Desktop Only) */}
         <nav className="main-nav-tabs desktop-only" aria-label="Main Navigation">
-          <button className="nav-tab-btn active" data-view="terminal" id="nav-btn-terminal" onClick={() => { window.location.href = '/'; }}>
+          <Link className={`nav-tab-btn ${pathname === '/' ? 'active' : ''}`} href="/" id="nav-btn-terminal">
             <span>Aviator</span>
-          </button>
-          <button className="nav-tab-btn" data-view="liquidity" id="nav-btn-liquidity" onClick={() => openInfo('Liquidity vault', 'Liquidity vault deposits and withdrawals are not enabled yet. No funds can be staked here.')}>
+          </Link>
+          <Link className={`nav-tab-btn ${pathname === '/liquidity' ? 'active' : ''}`} href="/liquidity" id="nav-btn-liquidity">
             <span>Liquidity</span>
-            <span className="badge-pill">28.4%</span>
-          </button>
-          <button className="nav-tab-btn" data-view="rollover" id="nav-btn-rollover" onClick={() => openInfo('Rollover challenges', 'Rollover challenges are not enabled yet.')}>
+          </Link>
+          <Link className={`nav-tab-btn ${pathname === '/rollover' ? 'active' : ''}`} href="/rollover" id="nav-btn-rollover">
             <span>Rollover</span>
-          </button>
-          <a className="nav-tab-btn" href="/predictor"><span>Round monitor</span></a>
+          </Link>
+          <Link className={`nav-tab-btn ${pathname === '/verify' ? 'active' : ''}`} href="/verify"><span>Verifier</span></Link>
         </nav>
       </div>
 
       <div className="header-right">
         {/* User Wallet Balance */}
-        <div className="header-balance-card" id="header-balance-card" title="Wallet Balance (Real vs Demo)">
+        <div className="header-balance-card" id="header-balance-card" title="Selected wallet balance">
           <span className={`badge-mode-indicator ${gameMode === 'REAL' ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? gameMode : 'LOGIN'}</span>
           <span className="bal-amount user-balance-value">{displayedBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES</span>
+          <div className="header-mode-toggle" role="group" aria-label="Wallet mode">
+            <button type="button" className={gameMode === 'DEMO' ? 'active' : ''} aria-pressed={gameMode === 'DEMO'} onClick={() => changeGameMode('DEMO')}>Demo</button>
+            <button type="button" className={gameMode === 'REAL' ? 'active' : ''} aria-pressed={gameMode === 'REAL'} onClick={() => changeGameMode('REAL')}>Real</button>
+          </div>
         </div>
 
         {/* User Account Pill */}
@@ -112,7 +133,7 @@ export function Header() {
         </button>
 
         {/* Sound Toggle */}
-        <button className={`header-btn-icon ${soundEnabled ? '' : 'muted'}`} id="btn-toggle-sound" title="Toggle Sound Effects" aria-label="Toggle Sound" aria-pressed={soundEnabled} onClick={() => { const value = !soundEnabled; setSoundEnabled(value); dispatchSetting('sound', value); }}>
+        <button className={`header-btn-icon ${soundEnabled ? '' : 'muted'}`} id="btn-toggle-sound" title="Toggle Sound Effects" aria-label="Toggle Sound" aria-pressed={soundEnabled} onClick={() => { const value = !soundEnabled; setSoundEnabled(value); localStorage.setItem('shiftstack_sound_enabled', String(value)); dispatchSetting('sound', value); }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -161,7 +182,7 @@ export function Header() {
                 <span>Sound</span>
               </div>
               <label className="spribe-switch" aria-label="Toggle Sound">
-                <input type="checkbox" id="menu-switch-sound" title="Toggle Sound" aria-label="Toggle Sound" checked={soundEnabled} onChange={(e) => { setSoundEnabled(e.target.checked); dispatchSetting('sound', e.target.checked); }} />
+                <input type="checkbox" id="menu-switch-sound" title="Toggle Sound" aria-label="Toggle Sound" checked={soundEnabled} onChange={(e) => { setSoundEnabled(e.target.checked); localStorage.setItem('shiftstack_sound_enabled', String(e.target.checked)); dispatchSetting('sound', e.target.checked); }} />
                 <span className="switch-slider"></span>
               </label>
             </div>
@@ -171,7 +192,7 @@ export function Header() {
                 <span>Music</span>
               </div>
               <label className="spribe-switch" aria-label="Toggle Music">
-                <input type="checkbox" id="menu-switch-music" title="Toggle Music" aria-label="Toggle Music" checked={musicEnabled} onChange={(e) => { setMusicEnabled(e.target.checked); dispatchSetting('music', e.target.checked); }} />
+                <input type="checkbox" id="menu-switch-music" title="Toggle Music" aria-label="Toggle Music" checked={musicEnabled} onChange={(e) => { setMusicEnabled(e.target.checked); localStorage.setItem('shiftstack_music_enabled', String(e.target.checked)); dispatchSetting('music', e.target.checked); }} />
                 <span className="switch-slider"></span>
               </label>
             </div>
@@ -181,7 +202,7 @@ export function Header() {
                 <span>Animation</span>
               </div>
               <label className="spribe-switch" aria-label="Toggle Animation">
-                <input type="checkbox" id="menu-switch-anim" title="Toggle Animation" aria-label="Toggle Animation" checked={animationEnabled} onChange={(e) => { setAnimationEnabled(e.target.checked); dispatchSetting('animation', e.target.checked); }} />
+                <input type="checkbox" id="menu-switch-anim" title="Toggle Animation" aria-label="Toggle Animation" checked={animationEnabled} onChange={(e) => { const value = e.target.checked; setAnimationEnabled(value); localStorage.setItem('shiftstack_animation_enabled', String(value)); dispatchSetting('animation', value); }} />
                 <span className="switch-slider"></span>
               </label>
             </div>
@@ -189,30 +210,33 @@ export function Header() {
             <div className="menu-divider"></div>
 
             {/* Menu Nav Links */}
-            <button type="button" className="menu-link-btn" id="menu-btn-free-bets" onClick={() => openInfo('Free bets', 'There are no free bets available on this account right now.')}>
+            <button type="button" className="menu-link-btn" id="menu-btn-free-bets" onClick={() => { setMenuOpen(false); setMenuModal('freebets'); }}>
               <span className="menu-link-icon">⭐</span>
               <span>Free Bets</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-history" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('aviator:open-history')); }}>
+            <button type="button" className="menu-link-btn" id="menu-btn-history" onClick={() => { setMenuOpen(false); setMenuModal('history'); }}>
               <span className="menu-link-icon">🕒</span>
               <span>My Bet History</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-limits" onClick={() => openInfo('Game limits', 'Stake limits: KES 100–100,000 per terminal. Each terminal can place one bet per round.')}>
+            <button type="button" className="menu-link-btn" id="menu-btn-limits" onClick={() => openInfo('Game limits', 'Each terminal accepts KES 100 to KES 100,000 per bet. You can place one bet per terminal per round, so both terminals may be used in the same round. Bets close when the countdown ends. Each account can have one active rollover strategy at a time.')}>
               <span className="menu-link-icon">💵</span>
               <span>Game Limits</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-how" onClick={() => openInfo('How to play', 'Place a bet during the five-second countdown. During flight, cash out before the crash to receive your stake multiplied by the displayed odds. Auto Bet and Auto Cash can be configured on each terminal.')}>
+            <button type="button" className="menu-link-btn" id="menu-btn-how" onClick={() => openInfo('How to play', '1. Choose your wallet mode from the top bar.\n2. Enter a stake on either terminal and place it before the five-second countdown ends.\n3. While the plane is flying, press Cash Out to settle at the current multiplier.\n4. In Auto mode, enable Auto Bet to queue future rounds and set an Auto Cash target.\n\nA round can crash at any multiplier. A cashout after the crash is not accepted.')}>
               <span className="menu-link-icon">❓</span>
               <span>How To Play</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-rules" onClick={() => openInfo('Game rules', 'The server determines each round outcome. Cashouts are processed by the server using its current round state. Demo play uses a simulated balance; real-money features require an authenticated account and configured payments.')}>
+            <button type="button" className="menu-link-btn" id="menu-btn-rules" onClick={() => openInfo('Game rules', 'The server schedule determines each round’s crash multiplier. Bets are recorded against a round and wallet mode. Cashout is processed by the server using the live multiplier; winnings are rounded down to cents. Practice and real wallets are separate. Real-money play requires an authenticated account and sufficient real balance.')}>
               <span className="menu-link-icon">📄</span>
               <span>Game Rules</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-pf" onClick={() => openInfo('Provably fair', 'Each round is determined by the same public round schedule and multiplier formula as the legacy game. The round history records its commitment and final multiplier after the crash.')}>
+            <Link className="menu-link-btn" id="menu-btn-pf" href="/verify" onClick={() => setMenuOpen(false)}>
               <span className="menu-link-icon">🛡️</span>
               <span>Provably Fair Settings</span>
-            </button>
+            </Link>
+            <Link className="menu-link-btn" href="/liquidity" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">◈</span><span>Liquidity Vault</span></Link>
+            <Link className="menu-link-btn" href="/rollover" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">↗</span><span>Rollover Strategy</span></Link>
+            <Link className="menu-link-btn" href="/verify" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">🛡️</span><span>Seed Verifier</span></Link>
             <button type="button" className="menu-link-btn" id="menu-btn-gameroom" onClick={() => openInfo('Game room', 'You are viewing the shared Aviator room.')}>
               <span className="menu-link-icon">🗂️</span>
               <span>Game Room: Room #2</span>
@@ -238,6 +262,7 @@ export function Header() {
     </header>
     <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onLogin={login} onSignup={signup} />
     <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} />
+    {menuModal && <MenuModals kind={menuModal} token={token} onClose={() => setMenuModal(null)} onLogin={() => setShowAuth(true)} onBalanceChanged={refreshBalance} />}
     {infoPanel && <div className="simple-modal-backdrop" role="presentation" onClick={() => setInfoPanel(null)}><section className="simple-modal" role="dialog" aria-modal="true" aria-labelledby="header-info-title" onClick={(e) => e.stopPropagation()}><button type="button" className="simple-modal-close" aria-label="Close" onClick={() => setInfoPanel(null)}>×</button><h2 id="header-info-title">{infoPanel.title}</h2><p>{infoPanel.body}</p><button type="button" className="simple-modal-action" onClick={() => setInfoPanel(null)}>Close</button></section></div>}
     </>
   );

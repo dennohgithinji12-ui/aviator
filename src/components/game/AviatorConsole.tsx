@@ -64,17 +64,15 @@ export function AviatorConsole() {
     }
   }, [isAuthenticated, user]);
 
-  const selectGameMode = (mode: 'REAL' | 'DEMO') => {
-    if (!isAuthenticated || !user) {
-      setAuthMode('login');
-      setShowAuthModal(true);
-      return;
-    }
-    setGameMode(mode);
-    setBalance(mode === 'REAL' ? user.realBalance : user.demoBalance);
-    localStorage.setItem('shiftstack_game_mode', mode);
-    window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: mode }));
-  };
+  useEffect(() => {
+    const onModeChange = (event: Event) => {
+      const mode = (event as CustomEvent<'REAL' | 'DEMO'>).detail;
+      setGameMode(mode);
+      setBalance(mode === 'REAL' ? Number(user?.realBalance || 0) : Number(user?.demoBalance || 0));
+    };
+    window.addEventListener('aviator:game-mode', onModeChange);
+    return () => window.removeEventListener('aviator:game-mode', onModeChange);
+  }, [user]);
 
   const [terminal1, setTerminal1] = useState<TerminalState>({
     amount: 100,
@@ -354,12 +352,6 @@ export function AviatorConsole() {
 
           {/* Flight Canvas Component */}
           <FlightCanvas syncRef={roundSyncRef} cashoutNotices={cashoutNotices} onDismissCashout={(id) => setCashoutNotices((current) => current.filter((item) => item.id !== id))} />
-
-          {/* Real Mode Badge */}
-          <div className="game-mode-controls" aria-label="Choose betting mode">
-            <button type="button" className={gameMode === 'DEMO' ? 'active' : ''} onClick={() => selectGameMode('DEMO')}>Demo</button>
-            <button type="button" className={gameMode === 'REAL' ? 'active' : ''} onClick={() => selectGameMode('REAL')}>Real</button>
-          </div>
 
           {/* Real Mode Deposit Alert */}
           <div id="real-mode-deposit-alert" className="real-mode-deposit-alert" style={{ display: 'none' }}>

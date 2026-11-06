@@ -162,6 +162,22 @@ export async function getLiveRoundState(time: number = Date.now()): Promise<Roun
   throw new Error('Unable to resolve the shared game round schedule');
 }
 
+export async function getUpcomingRoundOutcomes(count: number = 3) {
+  const current = await getLiveRoundState();
+  const upcoming = [];
+  let nonce = current.nonce + 1;
+  let roundStartTime = current.roundEndTime;
+  for (let index = 0; index < Math.max(1, Math.min(10, Math.floor(count))); index += 1) {
+    const crashMultiplier = getCrashMultiplier(nonce);
+    const flightDuration = getFlightDuration(crashMultiplier);
+    const roundEndTime = Math.floor(roundStartTime + (COUNTDOWN_DURATION + flightDuration + CRASHED_PAUSE_DURATION) * 1000);
+    upcoming.push({ nonce, crashMultiplier, roundStartTime, roundEndTime, flightDuration });
+    nonce += 1;
+    roundStartTime = roundEndTime;
+  }
+  return { current, upcoming };
+}
+
 export async function GET() {
   let state: RoundState;
   try {

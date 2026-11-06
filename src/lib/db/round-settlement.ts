@@ -58,6 +58,25 @@ export function persistRoundSnapshot(snapshot: RoundSnapshot): Promise<void> {
           data: { status: 'LOST', cashedOut: 0 }
         });
         await tx.round.updateMany({ where: { nonce: snapshot.nonce, settledAt: null }, data: { phase: 'CRASHED', settledAt: now, lostBetCount: lost.count, updatedAt: now } });
+
+        // Match the legacy pool distribution for the simulated wallet only.
+        // Live-money positions accrue nothing until a funded revenue policy is
+        // configured; no balances are invented for the live wallet.
+        const [volume, positionsTotal] = await Promise.all([
+          tx.bet.aggregate({ where: { roundNonce: snapshot.nonce, mode: 'DEMO' }, _sum: { amount: true } }),
+          tx.liquidityPosition.aggregate({ where: { mode: 'DEMO', status: 'ACTIVE', principal: { gt: 0 } }, _sum: { principal: true } })
+        ]);
+        const demoVolume = Number(volume._sum.amount || 0);
+        const demoTvl = Number(positionsTotal._sum.principal || 0);
+        if (demoVolume > 0 && demoTvl > 0) {
+          const activePositions = await tx.liquidityPosition.findMany({ where: { mode: 'DEMO', status: 'ACTIVE', principal: { gt: 0 } }, select: { id: true, principal: true } });
+          const protocolFee = demoVolume * 0.015;
+          for (const position of activePositions) {
+            const share = Number(position.principal) / demoTvl;
+            const yieldAmount = Math.max(0.01, protocolFee * share * 8.5);
+            await tx.liquidityPosition.update({ where: { id: position.id }, data: { accruedYield: { increment: yieldAmount }, updatedAt: now } });
+          }
+        }
       }
     });
 

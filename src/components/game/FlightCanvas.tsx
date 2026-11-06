@@ -25,8 +25,14 @@ export function FlightCanvas({ syncRef: sharedSyncRef, cashoutNotices = [], onDi
     // Initialize global sync engine
     if (!syncRef.current) syncRef.current = new GlobalRoundSyncEngine();
     soundRef.current = new SoundEngine();
+    if (localStorage.getItem('shiftstack_sound_enabled') === 'false') soundRef.current.toggleSound();
+    if (localStorage.getItem('shiftstack_music_enabled') === 'false') soundRef.current.toggleMusic();
     const onSetting = (event: Event) => {
       const { setting, value } = (event as CustomEvent<{ setting: string; value: boolean }>).detail;
+      if (setting === 'animation') {
+        engineRef.current?.setAnimationEnabled(value);
+        return;
+      }
       const sound = soundRef.current;
       if (!sound) return;
       if (setting === 'sound' && sound.soundMuted === value) sound.toggleSound();
@@ -65,6 +71,7 @@ export function FlightCanvas({ syncRef: sharedSyncRef, cashoutNotices = [], onDi
     );
 
     engineRef.current = engine;
+    engine.setAnimationEnabled(localStorage.getItem('shiftstack_animation_enabled') !== 'false');
 
     return () => {
       window.removeEventListener('aviator:setting', onSetting);

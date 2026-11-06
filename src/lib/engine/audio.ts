@@ -218,6 +218,9 @@ export class SoundEngine {
     }
     if (this.soundMuted && this.isPlayingEngine) {
       this.stopEngine();
+    } else if (!this.soundMuted && this.isFlightActive && this.isUserViewingGame()) {
+      this.startEngineAudioNodes();
+      this.updateEnginePitch(this.lastMultiplier || 1);
     }
     return this.soundMuted;
   }

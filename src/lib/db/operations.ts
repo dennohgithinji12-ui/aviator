@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { randomUUID } from 'node:crypto';
 
 function normalizePhone(raw: string): string {
   if (!raw) return '';
@@ -484,6 +485,69 @@ export async function checkStkRateLimit(phone: string) {
 }
 
 // Bonus Operations
+const PROMO_DEPOSIT_RECEIPTS = ['SIGNUP_FREEBET_20', 'CASINO_BONUS_100'];
+
+export async function getDepositBonusStatus(phone: string) {
+  const norm = normalizePhone(phone);
+  if (!norm) return null;
+  const [user, deposits] = await Promise.all([
+    prisma.user.findUnique({ where: { phone: norm }, select: { deposit100BonusClaimed: true, deposit500BonusClaimed: true } }),
+    prisma.deposit.aggregate({
+      where: { phone: norm, status: 'SUCCESS', OR: [{ receiptNumber: null }, { receiptNumber: { notIn: PROMO_DEPOSIT_RECEIPTS } }] },
+      _sum: { amount: true }
+    })
+  ]);
+  if (!user) return null;
+  return {
+    deposit100Claimed: user.deposit100BonusClaimed,
+    deposit500Claimed: user.deposit500BonusClaimed,
+    successfulDepositAmount: Number(deposits._sum.amount || 0)
+  };
+}
+
+export async function claimDepositBonus(phone: string, tier: 100 | 500) {
+  const norm = normalizePhone(phone);
+  if (!norm) return { success: false, error: 'PHONE_REQUIRED', message: 'Valid phone required' };
+  const threshold = tier;
+  const reward = tier === 100 ? 50 : 100;
+  const claimedField = tier === 100 ? 'deposit100BonusClaimed' : 'deposit500BonusClaimed';
+  const now = BigInt(Date.now());
+  const reference = `DEPOSIT_BONUS_${tier}_${randomUUID()}`;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const deposits = await tx.deposit.aggregate({
+      where: { phone: norm, status: 'SUCCESS', OR: [{ receiptNumber: null }, { receiptNumber: { notIn: PROMO_DEPOSIT_RECEIPTS } }] },
+      _sum: { amount: true }
+    });
+    const totalDeposited = Number(deposits._sum.amount || 0);
+    if (totalDeposited < threshold) return { error: 'DEPOSIT_THRESHOLD_NOT_MET', totalDeposited } as const;
+
+    const claimed = await tx.user.updateMany({
+      where: { phone: norm, [claimedField]: false },
+      data: { realBalance: { increment: reward }, [claimedField]: true }
+    });
+    if (!claimed.count) return { error: 'ALREADY_CLAIMED', totalDeposited } as const;
+
+    const user = await tx.user.findUniqueOrThrow({ where: { phone: norm } });
+    const balanceAfter = Number(user.realBalance);
+    await tx.walletTransaction.create({ data: {
+      phone: norm, reference, type: 'PROMO_CREDIT', mode: 'REAL', amount: reward,
+      balanceBefore: balanceAfter - reward, balanceAfter, createdAt: now,
+      metadata: { promo: `DEPOSIT_BONUS_${tier}`, threshold }
+    } });
+    return { user, totalDeposited } as const;
+  });
+
+  if ('error' in result) {
+    if (result.error === 'ALREADY_CLAIMED') return { success: false, error: result.error, message: `The KES ${reward} deposit reward has already been claimed.` };
+    return { success: false, error: result.error, totalDeposited: result.totalDeposited, required: threshold, message: `Make successful deposits totaling KES ${threshold} to unlock this reward.` };
+  }
+  return {
+    success: true, amount: reward, realBalance: Number(result.user.realBalance),
+    message: `KES ${reward} free bet credited after KES ${threshold} in successful deposits.`
+  };
+}
+
 export async function claimSignupBonus(phone: string) {
   const norm = normalizePhone(phone);
   if (!norm) {

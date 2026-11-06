@@ -59,6 +59,7 @@ export class FlightCanvasEngine {
   maxY: number;
 
   animFrameId: number | null;
+  animationEnabled: boolean;
 
   constructor(
     canvasElement: HTMLCanvasElement,
@@ -101,6 +102,7 @@ export class FlightCanvasEngine {
     this.maxY = 2.2;
 
     this.animFrameId = null;
+    this.animationEnabled = true;
 
     this.initResize();
     this.startRenderLoop();
@@ -277,6 +279,14 @@ export class FlightCanvasEngine {
     this.globalSync = sync;
   }
 
+  setAnimationEnabled(enabled: boolean): void {
+    this.animationEnabled = enabled;
+    if (!enabled) {
+      this.particles = [];
+      this.explosionParticles = [];
+    }
+  }
+
   update(timestamp: number): void {
     this.propellerAngle += (this.state === 'FLYING' ? 0.75 : 0.25);
 
@@ -342,7 +352,7 @@ export class FlightCanvasEngine {
         this.maxY += (Math.max(2.2, this.currentMultiplier * 1.35) - this.maxY) * 0.025;
         this.maxX += (Math.max(7, this.elapsedFlightTime * 1.35) - this.maxX) * 0.025;
 
-        if (Math.random() > 0.2) {
+        if (this.animationEnabled && Math.random() > 0.2) {
           const plane = this.getPlaneCoordinates();
           this.particles.push({
             x: plane.x - 22,
@@ -409,7 +419,7 @@ export class FlightCanvasEngine {
           this.maxY += (Math.max(2.2, this.currentMultiplier * 1.35) - this.maxY) * 0.025;
           this.maxX += (Math.max(7, this.elapsedFlightTime * 1.35) - this.maxX) * 0.025;
 
-          if (Math.random() > 0.2) {
+          if (this.animationEnabled && Math.random() > 0.2) {
             const plane = this.getPlaneCoordinates();
             this.particles.push({
               x: plane.x - 22,
@@ -470,20 +480,22 @@ export class FlightCanvasEngine {
 
     this.renderBackgroundGrid(ctx, w, h);
 
-    if (this.state === 'FLYING' || this.state === 'CRASHED') {
-      this.renderFlightTrajectory(ctx, w, h);
-    }
-
-    this.renderParticles(ctx);
-
-    const plane = this.getPlaneCoordinates();
-    if (this.state === 'FLYING' || this.state === 'WAITING') {
-      this.renderAirplane(ctx, plane.x, plane.y, this.state === 'WAITING', plane.angle);
-    } else if (this.state === 'CRASHED') {
-      if (plane.x < w + 80 && plane.y > -80) {
-        this.renderAirplane(ctx, plane.x, plane.y, false, plane.angle);
+    if (this.animationEnabled) {
+      if (this.state === 'FLYING' || this.state === 'CRASHED') {
+        this.renderFlightTrajectory(ctx, w, h);
       }
-      this.renderExplosion(ctx);
+
+      this.renderParticles(ctx);
+
+      const plane = this.getPlaneCoordinates();
+      if (this.state === 'FLYING' || this.state === 'WAITING') {
+        this.renderAirplane(ctx, plane.x, plane.y, this.state === 'WAITING', plane.angle);
+      } else if (this.state === 'CRASHED') {
+        if (plane.x < w + 80 && plane.y > -80) {
+          this.renderAirplane(ctx, plane.x, plane.y, false, plane.angle);
+        }
+        this.renderExplosion(ctx);
+      }
     }
 
     this.renderCenterDisplay(ctx, w, h);
