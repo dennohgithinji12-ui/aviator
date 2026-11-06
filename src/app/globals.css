@@ -437,6 +437,16 @@ h1, h2, h3, h4 {
 .spribe-dropdown-menu.show {
   display: flex;
 }
+.spribe-dropdown-menu.open { display:flex; }
+.shiftstack-brand { border:0; padding:0; background:transparent; cursor:pointer; color:inherit; font:inherit; }
+.simple-modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.68); }
+.simple-modal { position:relative; width:min(420px,100%); padding:24px; color:var(--text-primary); background:var(--bg-panel); border:1px solid var(--border-main); border-radius:14px; box-shadow:0 20px 70px #0009; }
+.simple-modal h2 { margin:0 32px 12px 0; font-size:20px; }
+.simple-modal p { color:var(--text-secondary); line-height:1.55; font-size:14px; }
+.simple-modal-close { position:absolute; right:12px; top:10px; border:0; background:transparent; color:var(--text-secondary); font-size:24px; cursor:pointer; }
+.simple-modal-action,.round-history-popover button { border:0; border-radius:8px; padding:9px 16px; background:#08c878; color:#06120d; font-weight:800; cursor:pointer; }
+.round-history-popover { position:relative; z-index:110; display:flex; align-items:center; gap:12px; padding:10px; margin:-2px 0 8px; border:1px solid var(--border-main); border-radius:10px; background:var(--bg-panel); }
+.round-history-popover .history-scroll-container { flex:1; min-width:0; }
 @keyframes menuDrop {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -716,6 +726,18 @@ h1, h2, h3, h4 {
   font-size: 10px;
   color: var(--text-muted);
 }
+
+/* Legacy style win confirmation shown after server-confirmed cashout. */
+.cashout-popup-stack { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:20; display:flex; flex-direction:column; gap:6px; width:min(340px,calc(100% - 24px)); pointer-events:none; }
+.cashout-popup { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.9fr) 20px; align-items:center; gap:6px; min-height:52px; padding:5px 7px 5px 10px; color:#fff; background:linear-gradient(105deg,#1d9f0c,#27b900 54%,#1eaa0a); border:2px solid rgba(153,255,130,.8); border-radius:24px; box-shadow:0 5px 18px #0006,0 0 14px #2ecc2d4d; pointer-events:auto; animation:cashoutPopupIn .25s ease-out both; }
+.cashout-popup-result,.cashout-popup-winnings { min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; line-height:1.15; }
+.cashout-popup-result span { font-size:9px; font-weight:700; white-space:nowrap; }
+.cashout-popup-result strong { font-size:17px; font-weight:900; font-variant-numeric:tabular-nums; }
+.cashout-popup-winnings { min-height:38px; padding:3px 5px; background:#4eeb2cbe; border:2px solid rgba(207,255,192,.8); border-radius:20px; }
+.cashout-popup-winnings span { font-size:8px; font-weight:800; }
+.cashout-popup-winnings strong { font-size:14px; font-weight:900; white-space:nowrap; }
+.cashout-popup-close { border:0; background:transparent; color:#fff; font-size:21px; cursor:pointer; }
+@keyframes cashoutPopupIn { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
 
 /* --- Right Stage (Canvas & Terminals) --- */
 .console-main-stage {

@@ -18,6 +18,14 @@ export function FlightCanvas() {
     // Initialize global sync engine
     syncRef.current = new GlobalRoundSyncEngine();
     soundRef.current = new SoundEngine();
+    const onSetting = (event: Event) => {
+      const { setting, value } = (event as CustomEvent<{ setting: string; value: boolean }>).detail;
+      const sound = soundRef.current;
+      if (!sound) return;
+      if (setting === 'sound' && sound.soundMuted === value) sound.toggleSound();
+      if (setting === 'music' && sound.musicMuted === value) sound.toggleMusic();
+    };
+    window.addEventListener('aviator:setting', onSetting);
 
     // Initialize flight canvas engine
     const engine = new FlightCanvasEngine(
@@ -56,6 +64,7 @@ export function FlightCanvas() {
 
     return () => {
       clearInterval(interval);
+      window.removeEventListener('aviator:setting', onSetting);
       if (syncRef.current?.syncTimer) clearInterval(syncRef.current.syncTimer);
       soundRef.current?.stopEngine();
       if (engineRef.current) {

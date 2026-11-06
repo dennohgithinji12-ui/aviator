@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface BettingTerminalProps {
   terminalId: 1 | 2;
@@ -11,6 +11,9 @@ interface BettingTerminalProps {
   autoCashoutMultiplier: number;
   staked: boolean;
   cashedOut: boolean;
+  queued: boolean;
+  cashedOutMultiplier: number;
+  payout: number;
   onAmountChange: (id: 1 | 2, amount: number) => void;
   onBet: (id: 1 | 2, amount: number) => void;
   onCashout: (id: 1 | 2) => void;
@@ -34,6 +37,9 @@ export function BettingTerminal({
   autoCashoutMultiplier,
   staked,
   cashedOut,
+  queued,
+  cashedOutMultiplier,
+  payout,
   onAmountChange,
   onBet,
   onCashout,
@@ -49,6 +55,9 @@ export function BettingTerminal({
 }: BettingTerminalProps) {
   const [localAmount, setLocalAmount] = useState(amount);
   const [localAutoCashout, setLocalAutoCashout] = useState(autoCashoutMultiplier);
+
+  useEffect(() => setLocalAmount(amount), [amount]);
+  useEffect(() => setLocalAutoCashout(autoCashoutMultiplier), [autoCashoutMultiplier]);
 
   const quickChips = [100, 250, 1000, 25000];
 
@@ -76,7 +85,7 @@ export function BettingTerminal({
     onCancel(terminalId);
   };
 
-  const isDisabled = gameState !== 'WAITING' || balance < localAmount;
+  const isDisabled = (gameState !== 'WAITING' && gameState !== 'FLYING') || balance < localAmount || queued;
   const canCashout = staked && !cashedOut && gameState === 'FLYING';
   const canCancel = staked && !cashedOut && gameState === 'WAITING';
 
@@ -211,14 +220,19 @@ export function BettingTerminal({
         </div>
 
         <div className="terminal-right-action">
-          {!staked ? (
+          {queued && !staked ? (
+            <button className="btn-terminal-action state-cancel" onClick={handleCancel}>
+              <div className="action-btn-main">Cancel</div>
+              <div className="action-btn-sub">QUEUED NEXT ROUND</div>
+            </button>
+          ) : !staked ? (
             <button
               className="btn-terminal-action state-stake"
               onClick={handleBet}
               disabled={isDisabled}
             >
-              <div className="action-btn-main">Bet</div>
-              <div className="action-btn-sub">{localAmount.toFixed(2)} KES</div>
+              <div className="action-btn-main">{gameState === 'FLYING' ? 'Bet' : 'Bet'}</div>
+              <div className="action-btn-sub">{gameState === 'FLYING' ? 'NEXT ROUND' : `${localAmount.toFixed(2)} KES`}</div>
             </button>
           ) : canCancel ? (
             <button
@@ -248,7 +262,7 @@ export function BettingTerminal({
               </div>
               <div className="action-btn-sub">
                 {cashedOut
-                  ? (localAmount * currentMultiplier).toFixed(2) + ' KES'
+                  ? `${payout.toFixed(2)} KES · ${cashedOutMultiplier.toFixed(2)}x`
                   : localAmount.toFixed(2) + ' KES'}
               </div>
             </button>
