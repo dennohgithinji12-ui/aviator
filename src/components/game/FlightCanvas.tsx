@@ -67,6 +67,12 @@ export function FlightCanvas() {
   return (
     <div className="flight-canvas-container" id="flight-canvas-container">
       <canvas ref={canvasRef} id="flight-canvas" />
+      <div className="ufc-partners-overlay">
+        <span className="ufc-logo-tag">UFC</span><span>|</span>
+        <span className="partner-mark"><svg width="14" height="12" viewBox="0 0 40 32" fill="#ff003b"><path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" /></svg> OFFICIAL PARTNERS</span>
+      </div>
+      <div className="spribe-verified-badge"><div className="spribe-verified-top"><span>SPRIBE</span><span>✓ Official Game</span></div><span className="spribe-verified-sub">Since 2019</span></div>
+      <div className="canvas-stakers-badge"><div className="avatar-cluster"><span>🍀</span><span>👑</span><span>💵</span></div><span>200</span></div>
     </div>
   );
 }

@@ -22,6 +22,7 @@ interface BettingTerminalProps {
   balance: number;
   gameState: 'WAITING' | 'FLYING' | 'CRASHED';
   currentMultiplier: number;
+  onClose?: () => void;
 }
 
 export function BettingTerminal({
@@ -43,7 +44,8 @@ export function BettingTerminal({
   onAutoCashoutChange,
   balance,
   gameState,
-  currentMultiplier
+  currentMultiplier,
+  onClose
 }: BettingTerminalProps) {
   const [localAmount, setLocalAmount] = useState(amount);
   const [localAutoCashout, setLocalAutoCashout] = useState(autoCashoutMultiplier);
@@ -101,6 +103,7 @@ export function BettingTerminal({
             id="btn-hide-terminal-2"
             title="Close Second Bet Panel"
             aria-label="Minimize terminal"
+            onClick={onClose}
           >
             <span style={{ fontWeight: 900, fontSize: '14px' }}>⊟</span>
           </button>
@@ -135,6 +138,7 @@ export function BettingTerminal({
                       setLocalAmount(val);
                       onAmountChange(terminalId, val);
                     }}
+                    onBlur={() => setLocalAmount((current) => Math.min(100000, Math.max(100, Math.floor(current / 100) * 100)))}
                   />
                   <span className="currency-tag">KES</span>
                 </div>

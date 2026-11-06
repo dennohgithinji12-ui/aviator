@@ -124,6 +124,7 @@ export function DualBettingTerminals({
           balance={balance}
           gameState={gameState}
           currentMultiplier={currentMultiplier}
+          onClose={() => onToggleTerminal2()}
         />
       )}
 

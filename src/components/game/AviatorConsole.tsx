@@ -6,6 +6,7 @@ import { DualBettingTerminals } from './DualBettingTerminals';
 import { LiveStakers } from './LiveStakers';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { RoundHistoryRibbon } from './RoundHistoryRibbon';
 
 interface TerminalState {
   amount: number;
@@ -233,9 +234,7 @@ export function AviatorConsole() {
 
       {/* Multiplier History Bar */}
       <div className="arena-history-bar" id="arena-history-bar">
-        <div className="history-ribbon-wrapper" id="history-ribbon">
-          {/* History items will be injected here */}
-        </div>
+        <div className="history-ribbon-wrapper" id="history-ribbon"><RoundHistoryRibbon /></div>
         <button className="btn-round-history" id="btn-open-round-history" title="Round History & Multipliers">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '3px' }}>
             <circle cx="12" cy="12" r="10"></circle>
@@ -255,37 +254,6 @@ export function AviatorConsole() {
 
           {/* Flight Canvas Component */}
           <FlightCanvas />
-
-          {/* UFC & Aviator Partners Overlay */}
-          <div className="ufc-partners-overlay">
-            <span className="ufc-logo-tag">UFC</span>
-            <span>|</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-              <svg width="14" height="12" viewBox="0 0 40 32" fill="#ff003b">
-                <path d="M4 18 C 12 16, 22 14, 38 7 C 32 15, 26 21, 18 24 C 12 25, 6 23, 4 18 Z" />
-              </svg>
-              OFFICIAL PARTNERS
-            </span>
-          </div>
-
-          {/* SPRIBE Verified Badge */}
-          <div className="spribe-verified-badge">
-            <div className="spribe-verified-top">
-              <span>SPRIBE</span>
-              <span style={{ color: '#2ecc71' }}>✓ Official Game</span>
-            </div>
-            <span className="spribe-verified-sub">Since 2019</span>
-          </div>
-
-          {/* Live Stakers */}
-          <div className="canvas-stakers-badge">
-            <div className="avatar-cluster">
-              <span>🍀</span>
-              <span>👑</span>
-              <span>💵</span>
-            </div>
-            <span id="canvas-stakers-count">200</span>
-          </div>
 
           {/* Real Mode Badge */}
           {isAuthenticated ? (
