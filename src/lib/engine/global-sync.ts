@@ -128,6 +128,7 @@ export interface RoundState {
   roundEndTime: number;
   serverHash: string;
   clientSeed: string;
+  persistenceAvailable?: boolean;
 }
 
 export class GlobalRoundSyncEngine {
@@ -138,6 +139,10 @@ export class GlobalRoundSyncEngine {
   clockOffset: number;
   lastState: RoundState | null;
   broadcastChannel: BroadcastChannel | null;
+  lastSyncReceivedAt: number;
+  syncInFlight: boolean;
+  syncTimer: ReturnType<typeof setInterval> | null;
+  serverClockAnchor: number;
 
   constructor(options: { epochBase?: number } = {}) {
     this.EPOCH_BASE = options.epochBase || 1727180000000;
@@ -147,6 +152,10 @@ export class GlobalRoundSyncEngine {
     this.clockOffset = 0;
     this.lastState = null;
     this.broadcastChannel = null;
+    this.lastSyncReceivedAt = 0;
+    this.syncInFlight = false;
+    this.syncTimer = null;
+    this.serverClockAnchor = 0;
 
     if (typeof BroadcastChannel !== 'undefined') {
       try {
@@ -155,7 +164,7 @@ export class GlobalRoundSyncEngine {
     }
 
     this.initServerSync();
-    setInterval(() => this.initServerSync(), 200);
+    this.syncTimer = setInterval(() => { void this.initServerSync(); }, 250);
 
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
@@ -167,15 +176,24 @@ export class GlobalRoundSyncEngine {
   }
 
   async initServerSync(): Promise<void> {
+    if (this.syncInFlight) return;
+    this.syncInFlight = true;
+    const requestStartedAt = performance.now();
     try {
-      const res = await fetch('/api/round-state');
+      const res = await fetch('/api/round-state', { cache: 'no-store' });
       if (res.ok) {
         const state: RoundState = await res.json();
+        // Discard delayed responses so an old phase can never rewind the UI.
+        if (this.lastState && (state.nonce < this.lastState.nonce || (state.nonce === this.lastState.nonce && state.serverTime < this.lastState.serverTime))) return;
         this.lastState = state;
-        this.clockOffset = state.serverTime - Date.now();
+        this.lastSyncReceivedAt = performance.now();
+        this.serverClockAnchor = state.serverTime + (this.lastSyncReceivedAt - requestStartedAt) / 2;
+        this.clockOffset = this.serverClockAnchor - Date.now();
       }
     } catch (e) {
       console.warn('[Global Sync] Server sync failed:', e);
+    } finally {
+      this.syncInFlight = false;
     }
   }
 
@@ -187,15 +205,29 @@ export class GlobalRoundSyncEngine {
   }
 
   computeClientPhase(serverState: RoundState): RoundState {
-    // Round phase and multiplier are server-authoritative. Reconstructing them
-    // in the browser would require sending the unrevealed crash outcome.
-    return serverState;
+    // Animate from the server's shared timeline on every render frame. Only
+    // the deterministic takeoff transition is inferred locally; the crash
+    // phase and crash value still come from the server.
+    const serverTime = this.serverClockAnchor + (performance.now() - this.lastSyncReceivedAt);
+    const flightStartsAt = serverState.roundStartTime + this.COUNTDOWN_DURATION * 1000;
+    if (serverState.phase === 'WAITING' && serverTime < flightStartsAt) {
+      return { ...serverState, serverTime, remainingSeconds: Math.max(0, (flightStartsAt - serverTime) / 1000) };
+    }
+    if (serverState.phase === 'WAITING' && serverTime >= flightStartsAt) {
+      const elapsedFlightSeconds = Math.max(0, (serverTime - flightStartsAt) / 1000);
+      return { ...serverState, phase: 'FLYING', serverTime, remainingSeconds: 0, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
+    }
+    if (serverState.phase === 'FLYING') {
+      const elapsedFlightSeconds = Math.max(serverState.elapsedFlightSeconds, (serverTime - flightStartsAt) / 1000);
+      return { ...serverState, serverTime, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
+    }
+    return { ...serverState, serverTime };
   }
 
   computeMultiplierFromTime(t: number): number {
     if (t <= 0) return 1.00;
     const val = Math.pow(Math.E, 0.072 * t) + (0.012 * t * t);
-    return Math.max(1.00, Math.floor(val * 100) / 100);
+    return Math.max(1.00, val);
   }
 
   computeFallbackState(): RoundState {

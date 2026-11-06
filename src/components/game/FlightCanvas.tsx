@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { FlightCanvasEngine } from '@/lib/engine/flight-canvas';
 import { GlobalRoundSyncEngine, RoundState } from '@/lib/engine/global-sync';
 import { SoundEngine } from '@/lib/engine/audio';
@@ -12,9 +12,6 @@ export function FlightCanvas() {
   const soundRef = useRef<SoundEngine | null>(null);
   const lastTickRef = useRef(0);
   
-  const [multiplier, setMultiplier] = useState(1.00);
-  const [phase, setPhase] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
-
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -26,7 +23,6 @@ export function FlightCanvas() {
     const engine = new FlightCanvasEngine(
       canvasRef.current,
       (mult: number, remaining: number) => {
-        setMultiplier(mult);
         const sound = soundRef.current;
         if (sound && mult > 1) sound.updateEnginePitch(mult);
         const tick = Math.ceil(remaining);
@@ -36,7 +32,6 @@ export function FlightCanvas() {
         }
       },
       (state: 'WAITING' | 'FLYING' | 'CRASHED', data: any) => {
-        setPhase(state);
         const sound = soundRef.current;
         if (!sound) return;
         if (state === 'FLYING') {
@@ -56,14 +51,12 @@ export function FlightCanvas() {
 
     // Periodic state sync
     const interval = setInterval(() => {
-      if (syncRef.current) {
-        const state = syncRef.current.getGlobalRoundState();
-        // Update UI based on server state
-      }
+      // GlobalRoundSyncEngine owns ordered server snapshots and smooth clock interpolation.
     }, 250);
 
     return () => {
       clearInterval(interval);
+      if (syncRef.current?.syncTimer) clearInterval(syncRef.current.syncTimer);
       soundRef.current?.stopEngine();
       if (engineRef.current) {
         engineRef.current.destroy();

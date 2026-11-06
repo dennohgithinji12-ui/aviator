@@ -245,9 +245,11 @@ export class FlightCanvasEngine {
     }
 
     const t = Math.max(0, this.elapsedFlightTime);
+    // Drive the aircraft from elapsed flight time, which is continuously
+    // interpolated from server timestamps. Dynamic axis rescaling must not
+    // feed back into the plane position or it appears to jump on every tick.
     const normX = Math.min(0.88, (1 - Math.exp(-t * 0.20)) * 0.95);
-    const multRatio = (this.currentMultiplier - 1.0) / Math.max(0.5, this.maxY - 1.0);
-    const normY = Math.min(0.85, Math.pow(Math.min(1.0, Math.max(0, multRatio)), 0.85) * 0.88);
+    const normY = Math.min(0.85, (1 - Math.exp(-t * 0.16)) * 0.88);
 
     const x = originX + normX * usableW;
     const y = originY - normY * usableH;
@@ -317,12 +319,8 @@ export class FlightCanvasEngine {
         this.elapsedFlightTime = gState.elapsedFlightSeconds;
         this.currentMultiplier = gState.currentMultiplier;
 
-        if (this.currentMultiplier > this.maxY * 0.75) {
-          this.maxY = this.currentMultiplier * 1.35;
-        }
-        if (this.elapsedFlightTime > this.maxX * 0.75) {
-          this.maxX = this.elapsedFlightTime * 1.35;
-        }
+        this.maxY += (Math.max(2.2, this.currentMultiplier * 1.35) - this.maxY) * 0.025;
+        this.maxX += (Math.max(7, this.elapsedFlightTime * 1.35) - this.maxX) * 0.025;
 
         if (Math.random() > 0.2) {
           const plane = this.getPlaneCoordinates();
@@ -342,11 +340,13 @@ export class FlightCanvasEngine {
         }
       } else if (gState.phase === 'CRASHED') {
         if (this.state !== 'CRASHED') {
+          // Capture the live aircraft location before switching to the fly-away
+          // coordinates used by the crash animation.
+          this.lastCrashPos = this.getPlaneCoordinates();
+          this.crashPlanePos = { ...this.lastCrashPos };
           this.state = 'CRASHED';
           this.targetCrashMultiplier = gState.crashMultiplier;
           this.currentMultiplier = gState.crashMultiplier;
-          this.lastCrashPos = this.getPlaneCoordinates();
-          this.crashPlanePos = { ...this.lastCrashPos };
           this.crashTime = performance.now();
           this.createExplosion();
           if (this.onStateChange) {
@@ -386,12 +386,8 @@ export class FlightCanvasEngine {
           this.currentMultiplier = this.targetCrashMultiplier;
           this.triggerCrash();
         } else {
-          if (this.currentMultiplier > this.maxY * 0.75) {
-            this.maxY = this.currentMultiplier * 1.35;
-          }
-          if (this.elapsedFlightTime > this.maxX * 0.75) {
-            this.maxX = this.elapsedFlightTime * 1.35;
-          }
+          this.maxY += (Math.max(2.2, this.currentMultiplier * 1.35) - this.maxY) * 0.025;
+          this.maxX += (Math.max(7, this.elapsedFlightTime * 1.35) - this.maxX) * 0.025;
 
           if (Math.random() > 0.2) {
             const plane = this.getPlaneCoordinates();

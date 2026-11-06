@@ -9,6 +9,7 @@ const PUBLIC_CLIENT_SEED = 'global_aviator_network_shared_seed_100x';
 const EPOCH_BASE = 1727180000000;
 const COUNTDOWN_DURATION = 5.0;
 const CRASHED_PAUSE_DURATION = 3.0;
+const ROUND_LOOKUP_CACHE_MS = 500;
 
 interface RoundState {
   serverTime: number;
@@ -118,11 +119,15 @@ function computeServerPhaseForRound(round: ServerRound, time: number): RoundStat
 export async function getLiveRoundState(time: number = Date.now()): Promise<RoundState> {
   if (!MASTER_SECRET) throw new Error('GAME_MASTER_SECRET must be configured before serving game rounds');
   const normalizedTime = Math.floor(time);
-  const sharedRound = await prisma.round.findFirst({
-    where: { roundStartTime: { lte: BigInt(normalizedTime) } },
-    orderBy: { roundStartTime: 'desc' },
-    select: { nonce: true, roundStartTime: true, roundEndTime: true }
-  });
+  // The persisted schedule is authoritative when available. If storage is
+  // temporarily offline, all instances still derive the same public round
+  // window from the epoch and server secret so the animation does not freeze.
+  let sharedRound: { nonce: number; roundStartTime: bigint; roundEndTime: bigint } | null = null;
+  try {
+    sharedRound = await getCachedSharedRound(normalizedTime);
+  } catch {
+    // Deterministic epoch schedule below is the read-only availability fallback.
+  }
   const HOUR_MS = 3600000;
   let currentNonce: number;
   let roundStart: number;
@@ -180,10 +185,33 @@ export async function getLiveRoundState(time: number = Date.now()): Promise<Roun
   throw new Error('Unable to resolve the shared game round schedule');
 }
 
+type SharedRoundRow = { nonce: number; roundStartTime: bigint; roundEndTime: bigint };
+let sharedRoundCache: { row: SharedRoundRow | null; readAt: number } | null = null;
+let sharedRoundRead: Promise<SharedRoundRow | null> | null = null;
+
+async function getCachedSharedRound(now: number): Promise<SharedRoundRow | null> {
+  if (sharedRoundCache && now - sharedRoundCache.readAt < ROUND_LOOKUP_CACHE_MS) return sharedRoundCache.row;
+  if (sharedRoundRead) return sharedRoundRead;
+  sharedRoundRead = prisma.round.findFirst({
+    where: { roundStartTime: { lte: BigInt(now) } },
+    orderBy: { roundStartTime: 'desc' },
+    select: { nonce: true, roundStartTime: true, roundEndTime: true }
+  }).then((row) => {
+    sharedRoundCache = { row, readAt: Date.now() };
+    return row;
+  }).finally(() => { sharedRoundRead = null; });
+  return sharedRoundRead;
+}
+
 export async function GET() {
   let state: RoundState;
   try {
     state = await getLiveRoundState();
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Round service unavailable' }, { status: 503 });
+  }
+  let persistenceAvailable = true;
+  try {
     await persistRoundSnapshot({
       nonce: state.nonce,
       phase: state.phase,
@@ -195,11 +223,14 @@ export async function GET() {
       roundEndTime: state.roundEndTime
     });
   }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Round service unavailable' }, { status: 503 }); }
+  catch {
+    persistenceAvailable = false;
+  }
   // Publish only values required to animate the active round. The outcome is
   // disclosed after the crash, never while bets can still be placed.
   return NextResponse.json({
     ...state,
+    persistenceAvailable,
     crashMultiplier: state.phase === 'CRASHED' ? state.crashMultiplier : 0,
     flightDuration: state.phase === 'CRASHED' ? state.flightDuration : 0,
     roundEndTime: state.phase === 'CRASHED' ? state.roundEndTime : 0
