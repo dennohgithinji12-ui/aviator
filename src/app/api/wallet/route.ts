@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBalances, getTotalDeposits, getTotalTurnover } from '@/lib/db/operations';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const phone = req.nextUrl.searchParams.get('phone') || '';
-    const balances = await getBalances(phone);
-    const totalDeposits = await getTotalDeposits(phone);
-    const totalTurnover = await getTotalTurnover(phone);
+    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    const session = verifyToken(token);
+    if (!session) return NextResponse.json({ success: false, error: 'Sign in to view your wallet' }, { status: 401 });
+    const balances = await getBalances(session.phone);
+    const totalDeposits = await getTotalDeposits(session.phone);
+    const totalTurnover = await getTotalTurnover(session.phone);
     const turnoverCompleted = (totalDeposits === 0) || (totalTurnover >= totalDeposits);
 
     return NextResponse.json({

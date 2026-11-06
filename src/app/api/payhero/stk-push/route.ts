@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import { callPayHeroApi } from '@/lib/payhero';
 import {
   checkStkRateLimit,
   recordStkAttempt,
   createDeposit,
-  getDeposit,
+  updateDepositProviderDetails,
   completeDeposit,
-  getBalances
+  failDeposit
 } from '@/lib/db/operations';
 
 const PAYHERO_TRANSACTIONS = new Map<string, any>();
@@ -21,11 +23,7 @@ function simulateSandboxSuccess(reference: string, txRecord: any) {
         tx.completedAt = Date.now();
         PAYHERO_TRANSACTIONS.set(reference, tx);
 
-        try {
-          completeDeposit(reference, tx.receiptNumber);
-        } catch (e) {
-          console.error('[DB Deposit Error]:', e instanceof Error ? e.message : 'Unknown error');
-        }
+        void completeDeposit(reference, tx.receiptNumber).catch((e) => console.error('[DB Deposit Error]:', e instanceof Error ? e.message : 'Unknown error'));
 
         console.log(`[PayHero Sandbox] Confirmed M-PESA STK Push payment for ${tx.reference}: KES ${tx.amount} (Receipt: ${tx.receiptNumber})`);
       }
@@ -35,22 +33,17 @@ function simulateSandboxSuccess(reference: string, txRecord: any) {
 
 export async function POST(req: NextRequest) {
   try {
+    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    const session = verifyToken(token);
+    if (!session) return NextResponse.json({ success: false, error: 'Sign in before starting a deposit' }, { status: 401 });
     const data = await req.json();
     const amount = parseFloat(data.amount);
-    let phone = String(data.phone || '').trim().replace(/[^\d+]/g, '');
+    const phone = session.phone;
 
-    if (phone.startsWith('07') || phone.startsWith('01')) {
-      phone = '254' + phone.substring(1);
-    } else if (phone.startsWith('+254')) {
-      phone = phone.substring(1);
-    } else if (!phone.startsWith('254') && phone.length === 9) {
-      phone = '254' + phone;
-    }
-
-    if (isNaN(amount) || amount < 49) {
+    if (!Number.isFinite(amount) || amount < 49 || !Number.isInteger(amount)) {
       return NextResponse.json({
         success: false,
-        error: 'Minimum deposit is KES 49.00 (49 Bob). Please enter 49 KES or more'
+        error: 'Deposit must be a whole KES amount of at least KES 49'
       }, { status: 400 });
     }
 
@@ -82,18 +75,22 @@ export async function POST(req: NextRequest) {
     };
     PAYHERO_TRANSACTIONS.set(reference, txRecord);
 
-    try {
-      await createDeposit(reference, phone, amount);
-    } catch (e) {
-      console.warn('[DB Deposit Init Notice]:', e instanceof Error ? e.message : 'Unknown error');
-    }
+    await createDeposit(reference, phone, amount);
 
+    const paymentMode = await prisma.appSetting.findUnique({ where: { key: 'PAYMENTS_SANDBOX_MODE' }, select: { value: true } });
+    const sandboxMode = process.env.NODE_ENV !== 'production' && (paymentMode ? paymentMode.value === true : process.env.PAYMENTS_SANDBOX_MODE !== 'false');
     const apiKey = process.env.PAYHERO_API_KEY;
     const apiSecret = process.env.PAYHERO_API_SECRET;
     const channelId = process.env.PAYHERO_CHANNEL_ID || '4848';
 
-    if (apiKey && apiSecret && !data.forceSandbox) {
+    if (process.env.NODE_ENV === 'production' && (!apiKey || !apiSecret || !process.env.PAYHERO_CALLBACK_SECRET)) {
+      return NextResponse.json({ success: false, error: 'Live payment credentials and callback secret are not configured' }, { status: 503 });
+    }
+
+    if (apiKey && apiSecret && !sandboxMode) {
       try {
+        const callbackUrl = new URL('/api/payhero/callback', process.env.APP_BASE_URL || req.nextUrl.origin);
+        callbackUrl.searchParams.set('key', process.env.PAYHERO_CALLBACK_SECRET || '');
         const phRes = await callPayHeroApi('payments', 'POST', {
           amount: Math.round(amount),
           phone_number: phone,
@@ -101,12 +98,13 @@ export async function POST(req: NextRequest) {
           provider: 'm-pesa',
           external_reference: reference,
           customer_name: data.customerName || 'Aviator Pilot',
-          callback_url: `${req.headers.get('host')}/api/payhero/callback`
+          callback_url: callbackUrl.toString()
         });
 
         const phJson = phRes.body || {};
 
         if (phRes.statusCode >= 400 || (phJson.error_message && !phJson.success)) {
+          await failDeposit(reference);
           console.warn('[PayHero Live API Notice]:', phRes.statusCode, phJson);
 
           if (phJson.error_message && phJson.error_message.includes('insufficient balance')) {
@@ -129,6 +127,7 @@ export async function POST(req: NextRequest) {
         if (phJson.reference) txRecord.payheroReference = phJson.reference;
         if (phJson.CheckoutRequestID) txRecord.checkoutRequestId = phJson.CheckoutRequestID;
         PAYHERO_TRANSACTIONS.set(reference, txRecord);
+        await updateDepositProviderDetails(reference, phJson.reference, phJson.CheckoutRequestID);
 
         return NextResponse.json({
           success: true,
@@ -140,6 +139,7 @@ export async function POST(req: NextRequest) {
           payheroResponse: phJson
         });
       } catch (liveErr) {
+        await failDeposit(reference);
         console.warn('[PayHero Live Error]:', liveErr instanceof Error ? liveErr.message : 'Unknown error');
         return NextResponse.json({
           success: false,

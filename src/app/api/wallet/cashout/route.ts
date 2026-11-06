@@ -14,12 +14,12 @@ export async function POST(req: NextRequest) {
 
     const mode = data.mode === 'REAL' ? 'REAL' : 'DEMO';
     const betId = Number(data.betId);
-    const round = getLiveRoundState();
+    const round = await getLiveRoundState();
     if (round.phase !== 'FLYING' || !Number.isInteger(betId)) {
       return NextResponse.json({ success: false, code: 'CASHOUT_CLOSED', message: 'Cashout is only available during flight' }, { status: 409 });
     }
     const settled = await prisma.$transaction(async (tx) => {
-      const latestRound = getLiveRoundState();
+      const latestRound = await getLiveRoundState();
       if (latestRound.phase !== 'FLYING' || latestRound.nonce !== round.nonce) throw new Error('CASHOUT_CLOSED');
       const bet = await tx.bet.findFirst({ where: { id: betId, phone: session.phone, mode, roundNonce: round.nonce, status: 'ACTIVE' } });
       if (!bet) throw new Error('BET_NOT_ACTIVE');
@@ -29,6 +29,11 @@ export async function POST(req: NextRequest) {
       if (!changed.count) throw new Error('BET_NOT_ACTIVE');
       const balanceField = mode === 'REAL' ? 'realBalance' : 'demoBalance';
       const user = await tx.user.update({ where: { phone: session.phone }, data: { [balanceField]: { increment: payout } } });
+      const balanceAfter = Number(mode === 'REAL' ? user.realBalance : user.demoBalance);
+      await tx.walletTransaction.create({ data: {
+        phone: session.phone, reference: `BET_${bet.id}_PAYOUT`, type: 'BET_PAYOUT', mode, amount: payout,
+        balanceBefore: balanceAfter - payout, balanceAfter, createdAt: BigInt(Date.now()), metadata: { betId: bet.id, multiplier }
+      } });
       return { user, payout, multiplier };
     });
     return NextResponse.json({

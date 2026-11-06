@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { claimSignupBonus } from '@/lib/db/operations';
+import { verifyToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const data = await req.json();
-    const phone = data.phone?.trim();
-
-    if (!phone || phone === 'guest') {
+    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    const session = verifyToken(token);
+    if (!session) {
       return NextResponse.json({
         success: false,
         error: 'LOGIN_REQUIRED',
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       }, { status: 401 });
     }
 
-    const result = await claimSignupBonus(phone);
+    const result = await claimSignupBonus(session.phone);
     return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return NextResponse.json({

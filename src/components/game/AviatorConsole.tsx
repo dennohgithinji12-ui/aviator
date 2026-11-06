@@ -18,7 +18,7 @@ interface TerminalState {
 }
 
 export function AviatorConsole() {
-  const { user, token, isAuthenticated, login, signup, logout, updateBalance } = useAuth();
+  const { user, token, isAuthenticated, completeFirebaseAuth, logout, updateBalance } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [gameState, setGameState] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
@@ -354,8 +354,7 @@ export function AviatorConsole() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLogin={login}
-        onSignup={signup}
+        onFirebaseAuth={completeFirebaseAuth}
         mode={authMode}
       />
     </section>

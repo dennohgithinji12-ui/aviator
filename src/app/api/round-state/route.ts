@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { prisma } from '@/lib/db';
+import { persistRoundSnapshot } from '@/lib/db/round-settlement';
 
 // Game Constants (Preserved from server.js)
 const MASTER_SECRET = process.env.GAME_MASTER_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-round-secret-change-before-deploy');
@@ -72,8 +74,6 @@ interface ServerRound {
   serverHash: string;
 }
 
-let cachedServerRound: ServerRound | null = null;
-
 function computeServerPhaseForRound(round: ServerRound, time: number): RoundState {
   const elapsedInRoundMs = time - round.roundStartTime;
   const countdownDurationMs = COUNTDOWN_DURATION * 1000;
@@ -115,37 +115,54 @@ function computeServerPhaseForRound(round: ServerRound, time: number): RoundStat
   };
 }
 
-export function getLiveRoundState(time: number = Date.now()): RoundState {
+export async function getLiveRoundState(time: number = Date.now()): Promise<RoundState> {
   if (!MASTER_SECRET) throw new Error('GAME_MASTER_SECRET must be configured before serving game rounds');
-  if (cachedServerRound && time >= cachedServerRound.roundStartTime && time < cachedServerRound.roundEndTime) {
-    return computeServerPhaseForRound(cachedServerRound, time);
-  }
-
+  const normalizedTime = Math.floor(time);
+  const sharedRound = await prisma.round.findFirst({
+    where: { roundStartTime: { lte: BigInt(normalizedTime) } },
+    orderBy: { roundStartTime: 'desc' },
+    select: { nonce: true, roundStartTime: true, roundEndTime: true }
+  });
   const HOUR_MS = 3600000;
-  const hourBlockIndex = Math.floor((time - EPOCH_BASE) / HOUR_MS);
-  const hourStartTime = EPOCH_BASE + (hourBlockIndex * HOUR_MS);
-
   let currentNonce: number;
   let roundStart: number;
-
-  if (cachedServerRound && cachedServerRound.roundEndTime > hourStartTime && cachedServerRound.roundEndTime <= time) {
-    currentNonce = cachedServerRound.nonce + 1;
-    roundStart = cachedServerRound.roundEndTime;
+  if (sharedRound) {
+    currentNonce = sharedRound.nonce;
+    roundStart = Number(sharedRound.roundStartTime);
+    const persistedEnd = Number(sharedRound.roundEndTime);
+    if (normalizedTime < persistedEnd) {
+      const serverSeed = getRoundSeed(currentNonce);
+      const crashMultiplier = getCrashMultiplier(currentNonce);
+      const flightDuration = getFlightDuration(crashMultiplier);
+      return computeServerPhaseForRound({
+        nonce: currentNonce,
+        serverSeed,
+        crashMultiplier,
+        flightDuration,
+        roundStartTime: roundStart,
+        roundEndTime: persistedEnd,
+        serverHash: crypto.createHash('sha256').update(serverSeed).digest('hex')
+      }, normalizedTime);
+    }
+    currentNonce += 1;
+    roundStart = persistedEnd;
   } else {
+    const hourBlockIndex = Math.floor((normalizedTime - EPOCH_BASE) / HOUR_MS);
     currentNonce = hourBlockIndex * 250;
-    roundStart = hourStartTime;
+    roundStart = EPOCH_BASE + (hourBlockIndex * HOUR_MS);
   }
 
-  while (true) {
+  let roundsExamined = 0;
+  while (roundsExamined < 100_000) {
+    roundsExamined += 1;
     const crashMultiplier = getCrashMultiplier(currentNonce);
     const serverSeed = getRoundSeed(currentNonce);
     const flightDuration = getFlightDuration(crashMultiplier);
     const totalDuration = COUNTDOWN_DURATION + flightDuration + CRASHED_PAUSE_DURATION;
-    const totalDurationMs = totalDuration * 1000;
-    const roundEnd = roundStart + totalDurationMs;
+    const roundEnd = Math.floor(roundStart + totalDuration * 1000);
 
-    if (time >= roundStart && time < roundEnd) {
-      cachedServerRound = {
+    if (normalizedTime >= roundStart && normalizedTime < roundEnd) {
+      const round: ServerRound = {
         nonce: currentNonce,
         serverSeed,
         crashMultiplier,
@@ -154,30 +171,30 @@ export function getLiveRoundState(time: number = Date.now()): RoundState {
         roundEndTime: roundEnd,
         serverHash: crypto.createHash('sha256').update(serverSeed).digest('hex')
       };
-      return computeServerPhaseForRound(cachedServerRound, time);
+      return computeServerPhaseForRound(round, normalizedTime);
     }
 
     roundStart = roundEnd;
     currentNonce++;
-    if (currentNonce > (hourBlockIndex * 250) + 600) break;
   }
-
-  const fallback: ServerRound = {
-    nonce: currentNonce,
-    serverSeed: getRoundSeed(currentNonce),
-    crashMultiplier: 2.00,
-    flightDuration: 6.10,
-    roundStartTime: time,
-    roundEndTime: time + 14300,
-    serverHash: crypto.createHash('sha256').update(getRoundSeed(currentNonce)).digest('hex')
-  };
-  cachedServerRound = fallback;
-  return computeServerPhaseForRound(fallback, time);
+  throw new Error('Unable to resolve the shared game round schedule');
 }
 
 export async function GET() {
   let state: RoundState;
-  try { state = getLiveRoundState(); }
+  try {
+    state = await getLiveRoundState();
+    await persistRoundSnapshot({
+      nonce: state.nonce,
+      phase: state.phase,
+      commitment: state.serverHash,
+      serverSeed: state.serverSeed,
+      clientSeed: state.clientSeed,
+      crashMultiplier: state.crashMultiplier,
+      roundStartTime: state.roundStartTime,
+      roundEndTime: state.roundEndTime
+    });
+  }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Round service unavailable' }, { status: 503 }); }
   // Publish only values required to animate the active round. The outcome is
   // disclosed after the crash, never while bets can still be placed.

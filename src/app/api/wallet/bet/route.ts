@@ -25,14 +25,14 @@ export async function POST(req: NextRequest) {
         success: false, code: 'INVALID_BET', message: 'Stake must be KES 100–100,000 and terminal must be 1 or 2'
       }, { status: 400 });
     }
-    const round = getLiveRoundState();
+    const round = await getLiveRoundState();
     if (round.phase !== 'WAITING' || round.nonce !== roundNonce) {
       return NextResponse.json({ success: false, code: 'ROUND_CLOSED', message: 'Betting is closed for this round' }, { status: 409 });
     }
 
     const balanceField = mode === 'REAL' ? 'realBalance' : 'demoBalance';
     const result = await prisma.$transaction(async (tx) => {
-      const latestRound = getLiveRoundState();
+      const latestRound = await getLiveRoundState();
       if (latestRound.phase !== 'WAITING' || latestRound.nonce !== roundNonce) throw new Error('ROUND_CLOSED');
       const existing = await tx.bet.findFirst({ where: { phone: session.phone, mode, terminalId, roundNonce, status: 'ACTIVE' } });
       if (existing) throw new Error('BET_ALREADY_PLACED');
@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
       if (!debit.count) throw new Error('INSUFFICIENT_FUNDS');
       const bet = await tx.bet.create({ data: { phone: session.phone, mode, terminalId, amount, roundNonce, status: 'ACTIVE', createdAt: BigInt(Date.now()) } });
       const user = await tx.user.findUniqueOrThrow({ where: { phone: session.phone } });
+      const balanceAfter = Number(mode === 'REAL' ? user.realBalance : user.demoBalance);
+      await tx.walletTransaction.create({ data: {
+        phone: session.phone, reference: `BET_${bet.id}_DEBIT`, type: 'BET_DEBIT', mode, amount,
+        balanceBefore: balanceAfter + amount, balanceAfter, createdAt: BigInt(Date.now()), metadata: { betId: bet.id, terminalId, roundNonce }
+      } });
       return { bet, user };
     });
 

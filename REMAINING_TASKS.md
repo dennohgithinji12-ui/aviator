@@ -317,8 +317,13 @@ Order follows data integrity and money movement first; visual completion follows
 - [x] Calculate payout on the server from the active round; ignore client payout/multiplier claims.
 - [x] Support independent bets on both terminals and wire auto-bet / auto-cashout controls.
 - [x] Add cancellation before takeoff and restore the stake atomically.
-- [ ] Persist round outcomes and settle all uncashed bets as losses when the server round crashes, including users who disconnect.
-- [ ] Persist the round schedule/state in shared storage so multiple server instances cannot diverge during deployment.
+- [x] Persist each round and its commitment/result, and settle all active bets as losses in an idempotent transaction when the crash is observed.
+- [x] Add a `POST /api/cron/settle-rounds` reconciliation endpoint for overdue recorded rounds; protect it with `CRON_SECRET`.
+- [x] Apply the full schema to the development database and baseline its existing migration history.
+- [x] Persist round timestamps as integer milliseconds so the round-state endpoint remains available when calculated durations contain fractional milliseconds.
+- [x] Write wallet ledger rows for bets, cashouts, cancellations, deposit completions, promo credits, and withdrawal debits/refunds.
+- [x] Keep settlement reconciliation callable through the protected endpoint without scheduling background invocations, per deployment preference.
+- [x] Resolve each round from the latest persisted database schedule and use deterministic round generation when initializing, so server instances share the same schedule.
 - [ ] Add idempotency keys and transaction-level concurrency checks for placement, cashout, and cancellation.
 - [ ] Add server-side limits for request frequency and maximum payout exposure.
 
@@ -349,39 +354,47 @@ Order follows data integrity and money movement first; visual completion follows
 ### Step 4 — Complete the admin dashboard and its API
 
 - [x] Add `/admin` and a read-only `/api/admin/dashboard` endpoint for high-level wallet and bet metrics.
-- [x] Protect the endpoint with `ADMIN_API_KEY`; it fails closed when the key is unset and masks phone numbers.
-- [ ] Set a strong unique `ADMIN_API_KEY` in local and production secret stores; never commit it.
+- [x] Protect the endpoint with seeded admin accounts and short lived admin JWTs; mask phone numbers.
+- [x] Set generated local `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_JWT_SECRET` values in ignored `.env.local`.
+- [ ] Set production `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_JWT_SECRET`, `JWT_SECRET`, `GAME_MASTER_SECRET`, `CRON_SECRET`, and database URLs in Vercel; never commit them.
 - [ ] Add pagination/date filters and CSV export for bets, deposits, withdrawals, and users.
-- [ ] Add role-based admin accounts and audit logs before adding any write actions.
+- [x] Add role-based admin accounts and audit logs before adding any write actions.
+- [x] Show the recent withdrawal queue and add audited approve/reject actions for held withdrawals.
 - [ ] Add payment callback health, pending payment counts, active round health, and recent server errors.
 
 **Done when:** an admin can audit activity without changing balances, and every future admin mutation is permissioned and logged.
 
 ### Step 5 — Finish real-money payment and wallet flows
 
-- [ ] Complete PayHero STK initiation, callback signature verification, idempotent deposit crediting, and status reconciliation.
-- [ ] Add deposit modal, pending/failed/success states, receipt details, and refreshed wallet balance.
-- [ ] Complete withdrawal checks and provider payout/reconciliation; verify tax and AML rules with the business owner before enabling real payouts.
-- [ ] Make all balance changes transactional and write a ledger entry for every credit/debit.
-- [ ] Test duplicate callbacks, delayed callbacks, invalid signatures, provider timeouts, and insufficient funds.
+- [x] Protect PayHero deposit callbacks with a configured callback secret and prevent client-forced sandbox credits in production.
+- [x] Add a protected PayHero B2C payout dispatcher, callback processing, duplicate-event protection, and exact-once refunds for failed payouts.
+- [x] Keep ambiguous provider timeouts in reconciliation instead of blindly retrying and risking duplicate payouts.
+- [x] Add deposit and withdrawal dialogs with authenticated requests, payment status polling, receipt display, tax/net details, and refreshed balances.
+- [x] Scope wallet, deposit initiation, and deposit status reads to the signed-in account.
+- [ ] Set PayHero payout account/network details and `PAYHERO_PAYOUTS_ENABLED=true` in production after the provider account and tax/AML rules are confirmed.
+- [x] Make the currently wired balance changes transactional and write corresponding ledger entries.
+- [x] Verify local bet/cancel, bet/cashout, queued withdrawal, held withdrawal refund, disabled payout guard, and duplicate failed-payout callback flows.
+- [ ] Test real provider callback delays, transport timeouts, insufficient float, and reconciliation against PayHero's account.
 
 **Blockers:** real PayHero credentials, callback URL/domain, production database, and confirmed withdrawal/tax policy. Do not infer successful payment from a browser response.
 
 ### Step 6 — Complete account and vault UI
 
 - [ ] Add account hub with profile, real/demo balance, transaction history, and settings.
-- [ ] Add liquidity and rollover pages only after their database models, rules, and settlement behavior are defined.
+- [ ] Add liquidity and rollover pages and APIs after yield, fee, and liability rules are approved. The database models now exist, but vaults remain disabled and have no fake balances or APY seeded.
 - [ ] Add responsive navigation, mobile bottom bar, live round history ribbon, and direct deposit/withdraw actions.
 - [ ] Remove placeholder marketing counters and ensure each balance/stat is sourced from real data.
 
 ### Step 7 — Finish authentication and account security
 
-- [ ] Integrate Firebase Admin token verification on the server and Firebase OTP challenge/verification in the client.
+- [x] Add Firebase web phone OTP and reCAPTCHA, verify the Firebase ID token with Firebase Admin, and exchange it for the app session JWT.
+- [x] Disable direct phone-signup without a verified Firebase token.
+- [ ] Add the actual Firebase web config and Admin service-account credentials to Vercel and authorize the production hostname.
 - [ ] Revalidate local sessions against server state and add logout/session expiry behavior.
 - [ ] Add secure cookies or another protected token storage approach, login throttling, and password reset safeguards.
 - [ ] Add explicit admin roles; ordinary users must not gain administrator access through user-editable fields.
 
-**Blocker:** Firebase project credentials and approved production auth configuration.
+**Blocker:** Firebase project credentials and an authorized production domain are not configured in this local workspace.
 
 ### Step 8 — Release verification and production setup
 
@@ -399,9 +412,10 @@ Order follows data integrity and money movement first; visual completion follows
 
 ### Current delivery status
 
-- **Implemented in this pass:** secured admin overview API and `/admin` UI; admin key example; recorded bet placement, cancellation and server-calculated cashout wiring; round-state masking; live database bets in the public feed; honest Next.js round monitor/predictor endpoint; header link.
-- **Still required before production:** settle lost bets across disconnects, shared/persisted round authority, wire the real live-bets API into the feed, complete wallet/provider integration, Firebase server verification, and run full release verification.
-- **External setup required:** `ADMIN_API_KEY`, production `JWT_SECRET` and `GAME_MASTER_SECRET`, PostgreSQL credentials, Firebase service account, PayHero credentials, and confirmed payout/tax policy.
+- **Implemented in this pass:** seeded admin account model and credential login; secured admin overview and withdrawal review APIs/UI; all Prisma models and Vercel migrations/seeding; transactional bet, cashout, cancellation, deposit, promo, and withdrawal ledger entries; protected PayHero callback and payout queue routes; persisted round outcomes and overdue settlement; live database bets; predictor monitor/API.
+- **Local database:** connected to `localhost:5432/aviator`; all 17 models are synced, seed defaults/admin are present, the live database matches `schema.prisma`, and migration `0001_init` is baselined/applied.
+- **Still required before production:** shared/persisted round authority, wire the real live-bets API into the feed, configure Firebase, and run full release verification.
+- **External setup required:** production Vercel admin/game/JWT/cron secrets and database URLs, Firebase web/service-account settings and authorized domain, PayHero credentials and payout account/network settings, callback secret/domain, and confirmed payout/tax policy.
 
 **Critical Path to Production**:
 1. Integrate betting terminals with API (Priority 2.4)

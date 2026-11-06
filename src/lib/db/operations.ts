@@ -202,40 +202,37 @@ export async function getDepositByReceipt(receiptNumber: string) {
 }
 
 export async function completeDeposit(reference: string, receiptNumber?: string) {
-  const deposit = await getDeposit(reference);
-  if (!deposit) return null;
-
-  if (deposit.status === 'SUCCESS') {
-    return deposit;
-  }
-
   const receipt = receiptNumber || ('NL' + Math.random().toString(36).substring(2, 9).toUpperCase());
   const now = BigInt(Date.now());
+  return prisma.$transaction(async (tx) => {
+    const deposit = await tx.deposit.findUnique({ where: { reference } });
+    if (!deposit) return null;
+    if (deposit.status === 'SUCCESS') return deposit;
 
-  await prisma.deposit.update({
+    const changed = await tx.deposit.updateMany({
+      where: { id: deposit.id, status: { not: 'SUCCESS' } },
+      data: { status: 'SUCCESS', receiptNumber: receipt, completedAt: now, failureReason: null }
+    });
+    if (!changed.count) return tx.deposit.findUnique({ where: { reference } });
+
+    const user = await tx.user.update({ where: { phone: deposit.phone }, data: { realBalance: { increment: deposit.amount } } });
+    const balanceAfter = Number(user.realBalance);
+    await tx.walletTransaction.create({ data: {
+      phone: deposit.phone, reference: `DEPOSIT_${deposit.reference}`, type: 'DEPOSIT_CREDIT', mode: 'REAL', amount: deposit.amount,
+      balanceBefore: balanceAfter - Number(deposit.amount), balanceAfter, createdAt: BigInt(Date.now()), metadata: { depositReference: deposit.reference, receiptNumber: receipt }
+    } });
+    return tx.deposit.findUnique({ where: { reference } });
+  });
+}
+
+export async function updateDepositProviderDetails(reference: string, providerReference?: string, checkoutRequestId?: string) {
+  return prisma.deposit.updateMany({
     where: { reference },
     data: {
-      status: 'SUCCESS',
-      receiptNumber: receipt,
-      completedAt: now
+      ...(providerReference ? { providerReference } : {}),
+      ...(checkoutRequestId ? { checkoutRequestId } : {})
     }
   });
-
-  await prisma.user.update({
-    where: { phone: deposit.phone },
-    data: {
-      realBalance: { increment: deposit.amount }
-    }
-  });
-
-  return {
-    reference,
-    phone: deposit.phone,
-    amount: Number(deposit.amount),
-    status: 'SUCCESS',
-    receiptNumber: receipt,
-    completedAt: Number(now)
-  };
 }
 
 export async function failDeposit(reference: string) {
@@ -498,38 +495,26 @@ export async function claimSignupBonus(phone: string) {
     return { success: false, error: 'USER_NOT_FOUND', message: 'Account not found' };
   }
 
-  if (user.signupBonusClaimed) {
-    return {
-      success: false,
-      error: 'ALREADY_CLAIMED',
-      message: 'Signup bonus of KES 20 has already been claimed for this account.'
-    };
-  }
-
   const now = BigInt(Date.now());
   const ref = `SIGNUP_BONUS_${norm}_${now}`;
-
-  await prisma.user.update({
-    where: { phone: norm },
-    data: {
-      realBalance: { increment: 20 },
-      signupBonusClaimed: true
-    }
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.user.updateMany({
+      where: { phone: norm, signupBonusClaimed: false },
+      data: { realBalance: { increment: 20 }, signupBonusClaimed: true }
+    });
+    if (!claimed.count) return null;
+    const credited = await tx.user.findUniqueOrThrow({ where: { phone: norm } });
+    const balanceAfter = Number(credited.realBalance);
+    await tx.deposit.create({ data: {
+      reference: ref, phone: norm, amount: 20, status: 'SUCCESS', receiptNumber: 'SIGNUP_FREEBET_20', createdAt: now, completedAt: now
+    } });
+    await tx.walletTransaction.create({ data: {
+      phone: norm, reference: ref, type: 'PROMO_CREDIT', mode: 'REAL', amount: 20,
+      balanceBefore: balanceAfter - 20, balanceAfter, createdAt: now, metadata: { promo: 'SIGNUP_FREEBET_20' }
+    } });
+    return credited;
   });
-
-  await prisma.deposit.create({
-    data: {
-      reference: ref,
-      phone: norm,
-      amount: 20,
-      status: 'SUCCESS',
-      receiptNumber: 'SIGNUP_FREEBET_20',
-      createdAt: now,
-      completedAt: now
-    }
-  });
-
-  const updated = await getUser(norm);
+  if (!updated) return { success: false, error: 'ALREADY_CLAIMED', message: 'Signup bonus of KES 20 has already been claimed for this account.' };
   return {
     success: true,
     amount: 20,
@@ -549,14 +534,6 @@ export async function claimCasinoStakeBonus(phone: string) {
     return { success: false, error: 'USER_NOT_FOUND', message: 'Account not found' };
   }
 
-  if (user.casinoBonusClaimed) {
-    return {
-      success: false,
-      error: 'ALREADY_CLAIMED',
-      message: 'KES 100 Casino Bonus has already been claimed for this account.'
-    };
-  }
-
   const turnover = await getTotalTurnover(norm);
   if (turnover < 500) {
     return {
@@ -571,27 +548,24 @@ export async function claimCasinoStakeBonus(phone: string) {
   const now = BigInt(Date.now());
   const ref = `CASINO_BONUS_100_${norm}_${now}`;
 
-  await prisma.user.update({
-    where: { phone: norm },
-    data: {
-      realBalance: { increment: 100 },
-      casinoBonusClaimed: true
-    }
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.user.updateMany({
+      where: { phone: norm, casinoBonusClaimed: false },
+      data: { realBalance: { increment: 100 }, casinoBonusClaimed: true }
+    });
+    if (!claimed.count) return null;
+    const credited = await tx.user.findUniqueOrThrow({ where: { phone: norm } });
+    const balanceAfter = Number(credited.realBalance);
+    await tx.deposit.create({ data: {
+      reference: ref, phone: norm, amount: 100, status: 'SUCCESS', receiptNumber: 'CASINO_BONUS_100', createdAt: now, completedAt: now
+    } });
+    await tx.walletTransaction.create({ data: {
+      phone: norm, reference: ref, type: 'PROMO_CREDIT', mode: 'REAL', amount: 100,
+      balanceBefore: balanceAfter - 100, balanceAfter, createdAt: now, metadata: { promo: 'CASINO_BONUS_100' }
+    } });
+    return credited;
   });
-
-  await prisma.deposit.create({
-    data: {
-      reference: ref,
-      phone: norm,
-      amount: 100,
-      status: 'SUCCESS',
-      receiptNumber: 'CASINO_BONUS_100',
-      createdAt: now,
-      completedAt: now
-    }
-  });
-
-  const updated = await getUser(norm);
+  if (!updated) return { success: false, error: 'ALREADY_CLAIMED', message: 'KES 100 Casino Bonus has already been claimed for this account.' };
   return {
     success: true,
     amount: 100,

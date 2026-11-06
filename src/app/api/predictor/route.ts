@@ -4,7 +4,7 @@ import { getLiveRoundState } from '@/app/api/round-state/route';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const round = getLiveRoundState();
+  const round = await getLiveRoundState();
   return NextResponse.json({
     round: {
       nonce: round.nonce,

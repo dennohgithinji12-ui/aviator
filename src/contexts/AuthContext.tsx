@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
   id: number;
@@ -17,8 +17,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (phone: string, password?: string) => Promise<void>;
   signup: (phone: string, username?: string, password?: string) => Promise<void>;
+  completeFirebaseAuth: (idToken: string, username?: string) => Promise<void>;
   logout: () => void;
   updateBalance: (realBalance: number, demoBalance: number) => void;
+  refreshBalance: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,6 +82,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('shiftstack_user', JSON.stringify(data.user));
   };
 
+  const completeFirebaseAuth = async (idToken: string, username?: string) => {
+    const response = await fetch('/api/auth/firebase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken, username })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Phone verification failed');
+    setToken(data.token);
+    setUser(data.user);
+    localStorage.setItem('shiftstack_auth_token', data.token);
+    localStorage.setItem('shiftstack_user', JSON.stringify(data.user));
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -87,13 +103,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('shiftstack_user');
   };
 
-  const updateBalance = (realBalance: number, demoBalance: number) => {
-    if (user) {
-      const updatedUser = { ...user, realBalance, demoBalance };
-      setUser(updatedUser);
+  const updateBalance = useCallback((realBalance: number, demoBalance: number) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const updatedUser = { ...currentUser, realBalance, demoBalance };
       localStorage.setItem('shiftstack_user', JSON.stringify(updatedUser));
-    }
-  };
+      return updatedUser;
+    });
+  }, []);
+
+  const refreshBalance = useCallback(async () => {
+    if (!token) return;
+    const response = await fetch('/api/wallet', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Unable to refresh wallet balance');
+    updateBalance(Number(data.realBalance), Number(data.demoBalance));
+  }, [token, updateBalance]);
 
   return (
     <AuthContext.Provider
@@ -104,8 +129,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         signup,
+        completeFirebaseAuth,
         logout,
-        updateBalance
+        updateBalance,
+        refreshBalance
       }}
     >
       {children}

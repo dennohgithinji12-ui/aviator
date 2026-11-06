@@ -1,7 +1,37 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { WalletModal } from '@/components/wallet/WalletModal';
+import { useAuth } from '@/contexts/AuthContext';
+
 export function Header() {
+  const { user, token, isAuthenticated, isLoading, completeFirebaseAuth, logout, refreshBalance } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+  const [pendingWalletOpen, setPendingWalletOpen] = useState(false);
+  const openWallet = () => {
+    if (isAuthenticated) setShowWallet(true);
+    else {
+      setPendingWalletOpen(true);
+      setShowAuth(true);
+    }
+  };
+
+  useEffect(() => {
+    if (token && !isLoading) void refreshBalance().catch(() => undefined);
+  }, [token, isLoading, refreshBalance]);
+
+  useEffect(() => {
+    if (isAuthenticated && pendingWalletOpen) {
+      setPendingWalletOpen(false);
+      setShowWallet(true);
+    }
+  }, [isAuthenticated, pendingWalletOpen]);
+
+  const displayedBalance = isAuthenticated ? Number(user?.realBalance || 0) : Number(user?.demoBalance || 50000);
   return (
+    <>
     <header className="app-header">
       <div className="header-left">
         {/* Authentic ShiftStack Brand Logo */}
@@ -46,20 +76,22 @@ export function Header() {
       <div className="header-right">
         {/* User Wallet Balance */}
         <div className="header-balance-card" id="header-balance-card" title="Wallet Balance (Real vs Demo)">
-          <span className="badge-mode-indicator badge-mode-demo" id="header-mode-badge">DEMO</span>
-          <span className="bal-amount user-balance-value">50,000.00 KES</span>
+          <span className={`badge-mode-indicator ${isAuthenticated ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? 'REAL' : 'DEMO'}</span>
+          <span className="bal-amount user-balance-value">{displayedBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES</span>
         </div>
 
         {/* User Account Pill */}
-        <div className="header-user-pill-wrapper" id="header-user-pill-wrapper" style={{ display: 'none' }}></div>
+        <div className="header-user-pill-wrapper" id="header-user-pill-wrapper" style={{ display: isAuthenticated ? 'flex' : 'none' }}>
+          <span>{user?.username || 'Pilot'}</span>
+        </div>
 
         {/* Login/Register Button */}
-        <button className="header-btn-login-register" id="header-btn-login-register" title="Phone Login & Sign Up (Firebase Spark Plan)">
-          <span>Login/Register</span>
+        <button className="header-btn-login-register" id="header-btn-login-register" title="Sign in or create an account" onClick={() => setShowAuth(true)}>
+          <span>{isAuthenticated ? 'Account' : 'Login/Register'}</span>
         </button>
 
         {/* Deposit Button */}
-        <button className="btn-deposit-header" id="btn-open-deposit" title="Deposit Funds (PayHero API)">
+        <button className="btn-deposit-header" id="btn-open-deposit" title="Open wallet" onClick={openWallet}>
           <span className="dep-text">Deposit</span>
         </button>
 
@@ -172,7 +204,7 @@ export function Header() {
 
             <div className="menu-divider"></div>
 
-            <button type="button" className="menu-link-btn" id="menu-btn-deposit" style={{ color: '#2ecc71' }}>
+            <button type="button" className="menu-link-btn" id="menu-btn-deposit" style={{ color: '#2ecc71' }} onClick={openWallet}>
               <span className="menu-link-icon">⚡</span>
               <span>Deposit Funds (Min 49 Bob)</span>
             </button>
@@ -180,7 +212,7 @@ export function Header() {
               <span className="menu-link-icon">🏠</span>
               <span>Home</span>
             </button>
-            <button type="button" className="menu-link-btn text-danger" id="menu-btn-signout" style={{ justifyContent: 'center', fontWeight: 700 }}>
+            <button type="button" className="menu-link-btn text-danger" id="menu-btn-signout" style={{ justifyContent: 'center', fontWeight: 700 }} onClick={logout}>
               <span className="menu-link-icon">🚪</span>
               <span>Sign Out</span>
             </button>
@@ -188,5 +220,8 @@ export function Header() {
         </div>
       </div>
     </header>
+    <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onFirebaseAuth={completeFirebaseAuth} />
+    <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} />
+    </>
   );
 }

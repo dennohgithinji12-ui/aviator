@@ -10,17 +10,16 @@ export interface FirebaseConfig {
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
-  measurementId: string;
+  measurementId?: string;
 }
 
 export const firebaseConfig: FirebaseConfig = {
-  apiKey: "AIzaSyBt2tbAjjNpKiciGq5HZs3Bv3a3ebPkyQ4",
-  authDomain: "shiftstack-log-in.firebaseapp.com",
-  projectId: "shiftstack-log-in",
-  storageBucket: "shiftstack-log-in.firebasestorage.app",
-  messagingSenderId: "54352624967",
-  appId: "1:54352624967:web:247d96b5f0afe002b02062",
-  measurementId: "G-XFFZQ513RG"
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: ''
 };
 
 export async function hashPassword(plainText: string, salt: string = 'shiftstack_spark_2026'): Promise<string> {
@@ -55,9 +54,9 @@ export async function getActiveFirebaseConfig(): Promise<FirebaseConfig> {
       }
     }
   } catch (e) {
-    // Use fallback
+    throw new Error('Firebase is not configured for this deployment');
   }
-  return firebaseConfig;
+  throw new Error('Firebase is not configured for this deployment');
 }
 
 export async function storeUserInDatabase(data: {

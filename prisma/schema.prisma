@@ -10,95 +10,280 @@ datasource db {
 }
 
 model User {
-  id                     Int       @id @default(autoincrement())
-  firebaseUid            String?   @unique
-  phone                  String    @unique
-  username               String?
-  passwordHash           String?
-  realBalance            Decimal   @default(0) @db.Decimal(10, 2)
-  demoBalance            Decimal   @default(50000) @db.Decimal(10, 2)
-  createdAt              BigInt
-  lastLogin              BigInt?
-  signupBonusClaimed     Boolean   @default(false)
-  casinoBonusClaimed     Boolean   @default(false)
+  id                 Int     @id @default(autoincrement())
+  firebaseUid        String? @unique
+  phone              String  @unique
+  username           String?
+  passwordHash       String?
+  realBalance        Decimal @default(0) @db.Decimal(10, 2)
+  demoBalance        Decimal @default(50000) @db.Decimal(10, 2)
+  createdAt          BigInt
+  lastLogin          BigInt?
+  signupBonusClaimed Boolean @default(false)
+  casinoBonusClaimed Boolean @default(false)
 
-  deposits               Deposit[]
-  bets                   Bet[]
-  withdrawals            Withdrawal[]
-  passwordResets         PasswordReset[]
-  stkAttempts            StkAttempt[]
+  deposits              Deposit[]
+  bets                  Bet[]
+  withdrawals           Withdrawal[]
+  passwordResets        PasswordReset[]
+  stkAttempts           StkAttempt[]
+  walletTransactions    WalletTransaction[]
+  liquidityPositions    LiquidityPosition[]
+  liquidityTransactions LiquidityTransaction[]
+  rolloverChallenges    RolloverChallenge[]
 
   @@index([phone])
 }
 
 model Deposit {
-  id             Int      @id @default(autoincrement())
-  reference      String   @unique
-  phone          String
-  amount         Decimal  @db.Decimal(10, 2)
-  status         String
-  receiptNumber  String?
-  createdAt      BigInt
-  completedAt   BigInt?
-  user           User     @relation(fields: [phone], references: [phone])
+  id                Int     @id @default(autoincrement())
+  reference         String  @unique
+  phone             String
+  amount            Decimal @db.Decimal(10, 2)
+  provider          String  @default("PAYHERO")
+  providerReference String?
+  checkoutRequestId String?
+  status            String
+  receiptNumber     String?
+  failureReason     String?
+  createdAt         BigInt
+  completedAt       BigInt?
+  user              User    @relation(fields: [phone], references: [phone])
 
   @@index([reference])
   @@index([phone])
 }
 
 model Bet {
-  id               Int      @id @default(autoincrement())
-  phone            String
-  mode             String
-  terminalId       Int
-  amount           Decimal  @db.Decimal(10, 2)
-  roundNonce       Int
-  cashedOut        Int      @default(0)
-  multiplier       Decimal  @default(0) @db.Decimal(10, 2)
-  payout           Decimal  @default(0) @db.Decimal(10, 2)
-  profit           Decimal  @default(0) @db.Decimal(10, 2)
-  status           String   @default("ACTIVE")
-  createdAt        BigInt
-  user             User     @relation(fields: [phone], references: [phone])
+  id         Int     @id @default(autoincrement())
+  phone      String
+  mode       String
+  terminalId Int
+  amount     Decimal @db.Decimal(10, 2)
+  roundNonce Int
+  cashedOut  Int     @default(0)
+  multiplier Decimal @default(0) @db.Decimal(10, 2)
+  payout     Decimal @default(0) @db.Decimal(10, 2)
+  profit     Decimal @default(0) @db.Decimal(10, 2)
+  status     String  @default("ACTIVE")
+  createdAt  BigInt
+  user       User    @relation(fields: [phone], references: [phone])
 
   @@index([phone])
+  @@index([roundNonce, status])
+}
+
+model Round {
+  nonce           Int      @id
+  phase           String
+  commitment      String
+  serverSeed      String?
+  clientSeed      String
+  crashMultiplier Decimal? @db.Decimal(10, 2)
+  roundStartTime  BigInt
+  roundEndTime    BigInt
+  settledAt       BigInt?
+  lostBetCount    Int      @default(0)
+  createdAt       BigInt
+  updatedAt       BigInt
+
+  @@index([phase, roundEndTime])
+}
+
+model Admin {
+  id           Int             @id @default(autoincrement())
+  email        String          @unique
+  name         String
+  passwordHash String
+  role         String          @default("SUPER_ADMIN")
+  isActive     Boolean         @default(true)
+  createdAt    BigInt
+  updatedAt    BigInt
+  lastLoginAt  BigInt?
+  auditLogs    AdminAuditLog[]
+
+  @@index([isActive, role])
+}
+
+model AdminAuditLog {
+  id         BigInt  @id @default(autoincrement())
+  adminId    Int
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  createdAt  BigInt
+  admin      Admin   @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([adminId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model AppSetting {
+  key         String  @id
+  value       Json
+  description String?
+  updatedAt   BigInt
+}
+
+model WalletTransaction {
+  id            BigInt  @id @default(autoincrement())
+  phone         String
+  reference     String  @unique
+  type          String
+  mode          String  @default("REAL")
+  amount        Decimal @db.Decimal(12, 2)
+  balanceBefore Decimal @db.Decimal(12, 2)
+  balanceAfter  Decimal @db.Decimal(12, 2)
+  metadata      Json?
+  createdAt     BigInt
+  user          User    @relation(fields: [phone], references: [phone], onDelete: Restrict)
+
+  @@index([phone, createdAt])
+  @@index([type, createdAt])
+}
+
+model PaymentEvent {
+  id              BigInt  @id @default(autoincrement())
+  provider        String
+  providerEventId String
+  reference       String
+  status          String  @default("RECEIVED")
+  payload         Json?
+  error           String?
+  receivedAt      BigInt
+  processedAt     BigInt?
+
+  @@unique([provider, providerEventId])
+  @@index([reference, receivedAt])
+  @@index([status, receivedAt])
 }
 
 model Withdrawal {
-  id           Int      @id @default(autoincrement())
-  userId       Int?
-  phone        String
-  amount       Decimal  @db.Decimal(10, 2)
-  taxAmount    Decimal  @default(0) @db.Decimal(10, 2)
-  netAmount    Decimal  @default(0) @db.Decimal(10, 2)
-  taxRate      Decimal  @default(0.05) @db.Decimal(10, 2)
-  reference    String   @unique
-  status       String
-  riskScore    Int      @default(0)
-  riskReason   String?
-  createdAt    BigInt
-  completedAt  BigInt?
-  user         User     @relation(fields: [phone], references: [phone])
+  id          Int     @id @default(autoincrement())
+  userId      Int?
+  phone       String
+  targetPhone String?
+  amount      Decimal @db.Decimal(10, 2)
+  taxAmount   Decimal @default(0) @db.Decimal(10, 2)
+  netAmount   Decimal @default(0) @db.Decimal(10, 2)
+  taxRate     Decimal @default(0.05) @db.Decimal(10, 2)
+  reference   String  @unique
+  providerReference String?
+  checkoutRequestId String?
+  failureReason String?
+  status      String
+  riskScore   Int     @default(0)
+  riskReason  String?
+  createdAt   BigInt
+  completedAt BigInt?
+  user        User    @relation(fields: [phone], references: [phone])
 
   @@index([phone])
   @@index([reference])
 }
 
 model PasswordReset {
-  id        Int   @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
   phone     String
   timestamp BigInt
-  user      User  @relation(fields: [phone], references: [phone])
+  user      User   @relation(fields: [phone], references: [phone])
 
   @@index([phone, timestamp])
 }
 
 model StkAttempt {
-  id        Int      @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
   phone     String
   status    String
   timestamp BigInt
-  user      User     @relation(fields: [phone], references: [phone])
+  user      User   @relation(fields: [phone], references: [phone])
 
   @@index([phone, timestamp])
+}
+
+model LiquidityPool {
+  id               String                 @id @default("primary")
+  name             String                 @default("ShiftStack Liquidity Vault")
+  totalValueLocked Decimal                @default(0) @db.Decimal(14, 2)
+  apyPercent       Decimal                @default(0) @db.Decimal(7, 4)
+  enabled          Boolean                @default(false)
+  createdAt        BigInt
+  updatedAt        BigInt
+  positions        LiquidityPosition[]
+  transactions     LiquidityTransaction[]
+}
+
+model LiquidityPosition {
+  id           BigInt                 @id @default(autoincrement())
+  userId       Int
+  poolId       String                 @default("primary")
+  principal    Decimal                @default(0) @db.Decimal(14, 2)
+  accruedYield Decimal                @default(0) @db.Decimal(14, 2)
+  status       String                 @default("ACTIVE")
+  createdAt    BigInt
+  updatedAt    BigInt
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pool         LiquidityPool          @relation(fields: [poolId], references: [id], onDelete: Restrict)
+  transactions LiquidityTransaction[]
+
+  @@unique([userId, poolId])
+  @@index([poolId, status])
+}
+
+model LiquidityTransaction {
+  id         BigInt             @id @default(autoincrement())
+  userId     Int
+  poolId     String
+  positionId BigInt?
+  reference  String             @unique
+  type       String
+  amount     Decimal            @db.Decimal(14, 2)
+  createdAt  BigInt
+  user       User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pool       LiquidityPool      @relation(fields: [poolId], references: [id], onDelete: Restrict)
+  position   LiquidityPosition? @relation(fields: [positionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([poolId, createdAt])
+}
+
+model RolloverChallenge {
+  id                BigInt          @id @default(autoincrement())
+  userId            Int
+  baseStake         Decimal         @db.Decimal(12, 2)
+  targetMultiplier  Decimal         @db.Decimal(7, 2)
+  totalStages       Int
+  currentStage      Int             @default(0)
+  currentStake      Decimal         @default(0) @db.Decimal(12, 2)
+  accumulatedProfit Decimal         @default(0) @db.Decimal(12, 2)
+  status            String          @default("PENDING")
+  createdAt         BigInt
+  startedAt         BigInt?
+  completedAt       BigInt?
+  updatedAt         BigInt
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  stages            RolloverStage[]
+
+  @@index([userId, status, createdAt])
+}
+
+model RolloverStage {
+  id               BigInt            @id @default(autoincrement())
+  challengeId      BigInt
+  stageNumber      Int
+  roundNonce       Int?
+  betId            Int?
+  stake            Decimal           @db.Decimal(12, 2)
+  targetMultiplier Decimal           @db.Decimal(7, 2)
+  resultMultiplier Decimal?          @db.Decimal(7, 2)
+  payout           Decimal           @default(0) @db.Decimal(12, 2)
+  status           String            @default("PENDING")
+  createdAt        BigInt
+  completedAt      BigInt?
+  challenge        RolloverChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, stageNumber])
+  @@index([roundNonce, status])
 }

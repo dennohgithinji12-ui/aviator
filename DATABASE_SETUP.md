@@ -67,15 +67,18 @@ DATABASE_URL="postgresql://aviator_user:your_secure_password@localhost:5432/avia
 ### Step 5: Run Prisma Migrations
 
 ```bash
-# Push schema to database
-npm run prisma:push
+# Apply the checked-in migrations to a new development database
+npx prisma migrate deploy
 
-# Or if you want to use migrations:
-npx prisma migrate dev --name init
+# Create and apply new migrations during development
+npx prisma migrate dev --name describe_your_change
 
-# Seed the database
+# Seed settings and (when configured) the administrator account
 npm run prisma:seed
+
 ```
+
+`npm run prisma:push` remains available for local prototyping. Do not use it for production: Vercel deploys the checked-in SQL migration files.
 
 ---
 
@@ -106,6 +109,7 @@ Edit `.env.local` in your project root:
 
 ```env
 DATABASE_URL="postgresql://user:password@ep-xxx.aws.neon.tech/aviator?sslmode=require"
+DIRECT_URL="postgresql://user:password@ep-xxx.aws.neon.tech/aviator?sslmode=require"
 ```
 
 Replace with your actual connection string from Neon.
@@ -113,12 +117,32 @@ Replace with your actual connection string from Neon.
 ### Step 5: Run Prisma Migrations
 
 ```bash
-# Push schema to database
-npm run prisma:push
+# Deploy the checked-in migration history to a new or empty database
+npx prisma migrate deploy
 
-# Seed the database
+# Seed initial settings and administrator account
 npm run prisma:seed
 ```
+
+Use the provider's direct PostgreSQL connection for `DIRECT_URL` when `DATABASE_URL` is a pooled/serverless URL. `prisma7.config.ts` uses `DIRECT_URL` for migration commands; the application client continues to use `DATABASE_URL`.
+
+### Vercel deployment
+
+The repository's `vercel.json` selects `npm run vercel-build`. That command checks required environment variables, generates Prisma Client, applies checked-in migrations with `prisma migrate deploy`, runs the idempotent seed, then builds Next.js. A new empty PostgreSQL database receives every model in `prisma/schema.prisma` from `prisma/migrations/0001_init/migration.sql`.
+
+Configure these Vercel environment variables before the first production deploy:
+
+- `DATABASE_URL` (application connection)
+- `DIRECT_URL` (direct migration connection; may equal `DATABASE_URL` if it is already direct)
+- `JWT_SECRET`, `ADMIN_JWT_SECRET`, `GAME_MASTER_SECRET`, and `CRON_SECRET` (each a different strong secret)
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and optionally `ADMIN_NAME` (the seed hashes the password before storing it)
+- Payment/Firebase keys only when enabling those integrations
+
+The app does not configure scheduled background jobs. `/api/cron/settle-rounds` remains available as a manually invoked, `CRON_SECRET`-protected reconciliation endpoint. Normal game requests persist round state and settle the active round when its crash is observed.
+
+The seed inserts default application settings and a disabled, zero-value liquidity pool. It does not create sample users, demo real-money balances, fake deposits, or fake bets. Defaults use upserts and do not overwrite settings that already exist. The initial admin password is updated from `ADMIN_PASSWORD` each time the seed is run.
+
+For a database that already has tables created by `db push`, do not run the initial migration as if the database were empty. First compare the database with `schema.prisma`, then baseline only when they match using `prisma migrate resolve --applied 0001_init`. This workspace's local `aviator` database has been synced, checked for drift, and baselined.
 
 ---
 
@@ -255,11 +279,22 @@ JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
 PAYHERO_API_KEY=your_payhero_api_key_here
 PAYHERO_API_SECRET=your_payhero_api_secret_here
 PAYHERO_CHANNEL_ID=your_channel_id_here
+PAYHERO_CALLBACK_SECRET=generate-a-long-random-callback-secret
+PAYHERO_PAYOUTS_ENABLED=false
+# Required only after PayHero enables payouts for your account:
+PAYHERO_PAYOUT_ACCOUNT_ID=your_payhero_account_id
+PAYHERO_NETWORK_CODE=63902
+APP_BASE_URL=https://your-production-domain.example
 
 # Firebase (for phone auth)
-FIREBASE_PROJECT_ID=shiftstack-aviator
+FIREBASE_API_KEY=your_firebase_web_api_key
+FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_APP_ID=your-firebase-app-id
+FIREBASE_MESSAGING_SENDER_ID=your-firebase-messaging-sender-id
+FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk@shiftstack-aviator.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY=""
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FIREBASE_SPARK_MODE=true
 
 # Game Constants
@@ -267,6 +302,10 @@ MINIMUM_DEPOSIT_KES=49
 MINIMUM_STAKE_KES=100
 MAX_WEEKLY_PASSWORD_RESETS=2
 ```
+
+Enable **Phone** as a Firebase Authentication provider and add the production hostname under Firebase Authentication's authorized domains. The web flow uses Firebase's reCAPTCHA phone verification; local `localhost` testing should use Firebase fictional test numbers or a deployed authorized hostname. Keep the Firebase web app settings in the `FIREBASE_*` variables and the Admin service-account private key server-side only.
+
+PayHero payout dispatch stays disabled until `PAYHERO_PAYOUTS_ENABLED=true`. Before enabling it, configure the account ID, network code, callback secret, and public app URL in Vercel. The protected `/api/cron/process-withdrawals` endpoint dispatches approved withdrawals. PayHero callbacks settle successful payouts or refund failed payouts. Requests with unclear provider outcomes are marked for reconciliation and are not automatically resent.
 
 ---
 

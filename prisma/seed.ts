@@ -1,176 +1,83 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import * as crypto from 'crypto';
+import { hashPassword } from '../src/lib/password';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error('DATABASE_URL is required to seed the database');
+
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
+const defaults = [
+  { key: 'MINIMUM_DEPOSIT_KES', value: 49, description: 'Minimum M-Pesa deposit amount' },
+  { key: 'MINIMUM_STAKE_KES', value: 100, description: 'Minimum real or demo stake' },
+  { key: 'MAXIMUM_STAKE_KES', value: 100000, description: 'Maximum stake per terminal' },
+  { key: 'MINIMUM_WITHDRAWAL_KES', value: 25, description: 'Minimum withdrawal request' },
+  { key: 'GAMING_TAX_RATE', value: 0.05, description: 'Withdrawal tax rate; confirm policy before production payouts' },
+  { key: 'MAX_WITHDRAWALS_PER_24H', value: 2, description: 'Withdrawal velocity limit' },
+  { key: 'AUTO_WITHDRAWAL_LIMIT_KES', value: 5000, description: 'Maximum automatic withdrawal amount' },
+  { key: 'DEMO_STARTING_BALANCE_KES', value: 50000, description: 'Starting demo balance for new accounts' },
+  { key: 'MAX_WEEKLY_PASSWORD_RESETS', value: 2, description: 'Password reset rate limit' },
+  { key: 'LIQUIDITY_VAULT_ENABLED', value: false, description: 'Enable the liquidity vault after its economics and settlement rules are approved' },
+  { key: 'ROLLOVER_VAULT_ENABLED', value: false, description: 'Enable rollover after its rules and liability controls are approved' },
+  { key: 'PAYMENTS_SANDBOX_MODE', value: true, description: 'Keep payments in sandbox until live provider configuration is verified' }
+];
+
 async function main() {
-  console.log('🌱 Starting database seed...');
-
-  // Clean existing data (optional - remove if you want to preserve data)
-  console.log('🧹 Cleaning existing data...');
-  await prisma.stkAttempt.deleteMany();
-  await prisma.passwordReset.deleteMany();
-  await prisma.bet.deleteMany();
-  await prisma.withdrawal.deleteMany();
-  await prisma.deposit.deleteMany();
-  await prisma.user.deleteMany();
-
-  // Create demo users
-  console.log('👤 Creating demo users...');
-
-  const demoUser1 = await prisma.user.create({
-    data: {
-      phone: '254712345678',
-      username: 'demo_pilot_1',
-      passwordHash: crypto.createHash('sha256').update('password123').digest('hex'),
-      realBalance: 1000,
-      demoBalance: 50000,
-      createdAt: BigInt(Date.now()),
-      lastLogin: BigInt(Date.now()),
-      signupBonusClaimed: true,
-      casinoBonusClaimed: false
-    }
-  });
-
-  const demoUser2 = await prisma.user.create({
-    data: {
-      phone: '254798765432',
-      username: 'demo_pilot_2',
-      passwordHash: crypto.createHash('sha256').update('password123').digest('hex'),
-      realBalance: 500,
-      demoBalance: 50000,
-      createdAt: BigInt(Date.now()),
-      lastLogin: BigInt(Date.now()),
-      signupBonusClaimed: false,
-      casinoBonusClaimed: false
-    }
-  });
-
-  console.log(`✅ Created demo users: ${demoUser1.username}, ${demoUser2.username}`);
-
-  // Create sample deposits
-  console.log('💰 Creating sample deposits...');
-
-  await prisma.deposit.create({
-    data: {
-      reference: 'DEMO_DEPOSIT_001',
-      phone: demoUser1.phone,
-      amount: 1000,
-      status: 'SUCCESS',
-      receiptNumber: 'NL12345678',
-      createdAt: BigInt(Date.now() - 86400000), // 1 day ago
-      completedAt: BigInt(Date.now() - 86400000)
-    }
-  });
-
-  await prisma.deposit.create({
-    data: {
-      reference: 'DEMO_DEPOSIT_002',
-      phone: demoUser2.phone,
-      amount: 500,
-      status: 'SUCCESS',
-      receiptNumber: 'NL87654321',
-      createdAt: BigInt(Date.now() - 43200000), // 12 hours ago
-      completedAt: BigInt(Date.now() - 43200000)
-    }
-  });
-
-  console.log('✅ Created sample deposits');
-
-  // Create sample bets
-  console.log('🎮 Creating sample bets...');
-
   const now = BigInt(Date.now());
 
-  await prisma.bet.create({
-    data: {
-      phone: demoUser1.phone,
-      mode: 'REAL',
-      terminalId: 1,
-      amount: 100,
-      roundNonce: 1001,
-      cashedOut: 1,
-      multiplier: 2.5,
-      payout: 250,
-      profit: 150,
-      status: 'WON',
-      createdAt: now - BigInt(3600000) // 1 hour ago
+  // Defaults are insert-only: rerunning deployment seeding never resets live settings.
+  for (const setting of defaults) {
+    await prisma.appSetting.upsert({
+      where: { key: setting.key },
+      update: {},
+      create: { ...setting, updatedAt: now }
+    });
+  }
+
+  await prisma.liquidityPool.upsert({
+    where: { id: 'primary' },
+    update: {},
+    create: {
+      id: 'primary',
+      name: 'ShiftStack Liquidity Vault',
+      totalValueLocked: 0,
+      apyPercent: 0,
+      enabled: false,
+      createdAt: now,
+      updatedAt: now
     }
   });
 
-  await prisma.bet.create({
-    data: {
-      phone: demoUser1.phone,
-      mode: 'REAL',
-      terminalId: 2,
-      amount: 50,
-      roundNonce: 1002,
-      cashedOut: 0,
-      multiplier: 1.0,
-      payout: 0,
-      profit: -50,
-      status: 'LOST',
-      createdAt: now - BigInt(1800000) // 30 minutes ago
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) {
+    if (process.env.VERCEL_ENV === 'production') {
+      throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be configured for production deployments');
     }
+    console.warn('Admin seed skipped: configure ADMIN_EMAIL and ADMIN_PASSWORD to create the initial admin login.');
+    return;
+  }
+  if (password.length < 14 || password.length > 128) {
+    throw new Error('ADMIN_PASSWORD must be between 14 and 128 characters');
+  }
+
+  const passwordHash = await hashPassword(password);
+  const name = process.env.ADMIN_NAME?.trim() || 'ShiftStack Administrator';
+  const admin = await prisma.admin.upsert({
+    where: { email },
+    update: { name, passwordHash, updatedAt: now },
+    create: { email, name, passwordHash, role: 'SUPER_ADMIN', isActive: true, createdAt: now, updatedAt: now }
   });
 
-  await prisma.bet.create({
-    data: {
-      phone: demoUser2.phone,
-      mode: 'DEMO',
-      terminalId: 1,
-      amount: 200,
-      roundNonce: 1003,
-      cashedOut: 1,
-      multiplier: 1.8,
-      payout: 360,
-      profit: 160,
-      status: 'WON',
-      createdAt: now - BigInt(900000) // 15 minutes ago
-    }
-  });
-
-  console.log('✅ Created sample bets');
-
-  // Create sample withdrawal
-  console.log('💸 Creating sample withdrawal...');
-
-  await prisma.withdrawal.create({
-    data: {
-      userId: demoUser1.id,
-      phone: demoUser1.phone,
-      amount: 200,
-      taxAmount: 10,
-      netAmount: 190,
-      taxRate: 0.05,
-      reference: 'WTH_DEMO_001',
-      status: 'SETTLED',
-      riskScore: 10,
-      riskReason: 'Approved automated B2C payout',
-      createdAt: now - BigInt(172800000), // 2 days ago
-      completedAt: now - BigInt(172800000)
-    }
-  });
-
-  console.log('✅ Created sample withdrawal');
-
-  console.log('🎉 Database seed completed successfully!');
-  console.log('\n📊 Summary:');
-  console.log(`   - Users: 2`);
-  console.log(`   - Deposits: 2`);
-  console.log(`   - Bets: 3`);
-  console.log(`   - Withdrawals: 1`);
-  console.log('\n🔐 Demo Credentials:');
-  console.log(`   Phone: 254712345678 | Password: password123`);
-  console.log(`   Phone: 254798765432 | Password: password123`);
+  console.log(`Seeded defaults and administrator account ${admin.email}.`);
+  console.log('No demo user accounts, balances, deposits, or bets were created.');
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Error seeding database:', e);
-    process.exit(1);
+  .catch((error) => {
+    console.error('Database seed failed:', error instanceof Error ? error.message : error);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
