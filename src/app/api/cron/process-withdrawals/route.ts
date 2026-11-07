@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
   const networkCode = process.env.PAYHERO_NETWORK_CODE;
   const callbackSecret = process.env.PAYHERO_CALLBACK_SECRET;
   const appUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
-  if (!Number.isInteger(accountId) || accountId < 1 || !networkCode || !callbackSecret || !appUrl || !process.env.PAYHERO_API_KEY || !process.env.PAYHERO_API_SECRET) {
+  const payHeroUsername = process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY;
+  const payHeroPassword = process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET;
+  if (!Number.isInteger(accountId) || accountId < 1 || !networkCode || !callbackSecret || !appUrl || !payHeroUsername || !payHeroPassword) {
     return NextResponse.json({ success: false, error: 'PayHero payout account, callback, app URL, and API credentials must be configured' }, { status: 503 });
   }
 

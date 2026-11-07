@@ -236,13 +236,14 @@ export async function updateDepositProviderDetails(reference: string, providerRe
   });
 }
 
-export async function failDeposit(reference: string) {
+export async function failDeposit(reference: string, failureReason = 'Payment was not completed') {
   const now = BigInt(Date.now());
-  await prisma.deposit.update({
-    where: { reference },
+  await prisma.deposit.updateMany({
+    where: { reference, status: { not: 'SUCCESS' } },
     data: {
       status: 'FAILED',
-      completedAt: now
+      completedAt: now,
+      failureReason: failureReason.slice(0, 500)
     }
   });
 }

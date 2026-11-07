@@ -275,16 +275,16 @@ DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
 # JWT
 JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
 
-# PayHero (for payments)
-PAYHERO_API_KEY=your_payhero_api_key_here
-PAYHERO_API_SECRET=your_payhero_api_secret_here
-PAYHERO_CHANNEL_ID=your_channel_id_here
+# PayHero M-PESA STK Push (for deposits)
+PAYHERO_API_USERNAME=your_payhero_api_username
+PAYHERO_API_PASSWORD=your_payhero_api_password
+PAYHERO_CHANNEL_ID=your_registered_mpesa_channel_id
 PAYHERO_CALLBACK_SECRET=generate-a-long-random-callback-secret
 PAYHERO_PAYOUTS_ENABLED=false
 # Required only after PayHero enables payouts for your account:
 PAYHERO_PAYOUT_ACCOUNT_ID=your_payhero_account_id
 PAYHERO_NETWORK_CODE=63902
-APP_BASE_URL=https://your-production-domain.example
+APP_BASE_URL=https://example.com
 
 # Firebase (for phone auth)
 FIREBASE_API_KEY=your_firebase_web_api_key

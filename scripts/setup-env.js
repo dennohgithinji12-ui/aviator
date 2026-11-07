@@ -9,10 +9,12 @@ DATABASE_URL="postgresql://postgres:@localhost:5432/aviator"
 # JWT Authentication
 JWT_SECRET=8f8315a4a451a6fe3d357aefa42e91ec237929d667ec348ca341b38bb7255738
 
-# PayHero API Credentials (Add your actual keys)
-PAYHERO_API_KEY=your_payhero_api_key_here
-PAYHERO_API_SECRET=your_payhero_api_secret_here
-PAYHERO_CHANNEL_ID=your_channel_id_here
+# PayHero API Credentials (Add your API username and password)
+PAYHERO_API_USERNAME=your_payhero_api_username
+PAYHERO_API_PASSWORD=your_payhero_api_password
+PAYHERO_CHANNEL_ID=your_registered_mpesa_channel_id
+PAYHERO_CALLBACK_SECRET=generate-a-long-random-callback-secret
+APP_BASE_URL=https://example.com
 
 # Firebase Configuration
 FIREBASE_PROJECT_ID=shiftstack-aviator

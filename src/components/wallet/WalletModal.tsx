@@ -88,7 +88,7 @@ export function WalletModal({ isOpen, onClose, initialTab = 'deposit' }: { isOpe
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to start the deposit');
       setPendingReference(result.reference);
       setMessageKind('pending');
-      setMessage(result.isSandbox ? 'Development sandbox: a simulated deposit confirmation will arrive shortly.' : result.message || 'M-PESA payment prompt sent. Enter your PIN to continue.');
+      setMessage(result.message || 'M-PESA payment prompt sent. Enter your PIN to continue.');
     } catch (error) {
       setMessageKind('error');
       setMessage(error instanceof Error ? error.message : 'Unable to start the deposit');
