@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { callPayHeroApi } from '@/lib/payhero';
+import { getPayHeroConfig } from '@/lib/payhero-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,16 +10,17 @@ export async function POST(request: NextRequest) {
   const supplied = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!secret) return NextResponse.json({ success: false, error: 'Withdrawal scheduler is not configured' }, { status: 503 });
   if (!supplied || supplied !== secret) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  if (process.env.PAYHERO_PAYOUTS_ENABLED !== 'true') {
+  const config = await getPayHeroConfig();
+  if (!config.payoutsEnabled) {
     return NextResponse.json({ success: false, error: 'PayHero payouts are disabled' }, { status: 503 });
   }
 
-  const accountId = Number(process.env.PAYHERO_PAYOUT_ACCOUNT_ID);
-  const networkCode = process.env.PAYHERO_NETWORK_CODE;
-  const callbackSecret = process.env.PAYHERO_CALLBACK_SECRET;
-  const appUrl = process.env.APP_BASE_URL?.replace(/\/$/, '');
-  const payHeroUsername = process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY;
-  const payHeroPassword = process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET;
+  const accountId = Number(config.payoutAccountId);
+  const networkCode = config.networkCode;
+  const callbackSecret = config.callbackSecret;
+  const appUrl = process.env.APP_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '');
+  const payHeroUsername = config.username;
+  const payHeroPassword = config.password;
   if (!Number.isInteger(accountId) || accountId < 1 || !networkCode || !callbackSecret || !appUrl || !payHeroUsername || !payHeroPassword) {
     return NextResponse.json({ success: false, error: 'PayHero payout account, callback, app URL, and API credentials must be configured' }, { status: 503 });
   }

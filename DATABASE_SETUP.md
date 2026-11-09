@@ -138,6 +138,8 @@ Configure these Vercel environment variables before the first production deploy:
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and optionally `ADMIN_NAME` (the seed hashes the password before storing it)
 - Payment/Firebase keys only when enabling those integrations
 
+PayHero credentials can be entered by a super administrator under **Admin dashboard → Settings → PayHero payments**. The API password and callback secret are encrypted in the database using `GAME_MASTER_SECRET`; keep that secret stable across deployments or saved PayHero settings cannot be read. `APP_BASE_URL` may be set to the public HTTPS origin, or the app uses Vercel's production URL for payment callbacks. The old `PAYHERO_*` environment values remain a fallback until settings are saved in the dashboard. Changing the callback secret while payments are in flight can cause their callbacks to be rejected.
+
 The app does not configure scheduled background jobs. `/api/cron/settle-rounds` remains available as a manually invoked, `CRON_SECRET`-protected reconciliation endpoint. Normal game requests persist round state and settle the active round when its crash is observed.
 
 The seed inserts default application settings and a disabled, zero-value liquidity pool. It does not create sample users, demo real-money balances, fake deposits, or fake bets. Defaults use upserts and do not overwrite settings that already exist. The initial admin password is updated from `ADMIN_PASSWORD` each time the seed is run.

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { callPayHeroApi } from '@/lib/payhero';
+import { getPayHeroConfig } from '@/lib/payhero-config';
 import {
   checkStkRateLimit,
   recordStkAttempt,
@@ -18,11 +19,10 @@ export async function POST(request: NextRequest) {
   const session = verifyToken(token);
   if (!session) return NextResponse.json({ success: false, error: 'Sign in before starting a deposit' }, { status: 401 });
 
-  const username = process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY;
-  const password = process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET;
-  const channelId = Number(process.env.PAYHERO_CHANNEL_ID);
-  const baseUrl = process.env.APP_BASE_URL?.replace(/\/+$/, '');
-  const callbackSecret = process.env.PAYHERO_CALLBACK_SECRET;
+  const config = await getPayHeroConfig();
+  const { username, password, callbackSecret } = config;
+  const channelId = Number(config.channelId);
+  const baseUrl = process.env.APP_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '');
   let publicBaseUrl: URL | null = null;
   try { if (baseUrl) publicBaseUrl = new URL(baseUrl); } catch { /* reported below */ }
   if (!username || !password || !Number.isInteger(channelId) || channelId < 1 || publicBaseUrl?.protocol !== 'https:' || !callbackSecret) {

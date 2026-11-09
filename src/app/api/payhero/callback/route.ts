@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { completeDeposit, failDeposit, getDeposit } from '@/lib/db/operations';
+import { getPayHeroConfig } from '@/lib/payhero-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ function normalizedPhone(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!matchesSecret(process.env.PAYHERO_CALLBACK_SECRET, request.nextUrl.searchParams.get('key'))) {
+  if (!matchesSecret((await getPayHeroConfig()).callbackSecret, request.nextUrl.searchParams.get('key'))) {
     return NextResponse.json({ status: 'ERROR', error: 'Unauthorized' }, { status: 401 });
   }
 

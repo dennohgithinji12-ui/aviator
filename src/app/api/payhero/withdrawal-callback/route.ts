@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/db';
+import { getPayHeroConfig } from '@/lib/payhero-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ function validCallbackKey(expected: string | undefined, supplied: string | null)
 }
 
 export async function POST(request: NextRequest) {
-  if (!validCallbackKey(process.env.PAYHERO_CALLBACK_SECRET, request.nextUrl.searchParams.get('key'))) {
+  if (!validCallbackKey((await getPayHeroConfig()).callbackSecret, request.nextUrl.searchParams.get('key'))) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 

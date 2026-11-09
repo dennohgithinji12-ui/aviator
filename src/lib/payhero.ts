@@ -1,16 +1,17 @@
+import { getPayHeroConfig } from '@/lib/payhero-config';
+
 export interface PayHeroResponse {
   statusCode: number;
   body: Record<string, any>;
 }
 
-/** Server-only PayHero API client. Values may only come from server environment variables. */
+/** Server-only PayHero API client. */
 export async function callPayHeroApi(
   endpoint: string,
   method: string = 'GET',
   data: unknown = null
 ): Promise<PayHeroResponse> {
-  const username = process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY;
-  const password = process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET;
+  const { username, password } = await getPayHeroConfig();
   if (!username || !password) throw new Error('PayHero API username and password are not configured');
 
   const cleanPath = endpoint.startsWith('/') ? endpoint : `/api/v2/${endpoint}`;

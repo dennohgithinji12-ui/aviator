@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { callPayHeroApi } from '@/lib/payhero';
+import { getPayHeroConfig } from '@/lib/payhero-config';
 
 export async function GET() {
   try {
+    const config = await getPayHeroConfig();
     const result = await callPayHeroApi('wallets?wallet_type=service_wallet', 'GET');
     const data = result.body || {};
 
@@ -11,7 +13,7 @@ export async function GET() {
       availableBalance: data.available_balance !== undefined ? parseFloat(data.available_balance) : 0,
       currency: data.currency || 'KES',
       status: data.wallet_status || 'ACTIVE',
-      channelId: process.env.PAYHERO_CHANNEL_ID || '4848',
+      channelId: config.channelId,
       tillNumber: '9956081',
       secondaryTillNumber: '6310357'
     });
@@ -21,7 +23,7 @@ export async function GET() {
       availableBalance: 0,
       currency: 'KES',
       error: err instanceof Error ? err.message : 'Unknown error',
-      channelId: process.env.PAYHERO_CHANNEL_ID || '4848',
+      channelId: '',
       tillNumber: '9956081',
       secondaryTillNumber: '6310357'
     });

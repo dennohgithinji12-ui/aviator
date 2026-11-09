@@ -38,17 +38,4 @@ if (process.env.APP_BASE_URL) {
   }
 }
 
-if (process.env.PAYHERO_PAYOUTS_ENABLED === 'true') {
-  const payoutRequired = ['PAYHERO_PAYOUT_ACCOUNT_ID', 'PAYHERO_NETWORK_CODE', 'PAYHERO_CALLBACK_SECRET', 'APP_BASE_URL'];
-  const payoutMissing = payoutRequired.filter((name) => !process.env[name]?.trim());
-  if (payoutMissing.length) {
-    console.error(`PayHero payouts are enabled but required environment variables are missing: ${payoutMissing.join(', ')}`);
-    process.exit(1);
-  }
-  if (!Number.isInteger(Number(process.env.PAYHERO_PAYOUT_ACCOUNT_ID))) {
-    console.error('PAYHERO_PAYOUT_ACCOUNT_ID must be a numeric account ID.');
-    process.exit(1);
-  }
-}
-
 console.log('Required Vercel environment variables are configured.');
