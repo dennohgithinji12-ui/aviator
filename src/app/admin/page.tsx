@@ -6,6 +6,7 @@ import { AdminPredictor } from '@/components/admin/AdminPredictor';
 import { AdminModuleSettings } from '@/components/admin/AdminModuleSettings';
 import { AdminOddsSettings } from '@/components/admin/AdminOddsSettings';
 import { AdminPayHeroSettings } from '@/components/admin/AdminPayHeroSettings';
+import { PasswordInput } from '@/components/auth/PasswordInput';
 
 type DashboardData = {
   generatedAt: number;
@@ -135,7 +136,7 @@ export default function AdminPage() {
         <form className="admin-access-card" onSubmit={login}>
           <h2>Administrator sign in</h2><p>Use the admin account configured for this deployment.</p>
           <label htmlFor="admin-email">Email</label><input id="admin-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          <label htmlFor="admin-password">Password</label><input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <label htmlFor="admin-password">Password</label><PasswordInput id="admin-password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           <button type="submit" disabled={loading || !email || !password}>{loading ? 'Checking…' : 'Open dashboard'}</button>
           {error && <div className="admin-error" role="alert">{error}</div>}
         </form>

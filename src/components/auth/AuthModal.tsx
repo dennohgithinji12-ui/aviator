@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { PasswordInput } from '@/components/auth/PasswordInput';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -102,11 +103,11 @@ export function AuthModal({ isOpen, onClose, onLogin, onSignup, mode = 'login' }
           </div>
           <div className="auth-form-group">
             <label htmlFor="auth-password">Password</label>
-            <input id="auth-password" className="auth-input" type="password" autoComplete={currentMode === 'login' ? 'current-password' : 'new-password'} minLength={8} maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <PasswordInput id="auth-password" className="auth-input" autoComplete={currentMode === 'login' ? 'current-password' : 'new-password'} minLength={8} maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} required />
           </div>
           {currentMode === 'signup' && <div className="auth-form-group">
             <label htmlFor="auth-confirm-password">Confirm Password</label>
-            <input id="auth-confirm-password" className="auth-input" type="password" autoComplete="new-password" minLength={8} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+            <PasswordInput id="auth-confirm-password" aria-label="confirm password" className="auth-input" autoComplete="new-password" minLength={8} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
             <span className="auth-input-hint">Use at least 8 characters.</span>
           </div>}
           <button type="submit" className="auth-submit-btn" disabled={loading || !phone || !password || (currentMode === 'signup' && !confirmPassword)}>

@@ -2479,6 +2479,13 @@ h1, h2, h3, h4 {
 .admin-access-card h2 { margin: 0 0 8px; }
 .admin-access-card label { display: block; margin: 24px 0 8px; color: #c4c8d1; font-size: 13px; }
 .admin-access-card input { width: 100%; margin-bottom: 14px; border: 1px solid #343a49; border-radius: 8px; padding: 12px; color: white; background: #090b11; }
+.password-input-wrap { position: relative; width: 100%; }
+.password-input-wrap input { width: 100%; padding-right: 48px; }
+.password-input-wrap .password-visibility, .admin-access-card .password-input-wrap .password-visibility { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; color: #aeb4c1; background: transparent; cursor: pointer; }
+.password-input-wrap .password-visibility:hover { color: #fff; }
+.password-input-wrap .password-visibility:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.admin-access-card .password-input-wrap input { margin-bottom: 0; }
+.admin-access-card .password-input-wrap { margin-bottom: 14px; }
 .admin-error { margin-top: 16px; color: #ff7c88; font-size: 13px; }
 .admin-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 1320px; margin: 0 auto 22px; }
 .admin-metric, .admin-table-card { border: 1px solid #262b37; border-radius: 12px; background: #11141c; }
