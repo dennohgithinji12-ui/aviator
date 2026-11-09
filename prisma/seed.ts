@@ -50,17 +50,18 @@ async function main() {
     }
   });
 
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD;
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase() || (isProduction ? undefined : 'admin@avitor.com');
+  const password = process.env.ADMIN_PASSWORD || (isProduction ? undefined : 'admin1234');
   if (!email || !password) {
-    if (process.env.VERCEL_ENV === 'production') {
+    if (isProduction) {
       throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be configured for production deployments');
     }
     console.warn('Admin seed skipped: configure ADMIN_EMAIL and ADMIN_PASSWORD to create the initial admin login.');
     return;
   }
-  if (password.length < 14 || password.length > 128) {
-    throw new Error('ADMIN_PASSWORD must be between 14 and 128 characters');
+  if (password.length > 128 || (isProduction && password.length < 14)) {
+    throw new Error('ADMIN_PASSWORD must be between 14 and 128 characters in production');
   }
 
   const passwordHash = await hashPassword(password);
