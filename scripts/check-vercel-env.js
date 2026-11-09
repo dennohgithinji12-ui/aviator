@@ -4,19 +4,7 @@ const required = [
   'GAME_MASTER_SECRET',
   'ADMIN_JWT_SECRET',
   'ADMIN_EMAIL',
-  'ADMIN_PASSWORD',
-  'CRON_SECRET',
-  'PAYHERO_CALLBACK_SECRET',
-  'PAYHERO_API_USERNAME',
-  'PAYHERO_API_PASSWORD',
-  'PAYHERO_CHANNEL_ID',
-  'APP_BASE_URL',
-  'FIREBASE_API_KEY',
-  'FIREBASE_AUTH_DOMAIN',
-  'FIREBASE_PROJECT_ID',
-  'FIREBASE_APP_ID',
-  'FIREBASE_CLIENT_EMAIL',
-  'FIREBASE_PRIVATE_KEY'
+  'ADMIN_PASSWORD'
 ];
 
 const missing = required.filter((name) => !process.env[name]?.trim());
@@ -41,15 +29,17 @@ if (process.env.ADMIN_PASSWORD.length < 14 || process.env.ADMIN_PASSWORD.length 
   process.exit(1);
 }
 
-try {
-  if (new URL(process.env.APP_BASE_URL).protocol !== 'https:') throw new Error();
-} catch {
-  console.error('APP_BASE_URL must be a public HTTPS origin, for example https://example.com.');
-  process.exit(1);
+if (process.env.APP_BASE_URL) {
+  try {
+    if (new URL(process.env.APP_BASE_URL).protocol !== 'https:') throw new Error();
+  } catch {
+    console.error('APP_BASE_URL must be a public HTTPS origin, for example https://example.com.');
+    process.exit(1);
+  }
 }
 
 if (process.env.PAYHERO_PAYOUTS_ENABLED === 'true') {
-  const payoutRequired = ['PAYHERO_PAYOUT_ACCOUNT_ID', 'PAYHERO_NETWORK_CODE'];
+  const payoutRequired = ['PAYHERO_PAYOUT_ACCOUNT_ID', 'PAYHERO_NETWORK_CODE', 'PAYHERO_CALLBACK_SECRET', 'APP_BASE_URL'];
   const payoutMissing = payoutRequired.filter((name) => !process.env[name]?.trim());
   if (payoutMissing.length) {
     console.error(`PayHero payouts are enabled but required environment variables are missing: ${payoutMissing.join(', ')}`);
