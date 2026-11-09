@@ -11,9 +11,12 @@ interface SimulatedBet {
   stake: number;
   multiplier: number;
   visibleAt: number;
+  status: 'ACTIVE' | 'WON' | 'LOST';
+  cashedMultiplier: number;
+  payout: number;
 }
 
-function createSimulatedBets(roundNonce: number, roundStartTime: number): SimulatedBet[] {
+function createSimulatedBets(roundNonce: number, roundStartTime: number, phase: string, currentMultiplier: number, crashMultiplier: number): SimulatedBet[] {
   // Preserve the legacy feed profile while making its round data consistent
   // across server instances and visitors.
   const digest = crypto.createHash('sha256').update(`demo-feed:${roundNonce}`).digest();
@@ -50,13 +53,20 @@ function createSimulatedBets(roundNonce: number, roundStartTime: number): Simula
         : targetRoll < 0.94
           ? 5.02 + random() * 9.50
           : 15 + random() * 55;
+    const targetMultiplier = Math.round(target * 100) / 100;
+    const status: SimulatedBet['status'] = phase === 'CRASHED'
+      ? targetMultiplier <= crashMultiplier ? 'WON' : 'LOST'
+      : phase === 'FLYING' && currentMultiplier >= targetMultiplier ? 'WON' : 'ACTIVE';
     bets.push({
       id: `demo-${roundNonce}-${index}`,
       player: names[Math.floor(random() * names.length)],
       stake: stakeBands[stakeIndex],
-      multiplier: Math.round(target * 100) / 100,
+      multiplier: targetMultiplier,
       // Legacy placed rows at steady intervals through the open 4.2s window.
-      visibleAt: roundStartTime + Math.floor(4200 * (index + 1) / (count + 1))
+      visibleAt: roundStartTime + Math.floor(4200 * (index + 1) / (count + 1)),
+      status,
+      cashedMultiplier: status === 'WON' ? targetMultiplier : 0,
+      payout: status === 'WON' ? Math.floor(stakeBands[stakeIndex] * targetMultiplier * 100) / 100 : 0
     });
   }
 
@@ -69,7 +79,7 @@ export async function GET(request: NextRequest) {
   try {
     const round = await getLiveRoundState();
     if (round.nonce !== roundNonce) return NextResponse.json({ success: false, error: 'Round has changed' }, { status: 409 });
-    const simulatedBets = createSimulatedBets(roundNonce, round.roundStartTime);
+    const simulatedBets = createSimulatedBets(roundNonce, round.roundStartTime, round.phase, round.currentMultiplier, round.crashMultiplier);
     const where = { roundNonce };
     const [bets, count, stakeTotal, cashedOut] = await Promise.all([
       prisma.bet.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, select: { id: true, phone: true, mode: true, terminalId: true, amount: true, multiplier: true, payout: true, status: true, createdAt: true } }),
@@ -82,6 +92,8 @@ export async function GET(request: NextRequest) {
       roundNonce,
       serverTime: round.serverTime,
       phase: round.phase,
+      currentMultiplier: round.currentMultiplier,
+      crashMultiplier: round.phase === 'CRASHED' ? round.crashMultiplier : null,
       simulatedBets,
       totals: { count, stakeKes: Number(stakeTotal._sum.amount || 0), cashedOut },
       bets: bets.map((bet) => ({

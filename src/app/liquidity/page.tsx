@@ -26,7 +26,7 @@ export default function LiquidityPage() {
 
   useEffect(() => {
     const current = localStorage.getItem('shiftstack_game_mode');
-    setMode(current === 'REAL' ? 'REAL' : 'DEMO');
+    setMode(current === 'DEMO' ? 'DEMO' : 'REAL');
     const onMode = (event: Event) => setMode((event as CustomEvent<Mode>).detail);
     window.addEventListener('aviator:game-mode', onMode);
     return () => window.removeEventListener('aviator:game-mode', onMode);
@@ -79,7 +79,7 @@ export default function LiquidityPage() {
         </div>
         <div className="feature-columns">
           <section className="feature-card">
-            <div className="feature-card-heading"><div><h2>My liquidity position</h2><p>{user?.phone || 'Account'} · {mode === 'REAL' ? 'Real wallet' : 'Play wallet'}</p></div><span className={`feature-status ${data?.pool.enabled ? 'online' : 'paused'}`}>{data?.pool.enabled ? 'OPEN' : 'PAUSED'}</span></div>
+            <div className="feature-card-heading"><div><h2>My liquidity position</h2><p>{user?.phone || 'Account'} · {mode === 'REAL' ? 'Wallet' : 'Play wallet'}</p></div><span className={`feature-status ${data?.pool.enabled ? 'online' : 'paused'}`}>{data?.pool.enabled ? 'OPEN' : 'PAUSED'}</span></div>
             <div className="position-summary"><div><span>Principal</span><strong>KES {money(data?.position.principal || 0)}</strong></div><div><span>Accrued yield</span><strong className="positive-value">KES {money(data?.position.accruedYield || 0)}</strong></div></div>
             {message && <div className={`feature-message ${message.tone}`} role="status">{message.text}</div>}
             <form className="feature-form" onSubmit={(event) => void submit(event, 'stake')}>
@@ -97,7 +97,7 @@ export default function LiquidityPage() {
             {data?.transactions.length ? <div className="activity-list">{data.transactions.map((item) => <div className="activity-row" key={item.reference}><div><strong>{item.type.replace('_', ' ')}</strong><small>{new Date(item.createdAt).toLocaleString()}</small><code>{item.reference}</code></div><b>KES {money(item.amount)}</b></div>)}</div> : <div className="empty-activity">No liquidity activity recorded yet.</div>}
           </section>
         </div>
-        <p className="feature-footnote">Live-wallet deposits and yield actions follow the pool’s configured availability and rate.</p>
+        <p className="feature-footnote">Wallet deposits and yield actions follow the pool’s configured availability and rate.</p>
       </>}
     </section>
     <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onLogin={login} onSignup={signup} />

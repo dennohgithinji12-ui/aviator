@@ -20,6 +20,7 @@ const defaults = [
   { key: 'MAX_WEEKLY_PASSWORD_RESETS', value: 2, description: 'Password reset rate limit' },
   { key: 'LIQUIDITY_VAULT_ENABLED', value: false, description: 'Enable the liquidity vault after its economics and settlement rules are approved' },
   { key: 'ROLLOVER_VAULT_ENABLED', value: false, description: 'Enable rollover after its rules and liability controls are approved' },
+  { key: 'PRIMARY_NAV_MODULES', value: { home: true, sports: true, casino: true, aviator: true, me: true }, description: 'Primary navigation modules visible to players' },
   { key: 'PAYMENTS_SANDBOX_MODE', value: true, description: 'Keep payments in sandbox until live provider configuration is verified' }
 ];
 

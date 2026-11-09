@@ -26,7 +26,7 @@ export default function RolloverPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem('shiftstack_game_mode');
-    setMode(saved === 'REAL' ? 'REAL' : 'DEMO');
+    setMode(saved === 'DEMO' ? 'DEMO' : 'REAL');
     const listener = (event: Event) => setMode((event as CustomEvent<Mode>).detail);
     window.addEventListener('aviator:game-mode', listener);
     return () => window.removeEventListener('aviator:game-mode', listener);
@@ -104,7 +104,7 @@ export default function RolloverPage() {
       </header>
       <div className="feature-columns rollover-columns">
         <section className="feature-card">
-          <div className="feature-card-heading"><div><h2>Strategy settings</h2><p>Selected wallet: {mode === 'REAL' ? 'Real' : 'Play'} · KES</p></div><span className={`feature-status ${active ? 'online' : 'paused'}`}>{active ? 'ACTIVE' : 'READY'}</span></div>
+          <div className="feature-card-heading"><div><h2>Strategy settings</h2><p>Selected wallet: {mode === 'REAL' ? 'Wallet' : 'Play'} · KES</p></div><span className={`feature-status ${active ? 'online' : 'paused'}`}>{active ? 'ACTIVE' : 'READY'}</span></div>
           <form className="feature-form" onSubmit={(event) => void start(event)}>
             <label>Starting stake<input type="number" min="100" max="25000" step="50" value={baseStake} onChange={(event) => setBaseStake(event.target.value)} disabled={!!active} /></label>
             <label>Target multiplier<input type="number" min="1.1" max="5" step="0.05" value={targetMultiplier} onChange={(event) => setTargetMultiplier(event.target.value)} disabled={!!active} /></label>

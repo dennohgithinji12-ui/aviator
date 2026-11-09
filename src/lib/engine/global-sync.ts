@@ -170,9 +170,10 @@ export class GlobalRoundSyncEngine {
     }
 
     this.initServerSync();
-    // Keep server correction frequent enough to catch a crash promptly; odds
-    // remain interpolated between these small, database-free state reads.
-    this.syncTimer = setInterval(() => { void this.initServerSync(); }, 250);
+    // Round phase/outcome is authoritative on the server. The multiplier and
+    // countdown are interpolated locally on every animation frame, so sync the
+    // clock and phase once per second rather than fetching each displayed odd.
+    this.syncTimer = setInterval(() => { void this.initServerSync(); }, 1000);
 
     if (typeof document !== 'undefined') {
       this.visibilityHandler = () => {
@@ -198,6 +199,7 @@ export class GlobalRoundSyncEngine {
 
   async initServerSync(): Promise<void> {
     if (this.stopped || this.syncInFlight) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     this.syncInFlight = true;
     const requestStartedAt = performance.now();
     const controller = new AbortController();
@@ -236,18 +238,34 @@ export class GlobalRoundSyncEngine {
     // arbitrarily long flight and display impossible odds.
     const serverTime = this.serverClockAnchor + (performance.now() - this.lastSyncReceivedAt);
     const flightStartsAt = serverState.roundStartTime + this.COUNTDOWN_DURATION * 1000;
-    const snapshotAgeSeconds = Math.max(0, (serverTime - serverState.serverTime) / 1000);
-    const interpolationSeconds = Math.min(snapshotAgeSeconds, 1.25);
+    const crashMultiplier = Math.max(1, serverState.crashMultiplier || 1);
+    const flightDuration = Math.max(0, serverState.flightDuration || 0);
+    const flightEndsAt = flightStartsAt + flightDuration * 1000;
+    const elapsedFlightSeconds = Math.max(0, (serverTime - flightStartsAt) / 1000);
+    const crashedState = (): RoundState => ({
+      ...serverState,
+      phase: 'CRASHED',
+      serverTime,
+      remainingSeconds: 0,
+      elapsedFlightSeconds: flightDuration,
+      currentMultiplier: crashMultiplier,
+      crashMultiplier
+    });
+
     if (serverState.phase === 'WAITING' && serverTime < flightStartsAt) {
       return { ...serverState, serverTime, remainingSeconds: Math.max(0, (flightStartsAt - serverTime) / 1000) };
     }
+    if ((serverState.phase === 'WAITING' || serverState.phase === 'FLYING') && serverTime >= flightEndsAt) {
+      return crashedState();
+    }
     if (serverState.phase === 'WAITING' && serverTime >= flightStartsAt) {
-      const elapsedFlightSeconds = Math.min(1.25, Math.max(0, (serverTime - flightStartsAt) / 1000));
-      return { ...serverState, phase: 'FLYING', serverTime, remainingSeconds: 0, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
+      const multiplier = Math.min(crashMultiplier, this.computeMultiplierFromTime(elapsedFlightSeconds));
+      return { ...serverState, phase: 'FLYING', serverTime, remainingSeconds: 0, elapsedFlightSeconds, currentMultiplier: multiplier };
     }
     if (serverState.phase === 'FLYING') {
-      const elapsedFlightSeconds = Math.max(serverState.elapsedFlightSeconds, serverState.elapsedFlightSeconds + interpolationSeconds);
-      return { ...serverState, serverTime, elapsedFlightSeconds, currentMultiplier: this.computeMultiplierFromTime(elapsedFlightSeconds) };
+      const elapsed = Math.min(flightDuration, Math.max(serverState.elapsedFlightSeconds, elapsedFlightSeconds));
+      const multiplier = Math.min(crashMultiplier, this.computeMultiplierFromTime(elapsed));
+      return { ...serverState, serverTime, elapsedFlightSeconds: elapsed, currentMultiplier: multiplier };
     }
     return { ...serverState, serverTime };
   }

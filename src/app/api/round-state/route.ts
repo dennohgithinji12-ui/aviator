@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { persistRoundSnapshot } from '@/lib/db/round-settlement';
+import { getCrashMultiplierForPolicy, getOddsPolicyChanges, isFavorableOddsEnabled, MAX_FLIGHT_SECONDS } from '@/lib/engine/odds-policy';
 
 // Game Constants (Preserved from server.js)
 const MASTER_SECRET = 'shiftstack_aviator_provably_fair_master_chain_2026';
@@ -25,26 +26,15 @@ interface RoundState {
   clientSeed: string;
 }
 
-function getCrashMultiplier(nonce: number): number {
+function getCrashMultiplier(nonce: number, favorableOdds: boolean): number {
   const hmac = crypto.createHmac('sha256', MASTER_SECRET);
   hmac.update(`${PUBLIC_CLIENT_SEED}:${nonce}`);
-  const hexHash = hmac.digest('hex');
-
-  const subHash = hexHash.substring(0, 13);
-  const h = parseInt(subHash, 16);
-  const e = Math.pow(2, 52);
-
-  if (h % 33 === 0) {
-    return 1.00;
-  }
-
-  const multiplier = Math.floor((100 * e - h) / (e - h)) / 100;
-  return Math.max(1.00, multiplier);
+  return getCrashMultiplierForPolicy(hmac.digest('hex'), favorableOdds);
 }
 
 function getFlightDuration(targetMultiplier: number): number {
   if (targetMultiplier <= 1.00) return 0;
-  let low = 0, high = 160;
+  let low = 0, high = MAX_FLIGHT_SECONDS;
   for (let i = 0; i < 26; i++) {
     const mid = (low + high) / 2;
     const m = Math.pow(Math.E, 0.072 * mid) + (0.012 * mid * mid);
@@ -134,10 +124,13 @@ export async function getLiveRoundState(time: number = Date.now()): Promise<Roun
     roundStart = hourStartTime;
   }
 
+  // The persisted policy timeline makes an admin toggle take effect at a
+  // round boundary and lets every server instance reconstruct the same schedule.
+  const policyChanges = await getOddsPolicyChanges();
   let roundsExamined = 0;
   while (roundsExamined < 100_000) {
     roundsExamined += 1;
-    const crashMultiplier = getCrashMultiplier(currentNonce);
+    const crashMultiplier = getCrashMultiplier(currentNonce, isFavorableOddsEnabled(policyChanges, currentNonce));
     const serverSeed = '';
     const flightDuration = getFlightDuration(crashMultiplier);
     const totalDuration = COUNTDOWN_DURATION + flightDuration + CRASHED_PAUSE_DURATION;
@@ -164,11 +157,12 @@ export async function getLiveRoundState(time: number = Date.now()): Promise<Roun
 
 export async function getUpcomingRoundOutcomes(count: number = 3) {
   const current = await getLiveRoundState();
+  const policyChanges = await getOddsPolicyChanges();
   const upcoming = [];
   let nonce = current.nonce + 1;
   let roundStartTime = current.roundEndTime;
   for (let index = 0; index < Math.max(1, Math.min(10, Math.floor(count))); index += 1) {
-    const crashMultiplier = getCrashMultiplier(nonce);
+    const crashMultiplier = getCrashMultiplier(nonce, isFavorableOddsEnabled(policyChanges, nonce));
     const flightDuration = getFlightDuration(crashMultiplier);
     const roundEndTime = Math.floor(roundStartTime + (COUNTDOWN_DURATION + flightDuration + CRASHED_PAUSE_DURATION) * 1000);
     upcoming.push({ nonce, crashMultiplier, roundStartTime, roundEndTime, flightDuration });
@@ -209,13 +203,16 @@ export async function GET() {
       persistenceAvailable = false;
     }
   }
-  // Publish only values required to animate the active round. The outcome is
-  // disclosed after the crash, never while bets can still be placed.
+  // Publish the server's crash boundary so the client animation can clamp to
+  // the exact authoritative outcome instead of extrapolating past it.
   return NextResponse.json({
     ...state,
     persistenceAvailable,
-    crashMultiplier: state.phase === 'CRASHED' ? state.crashMultiplier : 0,
-    flightDuration: state.phase === 'CRASHED' ? state.flightDuration : 0,
+    // The browser interpolates active odds on each frame and clamps them to
+    // crashMultiplier, which is the server's fixed outcome for this round.
+    currentMultiplier: state.phase === 'CRASHED' ? state.crashMultiplier : 1,
+    crashMultiplier: state.crashMultiplier,
+    flightDuration: state.flightDuration,
     roundEndTime: state.phase === 'CRASHED' ? state.roundEndTime : 0
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

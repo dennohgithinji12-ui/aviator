@@ -125,60 +125,56 @@ export function BettingTerminal({
 
       <div className="terminal-grid-content">
         <div className="terminal-left-controls">
-          {mode === 'manual' ? (
-            <>
-              <div className="stepper-row">
-                <button
-                  className="btn-step btn-step-minus"
-                  title="Decrease stake"
-                  onClick={() => handleStep(-100)}
-                >
-                  −
-                </button>
-                <div className="input-display-box">
-                  <input
-                    type="number"
-                    className="terminal-stake-input"
-                    value={localAmount}
-                    min="100"
-                    max="100000"
-                    step="100"
-                    title="Stake Amount"
-                    aria-label="Stake Amount"
-                    placeholder="10.00"
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 100;
-                      setLocalAmount(val);
-                      onAmountChange(terminalId, val);
-                    }}
-                    onBlur={() => setLocalAmount((current) => Math.min(100000, Math.max(100, Math.floor(current / 100) * 100)))}
-                  />
-                  <span className="currency-tag">KES</span>
-                </div>
-                <button
-                  className="btn-step btn-step-plus"
-                  title="Increase stake"
-                  onClick={() => handleStep(100)}
-                >
-                  +
-                </button>
-              </div>
+          <div className="stepper-row">
+            <button
+              className="btn-step btn-step-minus"
+              title="Decrease stake"
+              onClick={() => handleStep(-100)}
+            >
+              −
+            </button>
+            <div className="input-display-box">
+              <input
+                type="number"
+                className="terminal-stake-input"
+                value={localAmount}
+                min="100"
+                max="100000"
+                step="100"
+                title="Stake Amount"
+                aria-label="Stake Amount"
+                placeholder="10.00"
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 100;
+                  setLocalAmount(val);
+                  onAmountChange(terminalId, val);
+                }}
+                onBlur={() => setLocalAmount((current) => Math.min(100000, Math.max(100, Math.floor(current / 100) * 100)))}
+              />
+              <span className="currency-tag">KES</span>
+            </div>
+            <button
+              className="btn-step btn-step-plus"
+              title="Increase stake"
+              onClick={() => handleStep(100)}
+            >
+              +
+            </button>
+          </div>
 
-              <div className="quick-chips-grid">
-                {quickChips.map((chip) => (
-                  <button
-                    key={chip}
-                    className="chip-btn"
-                    data-val={chip}
-                    onClick={() => handleChipClick(chip)}
-                  >
-                    {chip.toLocaleString()}
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="auto-controls-panel" style={{ display: 'block' }}>
+          {mode === 'manual' ? <div className="quick-chips-grid">
+            {quickChips.map((chip) => (
+              <button
+                key={chip}
+                className="chip-btn"
+                data-val={chip}
+                onClick={() => handleChipClick(chip)}
+              >
+                {chip.toLocaleString()}
+              </button>
+            ))}
+          </div> : (
+            <div className="auto-controls-panel">
               <label className="auto-toggle-row">
                 <input
                   type="checkbox"

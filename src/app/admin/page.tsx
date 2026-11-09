@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AdminPredictor } from '@/components/admin/AdminPredictor';
+import { AdminModuleSettings } from '@/components/admin/AdminModuleSettings';
+import { AdminOddsSettings } from '@/components/admin/AdminOddsSettings';
 
 type DashboardData = {
   generatedAt: number;
@@ -52,7 +54,7 @@ export default function AdminPage() {
   const [token, setToken] = useState('');
   const [adminName, setAdminName] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'predictor'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'predictor' | 'settings'>('overview');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -137,7 +139,7 @@ export default function AdminPage() {
           {error && <div className="admin-error" role="alert">{error}</div>}
         </form>
       ) : <>
-        <nav className="admin-tabs" aria-label="Admin sections"><button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>Overview</button><button className={activeTab === 'predictor' ? 'active' : ''} onClick={() => setActiveTab('predictor')}>Predictor</button><span>Updated {new Date(data.generatedAt).toLocaleTimeString()}</span></nav>
+        <nav className="admin-tabs" aria-label="Admin sections"><button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>Overview</button><button className={activeTab === 'predictor' ? 'active' : ''} onClick={() => setActiveTab('predictor')}>Predictor</button><button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Settings</button><span>Updated {new Date(data.generatedAt).toLocaleTimeString()}</span></nav>
         {activeTab === 'overview' ? <>
         <section className="admin-metrics">
           {[
@@ -153,8 +155,8 @@ export default function AdminPage() {
             {!data.recentBets.length && <tr><td colSpan={7} className="admin-empty">No bets recorded yet.</td></tr>}
           </tbody></table></div>
         </section>
-        </> : <AdminPredictor token={token} />}
-        <section className="admin-table-card"><div className="admin-table-title"><div><h2>Withdrawal queue</h2><p>Review held requests. Approved withdrawals are sent through the protected PayHero payout scheduler.</p></div></div>
+        </> : activeTab === 'predictor' ? <AdminPredictor token={token} /> : <><AdminOddsSettings token={token} /><AdminModuleSettings token={token} /></>}
+        {activeTab === 'overview' && <section className="admin-table-card"><div className="admin-table-title"><div><h2>Withdrawal queue</h2><p>Review held requests. Approved withdrawals are sent through the protected PayHero payout scheduler.</p></div></div>
           <div className="admin-table-scroll"><table><thead><tr><th>Player</th><th>Destination</th><th>Gross</th><th>Tax</th><th>Net</th><th>Reference / status</th><th>Action</th></tr></thead><tbody>
             {data.withdrawalQueue.map((withdrawal) => {
               const held = withdrawal.status.startsWith('MANUAL_HOLD_');
@@ -162,9 +164,9 @@ export default function AdminPage() {
             })}
             {!data.withdrawalQueue.length && <tr><td colSpan={7} className="admin-empty">No withdrawals awaiting settlement.</td></tr>}
           </tbody></table></div>
-        </section>
+        </section>}
         {error && <div className="admin-error" role="alert">{error}</div>}
-        <Link className="admin-testing-link" href="/admin/predictor">Open dedicated predictor page ↗</Link>
+        {activeTab !== 'settings' && <Link className="admin-testing-link" href="/admin/predictor">Open dedicated predictor page ↗</Link>}
         <button className="admin-logout" onClick={() => { sessionStorage.removeItem('aviator_admin_session'); setToken(''); setAdminName(''); setData(null); }}>Lock dashboard</button>
       </>}
     </main>

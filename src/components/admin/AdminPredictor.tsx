@@ -46,7 +46,7 @@ export function AdminPredictor({ token }: { token: string }) {
     </div>
     {error && <div className="admin-error" role="alert">{error}</div>}
     {data?.current && (() => { const scheduledOdds = data.current.scheduledMultiplier.toFixed(2); const estimatedReturn = Math.floor(stake * Number(scheduledOdds) * 100) / 100; return <section className="admin-predictor-current"><div className="admin-predictor-current-title"><div><span>CURRENT ROUND</span><h3>#{data.current.nonce}</h3></div><b>{data.current.phase}{data.current.phase === 'WAITING' ? ` · ${data.current.remainingSeconds.toFixed(1)}s to takeoff` : ''}</b></div><div className="admin-predictor-current-metrics"><div><span>Live multiplier</span><strong>{data.current.currentMultiplier.toFixed(2)}x</strong></div><div><span>Scheduled outcome odds</span><strong>{scheduledOdds}x</strong></div><div><span>Estimated return at outcome odds</span><strong>{money(estimatedReturn)}</strong></div></div></section>; })()}
-    <h3 className="admin-predictor-next-heading">Next round and the three after</h3>
+    <h3 className="admin-predictor-next-heading">Next five rounds</h3>
     <div className="admin-predictor-table-wrap"><table className="admin-predictor-table"><thead><tr><th>Round</th><th>Scheduled start</th><th>Odds</th><th>Example stake</th><th>Estimated return</th><th>Estimated profit</th></tr></thead><tbody>
       {data?.upcoming.map((round) => {
         const odds = round.crashMultiplier.toFixed(2);
@@ -55,7 +55,7 @@ export function AdminPredictor({ token }: { token: string }) {
       })}
       {!data?.upcoming.length && !error && <tr><td colSpan={6} className="admin-empty">Loading the next scheduled rounds…</td></tr>}
     </tbody></table></div>
-    <p className="admin-predictor-note">The current round stays visible as it moves out of the upcoming list. The four following rounds use scheduled engine outcomes, rounded to two decimal places. Returns use the game’s cent rounding rule; they are estimates, not placed bets or guaranteed cashouts.</p>
+    <p className="admin-predictor-note">The current round stays visible as it moves out of the upcoming list. The next five rounds use scheduled engine outcomes, rounded to two decimal places. Returns use the game’s cent rounding rule; they are estimates, not placed bets or guaranteed cashouts.</p>
     {data && <small className="admin-predictor-updated">Schedule refreshed {new Date(data.generatedAt).toLocaleTimeString()}</small>}
   </section>;
 }

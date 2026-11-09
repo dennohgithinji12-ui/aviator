@@ -10,15 +10,17 @@ export async function GET(request: NextRequest) {
   try {
     let schedule: Awaited<ReturnType<typeof getUpcomingRoundOutcomes>>;
     try {
-      schedule = await getUpcomingRoundOutcomes(4);
+      schedule = await getUpcomingRoundOutcomes(5);
     } catch (firstError) {
       console.warn('[admin/predictor/rounds] Retrying a failed schedule read:', firstError);
-      schedule = await getUpcomingRoundOutcomes(4);
+      schedule = await getUpcomingRoundOutcomes(5);
     }
     const { current, upcoming } = schedule;
     const verifiedRounds = upcoming.map((round) => {
-      const multiplier = Math.floor(round.crashMultiplier * 100) / 100;
-      if (!Number.isFinite(multiplier) || multiplier < 1 || Math.round(multiplier * 100) !== Math.round(round.crashMultiplier * 100)) {
+      const scaledMultiplier = round.crashMultiplier * 100;
+      const roundedHundredths = Math.round(scaledMultiplier);
+      const multiplier = roundedHundredths / 100;
+      if (!Number.isFinite(round.crashMultiplier) || multiplier < 1 || Math.abs(scaledMultiplier - roundedHundredths) > 0.000001) {
         throw new Error(`Invalid scheduled odds for round ${round.nonce}`);
       }
       return { ...round, crashMultiplier: multiplier };
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
         nonce: current.nonce,
         phase: current.phase,
         currentMultiplier: current.currentMultiplier,
-        scheduledMultiplier: Math.floor(current.crashMultiplier * 100) / 100,
+        scheduledMultiplier: Math.round(current.crashMultiplier * 100) / 100,
         remainingSeconds: current.remainingSeconds,
         roundStartTime: current.roundStartTime,
         flightDuration: current.flightDuration

@@ -12,14 +12,16 @@ export function Header() {
   const { user, token, isAuthenticated, isLoading, login, signup, logout, refreshBalance } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
+  const [walletInitialTab, setWalletInitialTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [pendingWalletOpen, setPendingWalletOpen] = useState(false);
+  const [pendingWalletTab, setPendingWalletTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoPanel, setInfoPanel] = useState<{ title: string; body: string } | null>(null);
   const [menuModal, setMenuModal] = useState<'freebets' | 'history' | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [animationEnabled, setAnimationEnabled] = useState(true);
-  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('REAL');
   const pathname = usePathname();
 
   useEffect(() => {
@@ -33,8 +35,22 @@ export function Header() {
     if (savedAnimation !== null) setAnimationEnabled(savedAnimation === 'true');
     const onModeChange = (event: Event) => setGameMode((event as CustomEvent<'REAL' | 'DEMO'>).detail);
     window.addEventListener('aviator:game-mode', onModeChange);
-    return () => window.removeEventListener('aviator:game-mode', onModeChange);
-  }, []);
+    const onOpenWallet = (event: Event) => openWallet((event as CustomEvent<{ tab?: 'deposit' | 'withdraw' }>).detail?.tab || 'deposit');
+    const onOpenAuth = () => setShowAuth(true);
+    const onOpenFreebets = () => setMenuModal('freebets');
+    const onOpenHistory = () => setMenuModal('history');
+    window.addEventListener('aviator:open-wallet', onOpenWallet);
+    window.addEventListener('aviator:open-auth', onOpenAuth);
+    window.addEventListener('aviator:open-freebets', onOpenFreebets);
+    window.addEventListener('aviator:open-history', onOpenHistory);
+    return () => {
+      window.removeEventListener('aviator:game-mode', onModeChange);
+      window.removeEventListener('aviator:open-wallet', onOpenWallet);
+      window.removeEventListener('aviator:open-auth', onOpenAuth);
+      window.removeEventListener('aviator:open-freebets', onOpenFreebets);
+      window.removeEventListener('aviator:open-history', onOpenHistory);
+    };
+  }, [isAuthenticated]);
 
   const changeGameMode = (mode: 'REAL' | 'DEMO') => {
     if (!isAuthenticated && mode === 'REAL') { setShowAuth(true); return; }
@@ -42,9 +58,11 @@ export function Header() {
     localStorage.setItem('shiftstack_game_mode', mode);
     window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: mode }));
   };
-  const openWallet = () => {
+  const openWallet = (tab: 'deposit' | 'withdraw' = 'deposit') => {
+    setWalletInitialTab(tab);
     if (isAuthenticated) setShowWallet(true);
     else {
+      setPendingWalletTab(tab);
       setPendingWalletOpen(true);
       setShowAuth(true);
     }
@@ -57,9 +75,10 @@ export function Header() {
   useEffect(() => {
     if (isAuthenticated && pendingWalletOpen) {
       setPendingWalletOpen(false);
+      setWalletInitialTab(pendingWalletTab);
       setShowWallet(true);
     }
-  }, [isAuthenticated, pendingWalletOpen]);
+  }, [isAuthenticated, pendingWalletOpen, pendingWalletTab]);
 
   const displayedBalance = isAuthenticated ? Number(gameMode === 'REAL' ? user?.realBalance || 0 : user?.demoBalance || 0) : 0;
   const openInfo = (title: string, body: string) => { setInfoPanel({ title, body }); setMenuOpen(false); };
@@ -109,11 +128,11 @@ export function Header() {
       <div className="header-right">
         {/* User Wallet Balance */}
         <div className="header-balance-card" id="header-balance-card" title="Selected wallet balance">
-          <span className={`badge-mode-indicator ${gameMode === 'REAL' ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? gameMode : 'LOGIN'}</span>
+          <span className={`badge-mode-indicator ${gameMode === 'REAL' ? 'badge-mode-real' : 'badge-mode-demo'}`} id="header-mode-badge">{isAuthenticated ? (gameMode === 'REAL' ? 'WALLET' : 'PRACTICE') : 'LOGIN'}</span>
           <span className="bal-amount user-balance-value">{displayedBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KES</span>
           <div className="header-mode-toggle" role="group" aria-label="Wallet mode">
-            <button type="button" className={gameMode === 'DEMO' ? 'active' : ''} aria-pressed={gameMode === 'DEMO'} onClick={() => changeGameMode('DEMO')}>Demo</button>
-            <button type="button" className={gameMode === 'REAL' ? 'active' : ''} aria-pressed={gameMode === 'REAL'} onClick={() => changeGameMode('REAL')}>Real</button>
+            <button type="button" className={gameMode === 'DEMO' ? 'active' : ''} aria-pressed={gameMode === 'DEMO'} onClick={() => changeGameMode('DEMO')}>Practice</button>
+            <button type="button" className={gameMode === 'REAL' ? 'active' : ''} aria-pressed={gameMode === 'REAL'} onClick={() => changeGameMode('REAL')}>Wallet</button>
           </div>
         </div>
 
@@ -128,7 +147,7 @@ export function Header() {
         </button>
 
         {/* Deposit Button */}
-        <button className="btn-deposit-header" id="btn-open-deposit" title="Open wallet" onClick={openWallet}>
+        <button className="btn-deposit-header" id="btn-open-deposit" title="Open wallet" onClick={() => openWallet()}>
           <span className="dep-text">Deposit</span>
         </button>
 
@@ -226,7 +245,7 @@ export function Header() {
               <span className="menu-link-icon">❓</span>
               <span>How To Play</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-rules" onClick={() => openInfo('Game rules', 'The server schedule determines each round’s crash multiplier. Bets are recorded against a round and wallet mode. Cashout is processed by the server using the live multiplier; winnings are rounded down to cents. Practice and real wallets are separate. Real-money play requires an authenticated account and sufficient real balance.')}>
+          <button type="button" className="menu-link-btn" id="menu-btn-rules" onClick={() => openInfo('Game rules', 'The server schedule determines each round’s crash multiplier. Bets are recorded against a round and wallet mode. Cashout is processed by the server using the live multiplier; winnings are rounded down to cents. Practice and wallet balances are separate. Wallet play requires an authenticated account and sufficient balance.')}>
               <span className="menu-link-icon">📄</span>
               <span>Game Rules</span>
             </button>
@@ -244,7 +263,7 @@ export function Header() {
 
             <div className="menu-divider"></div>
 
-            <button type="button" className="menu-link-btn" id="menu-btn-deposit" style={{ color: '#2ecc71' }} onClick={openWallet}>
+            <button type="button" className="menu-link-btn" id="menu-btn-deposit" style={{ color: '#2ecc71' }} onClick={() => openWallet()}>
               <span className="menu-link-icon">⚡</span>
               <span>Deposit Funds (Min 49 Bob)</span>
             </button>
@@ -261,7 +280,7 @@ export function Header() {
       </div>
     </header>
     <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onLogin={login} onSignup={signup} />
-    <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} />
+    <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} initialTab={walletInitialTab} />
     {menuModal && <MenuModals kind={menuModal} token={token} onClose={() => setMenuModal(null)} onLogin={() => setShowAuth(true)} onBalanceChanged={refreshBalance} />}
     {infoPanel && <div className="simple-modal-backdrop" role="presentation" onClick={() => setInfoPanel(null)}><section className="simple-modal" role="dialog" aria-modal="true" aria-labelledby="header-info-title" onClick={(e) => e.stopPropagation()}><button type="button" className="simple-modal-close" aria-label="Close" onClick={() => setInfoPanel(null)}>×</button><h2 id="header-info-title">{infoPanel.title}</h2><p>{infoPanel.body}</p><button type="button" className="simple-modal-action" onClick={() => setInfoPanel(null)}>Close</button></section></div>}
     </>

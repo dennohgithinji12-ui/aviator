@@ -40,7 +40,7 @@ export function WalletModal({ isOpen, onClose, initialTab = 'deposit' }: { isOpe
         if (!response.ok || !result.success) throw new Error(result.error || 'Unable to check payment status');
         if (result.status === 'SUCCESS') {
           setMessageKind('success');
-          setMessage(`Deposit received. ${money(Number(result.amount))} has been added to your real balance.`);
+          setMessage(`Deposit received. ${money(Number(result.amount))} has been added to your wallet balance.`);
           setReceipt(result.receiptNumber || '');
           updateBalance(Number(result.realBalance), Number(result.demoBalance));
           setPendingReference('');
@@ -134,7 +134,7 @@ export function WalletModal({ isOpen, onClose, initialTab = 'deposit' }: { isOpe
           <div><span>SHIFTSTACK WALLET</span><h2 id="wallet-modal-title">Manage funds</h2></div>
           <button type="button" className="wallet-modal-close" onClick={onClose} aria-label="Close wallet">×</button>
         </header>
-        <div className="wallet-modal-balance"><span>Real balance</span><strong>{money(user?.realBalance || 0)}</strong></div>
+        <div className="wallet-modal-balance"><span>Wallet balance</span><strong>{money(user?.realBalance || 0)}</strong></div>
         <div className="wallet-modal-tabs" role="tablist" aria-label="Wallet action">
           <button type="button" role="tab" aria-selected={tab === 'deposit'} className={tab === 'deposit' ? 'active' : ''} onClick={() => { setTab('deposit'); setMessage(''); setPendingReference(''); }}>Deposit</button>
           <button type="button" role="tab" aria-selected={tab === 'withdraw'} className={tab === 'withdraw' ? 'active' : ''} disabled={!!pendingReference} onClick={() => { setTab('withdraw'); setMessage(''); }}>Withdraw</button>

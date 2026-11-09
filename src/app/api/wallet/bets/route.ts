@@ -9,8 +9,13 @@ export async function GET(request: NextRequest) {
   const session = verifyToken(token);
   if (!session) return NextResponse.json({ success: false, error: 'Sign in to view your bet history' }, { status: 401 });
   try {
+    const roundNonceParam = request.nextUrl.searchParams.get('roundNonce');
+    const roundNonce = roundNonceParam === null ? undefined : Number(roundNonceParam);
+    if (roundNonce !== undefined && (!Number.isInteger(roundNonce) || roundNonce < 0)) {
+      return NextResponse.json({ success: false, error: 'A valid round number is required' }, { status: 400 });
+    }
     const bets = await prisma.bet.findMany({
-      where: { phone: session.phone },
+      where: { phone: session.phone, ...(roundNonce !== undefined ? { roundNonce } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: { id: true, mode: true, terminalId: true, amount: true, roundNonce: true, multiplier: true, payout: true, profit: true, status: true, createdAt: true }

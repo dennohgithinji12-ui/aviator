@@ -39,8 +39,12 @@ export function FlightCanvas({ syncRef: sharedSyncRef, cashoutNotices = [], onDi
       if (setting === 'music' && sound.musicMuted === value) sound.toggleMusic();
     };
     const onCashoutSuccess = () => soundRef.current?.playCashout();
+    const onBetSuccess = () => soundRef.current?.playBetPlaced();
+    const onAudioUnlock = () => soundRef.current?.initContext();
     window.addEventListener('aviator:setting', onSetting);
     window.addEventListener('aviator:cashout-success', onCashoutSuccess);
+    window.addEventListener('aviator:bet-success', onBetSuccess);
+    window.addEventListener('aviator:audio-unlock', onAudioUnlock);
 
     // Initialize flight canvas engine
     const engine = new FlightCanvasEngine(
@@ -76,6 +80,8 @@ export function FlightCanvas({ syncRef: sharedSyncRef, cashoutNotices = [], onDi
     return () => {
       window.removeEventListener('aviator:setting', onSetting);
       window.removeEventListener('aviator:cashout-success', onCashoutSuccess);
+      window.removeEventListener('aviator:bet-success', onBetSuccess);
+      window.removeEventListener('aviator:audio-unlock', onAudioUnlock);
       syncRef.current?.stop();
       syncRef.current = null;
       soundRef.current?.stopEngine();

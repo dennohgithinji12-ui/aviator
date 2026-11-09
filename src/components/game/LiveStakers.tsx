@@ -13,7 +13,6 @@ interface Staker {
   terminalId?: number;
   color: string;
   status?: string;
-  simulated?: boolean;
   visibleAt?: number;
 }
 
@@ -33,6 +32,28 @@ interface TopWin {
   multiplier: number;
   payout: number;
   time: string;
+}
+
+type ServerFeedBet = { id: string; player: string; stake: number; multiplier: number; visibleAt: number; status: 'ACTIVE' | 'WON' | 'LOST'; cashedMultiplier: number; payout: number };
+
+function mapServerFeedBets(bets: ServerFeedBet[]): Staker[] {
+  return bets.map((bet) => {
+    const cashedOut = bet.status === 'WON';
+    return {
+      user: bet.player,
+      stake: bet.stake,
+      targetMultiplier: bet.multiplier,
+      cashedOut,
+      cashedMultiplier: cashedOut ? bet.cashedMultiplier : 0,
+      payout: cashedOut ? bet.payout : 0,
+      isUser: false,
+      color: cashedOut ? '#2ecc71' : '#64748b',
+      // A crash ends the round internally, but the public feed keeps
+      // uncashout rows in the same neutral state they had during flight.
+      status: cashedOut ? 'WON' : 'ACTIVE',
+      visibleAt: bet.visibleAt
+    };
+  });
 }
 
 interface LiveStakersProps {
@@ -80,19 +101,6 @@ export function LiveStakers({
     return 'badge-low';
   };
 
-  useEffect(() => {
-    if (gameState !== 'FLYING' && gameState !== 'CRASHED') return;
-    setSimulatedBets((current) => {
-      let changed = false;
-      const next = current.map((bet) => {
-        if (bet.cashedOut || currentMultiplier < bet.targetMultiplier) return bet;
-        changed = true;
-        return { ...bet, cashedOut: true, cashedMultiplier: bet.targetMultiplier, payout: Math.floor(bet.stake * bet.targetMultiplier * 100) / 100, status: 'WON' };
-      });
-      return changed ? next : current;
-    });
-  }, [gameState, currentMultiplier, simulatedBets]);
-
   // Show recorded bets for the actual server round.
   useEffect(() => {
     if (roundNonce === lastRoundNonce.current) return;
@@ -103,25 +111,16 @@ export function LiveStakers({
         const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
         const result = await response.json();
         if (!active || !response.ok || !result.success) return;
-        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => ({
-          user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut: bet.status === 'WON',
-          cashedMultiplier: bet.multiplier, payout: bet.payout, isUser: false, terminalId: bet.terminalId,
-          color: bet.status === 'WON' ? '#2ecc71' : bet.status === 'LOST' ? '#e74c3c' : '#57606f', status: bet.status
-        }));
+        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => {
+          const cashedOut = bet.status === 'WON';
+          return {
+            user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut,
+            cashedMultiplier: cashedOut ? bet.multiplier : 0, payout: cashedOut ? bet.payout : 0, isUser: false, terminalId: bet.terminalId,
+            color: cashedOut ? '#2ecc71' : '#57606f', status: cashedOut ? 'WON' : 'ACTIVE'
+          };
+        });
         setActiveStakers(rows);
-        setSimulatedBets((result.simulatedBets || []).map((bet: { id: string; player: string; stake: number; multiplier: number; visibleAt: number }) => ({
-          user: bet.player,
-          stake: bet.stake,
-          targetMultiplier: bet.multiplier,
-          cashedOut: false,
-          cashedMultiplier: 0,
-          payout: 0,
-          isUser: false,
-          color: '#64748b',
-          status: 'ACTIVE',
-          simulated: true,
-          visibleAt: bet.visibleAt
-        })));
+        setSimulatedBets(mapServerFeedBets(result.simulatedBets || []));
         setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
       } catch { /* The next round refresh retries. */ }
     };
@@ -136,12 +135,16 @@ export function LiveStakers({
         const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
         const result = await response.json();
         if (!response.ok || !result.success) return;
-        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => ({
-          user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut: bet.status === 'WON',
-          cashedMultiplier: bet.multiplier, payout: bet.payout, isUser: false, terminalId: bet.terminalId,
-          color: bet.status === 'WON' ? '#2ecc71' : bet.status === 'LOST' ? '#e74c3c' : '#57606f', status: bet.status
-        }));
+        const rows: Staker[] = result.bets.map((bet: { id: number; player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }) => {
+          const cashedOut = bet.status === 'WON';
+          return {
+            user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut,
+            cashedMultiplier: cashedOut ? bet.multiplier : 0, payout: cashedOut ? bet.payout : 0, isUser: false, terminalId: bet.terminalId,
+            color: cashedOut ? '#2ecc71' : '#57606f', status: cashedOut ? 'WON' : 'ACTIVE'
+          };
+        });
         setActiveStakers(rows);
+        setSimulatedBets(mapServerFeedBets(result.simulatedBets || []));
         setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
       } catch { /* Keep the most recent successful snapshot on temporary network errors. */ }
     }, 1500);
@@ -185,10 +188,10 @@ export function LiveStakers({
     }
   }, [gameState, terminal1Staked, terminal1Amount, terminal1CashedOut, terminal1AutoCashoutMultiplier, terminal2Staked, terminal2Amount, terminal2CashedOut, terminal2AutoCashoutMultiplier, currentMultiplier]);
 
-  const visibleSimulatedBets = gameState === 'WAITING'
+  const visibleGeneratedBets = gameState === 'WAITING'
     ? simulatedBets.filter((bet) => (bet.visibleAt ?? 0) <= serverTime)
     : simulatedBets;
-  const displayedBets = [...activeStakers, ...visibleSimulatedBets].sort((a, b) => b.stake - a.stake);
+  const displayedBets = [...activeStakers, ...visibleGeneratedBets].sort((a, b) => b.stake - a.stake);
   const totalBets = displayedBets.length;
   const totalStaked = displayedBets.reduce((sum, s) => sum + s.stake, 0);
   const totalCashedOut = displayedBets.filter(s => s.cashedOut).length;
@@ -206,7 +209,7 @@ export function LiveStakers({
           className={`stakers-tab-btn ${currentTab === 'all' ? 'active' : ''}`}
           onClick={() => setCurrentTab('all')}
         >
-          All Bets {totalBets} <small className="simulated-feed-note">DEMO FEED</small>
+          All Bets {totalBets}
         </button>
         <button
           className={`stakers-tab-btn ${currentTab === 'my' ? 'active' : ''}`}
@@ -239,7 +242,6 @@ export function LiveStakers({
                 <span className="metric-value font-emerald">{totalCashedOut} / {totalBets}</span>
               </div>
             </div>
-            <div className="simulated-feed-banner">Simulated demo traffic · recorded player bets are shown with masked IDs</div>
             <div className="stakers-table-header" style={{ gridTemplateColumns: '1.1fr 1fr 0.8fr 1.1fr' }}>
               <span>USER</span>
               <span style={{ textAlign: 'right' }}>BET (KES)</span>
@@ -247,19 +249,26 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>CASHOUT</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {betsByStake.length === 0 ? <div className="empty-state">Waiting for bets in this round…</div> : betsByStake.map((s, idx) => (
+              {betsByStake.length === 0 ? <div className="staker-skeleton-list" role="status" aria-label="Loading placed bets">
+                {Array.from({ length: 9 }, (_, index) => <div className="staker-skeleton-row" key={index} aria-hidden="true">
+                  <div className="staker-skeleton-user"><i className="staker-skeleton-dot" /><i className="staker-skeleton-bar" style={{ width: `${42 + (index * 13) % 30}px` }} /></div>
+                  <i className="staker-skeleton-bar staker-skeleton-amount" style={{ width: `${44 + (index * 9) % 32}px` }} />
+                  <i className="staker-skeleton-bar staker-skeleton-odds" />
+                  <i className="staker-skeleton-bar staker-skeleton-cashout" />
+                </div>)}
+              </div> : betsByStake.map((s, idx) => (
                 <div
                   key={idx}
-                  className={`staker-row ${s.cashedOut ? 'row-cashed' : s.status === 'LOST' ? 'row-lost' : ''} ${s.isUser ? 'row-user-highlight' : ''}`}
+                  className={`staker-row ${s.cashedOut ? 'row-cashed' : ''} ${s.isUser ? 'row-user-highlight' : ''}`}
                   style={{ gridTemplateColumns: '1.1fr 1fr 0.8fr 1.1fr' }}
                 >
                   <div className="staker-user-cell">
                     <span className="avatar-dot" style={{ background: s.cashedOut ? '#2ecc71' : s.color }}></span>
-                    <span className={`staker-name ${s.isUser ? 'font-bold font-crimson' : ''}`}>{s.user}{s.simulated && <small className="simulated-row-tag"> DEMO</small>}</span>
+                    <span className={`staker-name ${s.isUser ? 'font-bold font-crimson' : ''}`}>{s.user}</span>
                   </div>
                   <div className="staker-stake-cell">{s.stake.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                   <div style={{ textAlign: 'center' }}>
-                    {s.status === 'LOST' ? <span className="font-crimson">LOST</span> : s.cashedOut ? (
+                    {s.cashedOut ? (
                       <span className={`history-pill ${getBadgeClass(s.cashedMultiplier)}`} style={{ padding: '1px 6px', fontSize: '10px', fontWeight: 800 }}>
                         {s.cashedMultiplier.toFixed(2)}x
                       </span>
@@ -268,7 +277,7 @@ export function LiveStakers({
                     )}
                   </div>
                   <div className="staker-payout-cell">
-                    {s.status === 'LOST' ? <span className="font-crimson">Lost</span> : s.cashedOut ? (
+                    {s.cashedOut ? (
                       <span className="cashout-amount font-emerald" style={{ fontSize: '11px', fontWeight: 800 }}>
                         {s.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>

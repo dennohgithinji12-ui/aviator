@@ -237,14 +237,17 @@ export class FlightCanvasEngine {
 
     if (this.state === 'CRASHED') {
       if (!this.crashTime) this.crashTime = performance.now();
-      const crashElapsed = Math.min(4.0, Math.max(0, (performance.now() - this.crashTime) / 1000));
-      const flyOffSpeed = 150;
+      const flyawayDuration = 0.48;
+      const crashElapsed = Math.max(0, (performance.now() - this.crashTime) / 1000);
+      const progress = Math.min(1, crashElapsed / flyawayDuration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
       const startX = isFinite(this.crashPlanePos?.x) ? this.crashPlanePos.x : originX;
       const startY = isFinite(this.crashPlanePos?.y) ? this.crashPlanePos.y : originY;
+      const flyOffDistance = Math.max(this.width - startX + 100, this.height * 1.2);
       return {
-        x: startX + crashElapsed * flyOffSpeed,
-        y: startY - crashElapsed * (flyOffSpeed * 0.55),
-        angle: -0.45
+        x: startX + easedProgress * flyOffDistance,
+        y: startY - easedProgress * (flyOffDistance * 0.55),
+        angle: -0.62
       };
     }
 
@@ -347,7 +350,7 @@ export class FlightCanvasEngine {
         }
         this.targetCrashMultiplier = gState.crashMultiplier;
         this.elapsedFlightTime = gState.elapsedFlightSeconds;
-        this.currentMultiplier = gState.currentMultiplier;
+        this.currentMultiplier = Math.min(this.targetCrashMultiplier, gState.currentMultiplier);
 
         this.maxY += (Math.max(2.2, this.currentMultiplier * 1.35) - this.maxY) * 0.025;
         this.maxX += (Math.max(7, this.elapsedFlightTime * 1.35) - this.maxX) * 0.025;

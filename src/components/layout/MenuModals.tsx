@@ -57,7 +57,7 @@ export function MenuModals({ kind, token, onClose, onLogin, onBalanceChanged }: 
       {!token ? <div className="menu-tools-empty"><p>Sign in to see your account information.</p><button type="button" onClick={onLogin}>Login / Register</button></div> : kind === 'history' ? <>
         {error && <p className="menu-tools-error" role="alert">{error}</p>}
         {!error && bets.length === 0 && <div className="menu-tools-empty">No recorded bets yet.</div>}
-        {!!bets.length && <div className="menu-tools-list">{bets.map((bet) => <article className="menu-tools-bet" key={bet.id}><div><strong>Round #{bet.roundNonce} · Bet {bet.terminalId}</strong><small>{new Date(bet.createdAt).toLocaleString()} · {bet.mode === 'REAL' ? 'Real wallet' : 'Practice wallet'}</small></div><div className="menu-tools-bet-result"><b>{money(bet.amount)}</b><small>{bet.status === 'WON' ? `${bet.multiplier.toFixed(2)}x · ${money(bet.payout)} payout` : bet.status}</small></div></article>)}</div>}
+        {!!bets.length && <div className="menu-tools-list">{bets.map((bet) => <article className="menu-tools-bet" key={bet.id}><div><strong>Round #{bet.roundNonce} · Bet {bet.terminalId}</strong><small>{new Date(bet.createdAt).toLocaleString()} · {bet.mode === 'REAL' ? 'Wallet' : 'Practice wallet'}</small></div><div className="menu-tools-bet-result"><b>{money(bet.amount)}</b><small>{bet.status === 'WON' ? `${bet.multiplier.toFixed(2)}x · ${money(bet.payout)} payout` : bet.status}</small></div></article>)}</div>}
         <button className="menu-tools-secondary" type="button" onClick={() => void load()} disabled={busy !== ''}>Refresh history</button>
       </> : <>
         {error && <p className="menu-tools-error" role="alert">{error}</p>}

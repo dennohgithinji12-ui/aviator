@@ -32,10 +32,10 @@ export function AviatorConsole() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [gameState, setGameState] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
-  const [balance, setBalance] = useState(user?.demoBalance || 0);
+  const [balance, setBalance] = useState(user?.realBalance || 0);
   // Keep both independent betting panels visible, matching the legacy layout.
   const [terminal2Visible, setTerminal2Visible] = useState(true);
-  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('REAL');
   const [serverNonce, setServerNonce] = useState(0);
   const [serverTime, setServerTime] = useState(0);
   const [countdownSeconds, setCountdownSeconds] = useState(5);
@@ -43,6 +43,7 @@ export function AviatorConsole() {
   const [roundHistoryOpen, setRoundHistoryOpen] = useState(false);
   const [cashoutNotices, setCashoutNotices] = useState<{ id: number; terminalId: 1 | 2; multiplier: number; payout: number }[]>([]);
   const betIds = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
+  const localBetMutationAt = useRef(0);
   const roundSyncRef = useRef<GlobalRoundSyncEngine | null>(null);
   const automaticAction = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
   const betRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
@@ -54,13 +55,13 @@ export function AviatorConsole() {
   useEffect(() => {
     if (isAuthenticated && user) {
       const savedMode = localStorage.getItem('shiftstack_game_mode');
-      const selectedMode = savedMode === 'REAL' ? 'REAL' : 'DEMO';
+      const selectedMode = savedMode === 'DEMO' ? 'DEMO' : 'REAL';
       setGameMode(selectedMode);
       setBalance(selectedMode === 'REAL' ? user.realBalance : user.demoBalance);
       window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: selectedMode }));
     } else {
       setBalance(0);
-      setGameMode('DEMO');
+      setGameMode('REAL');
     }
   }, [isAuthenticated, user]);
 
@@ -126,6 +127,72 @@ export function AviatorConsole() {
     return () => clearInterval(interval);
   }, []);
 
+  // Restore the signed-in player's current round positions from the database.
+  // This runs on initial sync, after a round change, and periodically so a
+  // second tab/device can observe the same active/cashed state.
+  useEffect(() => {
+    if (!isAuthenticated || !token || serverNonce <= 0) return;
+    let active = true;
+    let inFlight = false;
+    const refreshMyRoundBets = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const startedAt = Date.now();
+      try {
+        const response = await fetch(`/api/wallet/bets?roundNonce=${serverNonce}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store'
+        });
+        const result = await response.json();
+        if (!active || !response.ok || !result.success || startedAt < localBetMutationAt.current) return;
+        const currentBets = (result.bets || [])
+          .filter((bet: { status: string }) => bet.status === 'ACTIVE' || bet.status === 'WON')
+          .sort((a: { createdAt: number }, b: { createdAt: number }) => b.createdAt - a.createdAt);
+        const byTerminal = new Map<number, (typeof currentBets)[number]>();
+        for (const bet of currentBets) if (!byTerminal.has(bet.terminalId)) byTerminal.set(bet.terminalId, bet);
+
+        const restore = (terminalId: 1 | 2, setTerminal: typeof setTerminal1) => {
+          const bet = byTerminal.get(terminalId);
+          if (!bet) {
+            betIds.current[terminalId] = null;
+            setTerminal((state) => state.staked || state.cashedOut
+              ? { ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }
+              : state);
+            return;
+          }
+          betIds.current[terminalId] = bet.id;
+          setTerminal((state) => {
+            // A WON record belongs to the settled bet, while the queued flag
+            // represents a newer player action for the next round. Never let
+            // a status refresh overwrite that pending action.
+            if (state.queued) return state;
+            return {
+              ...state,
+              amount: bet.amount,
+              staked: true,
+              betMode: bet.mode,
+              queued: false,
+              queuedMode: null,
+              cashedOut: bet.status === 'WON',
+              cashoutPending: false,
+              cashedOutMultiplier: bet.status === 'WON' ? bet.multiplier : 0,
+              payout: bet.status === 'WON' ? bet.payout : 0
+            };
+          });
+        };
+        restore(1, setTerminal1);
+        restore(2, setTerminal2);
+      } catch {
+        // Retain the last known panel state when the database is temporarily unavailable.
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refreshMyRoundBets();
+    const timer = window.setInterval(() => void refreshMyRoundBets(), 2500);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [isAuthenticated, token, serverNonce]);
+
   useEffect(() => {
     const openHistory = () => setRoundHistoryOpen(true);
     window.addEventListener('aviator:open-history', openHistory);
@@ -143,6 +210,7 @@ export function AviatorConsole() {
 
   const handleBet = async (terminalId: 1 | 2, amount: number, modeOverride: 'REAL' | 'DEMO' = gameMode) => {
     if (betRequestInFlight.current[terminalId]) return;
+    window.dispatchEvent(new CustomEvent('aviator:audio-unlock'));
     if (!isAuthenticated || !token) {
       setAuthMode('login');
       setShowAuthModal(true);
@@ -155,6 +223,7 @@ export function AviatorConsole() {
       if ((!currentTerminal.staked || currentTerminal.cashedOut) && !currentTerminal.queued) {
         const update = (state: TerminalState) => ({ ...state, amount, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0, queued: true, queuedMode: modeOverride });
         if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
+        window.dispatchEvent(new CustomEvent('aviator:bet-success'));
         setActionMessage(`Bet ${terminalId} queued for the next round.`);
       }
       return;
@@ -172,6 +241,8 @@ export function AviatorConsole() {
       updateBalance(result.realBalance, result.demoBalance);
       const update = (state: TerminalState) => ({ ...state, staked: true, queued: false, queuedMode: null, betMode: modeOverride, cashedOut: false, cashoutPending: false, cashoutRequestedMultiplier: 1, cashedOutMultiplier: 0, payout: 0, amount });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
+      localBetMutationAt.current = Date.now();
+      window.dispatchEvent(new CustomEvent('aviator:bet-success'));
       setActionMessage('');
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : 'Bet could not be placed');
@@ -207,6 +278,7 @@ export function AviatorConsole() {
     } else throw new Error('Please log in again to cash out this bet.');
       const update = (state: TerminalState) => ({ ...state, cashoutPending: false, cashedOut: true, cashedOutMultiplier: settledMultiplier, payout: settledPayout });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
+      localBetMutationAt.current = Date.now();
       setCashoutNotices((current) => [...current, { id: Date.now() + terminalId, terminalId, multiplier: settledMultiplier, payout: settledPayout }]);
       window.dispatchEvent(new CustomEvent('aviator:cashout-success'));
     } catch (error) {
@@ -237,6 +309,7 @@ export function AviatorConsole() {
         if (!response.ok || !result.success) throw new Error(result.message || 'Bet could not be cancelled');
         setBalance(gameMode === 'REAL' ? result.realBalance : result.demoBalance);
         updateBalance(result.realBalance, result.demoBalance);
+        localBetMutationAt.current = Date.now();
         betIds.current[terminalId] = null;
       } else throw new Error('Please log in again to cancel this bet.');
       if (terminalId === 1) setTerminal1((state) => ({ ...state, staked: false }));
@@ -345,9 +418,9 @@ export function AviatorConsole() {
       <div className="aviator-console-layout">
         {/* Main Flight Stage */}
         <div className="console-main-stage">
-          {/* FUN MODE Banner */}
+          {/* Game banner */}
           <div className={`shiftstack-fun-banner ${gameMode === 'DEMO' ? 'kessbet-fun-banner' : 'kessbet-real-banner'}`}>
-            {gameMode === 'DEMO' ? 'FUN MODE' : 'REAL MODE'}
+            AVIATOR
           </div>
 
           {/* Flight Canvas Component */}
@@ -357,7 +430,7 @@ export function AviatorConsole() {
           <div id="real-mode-deposit-alert" className="real-mode-deposit-alert" style={{ display: 'none' }}>
             <div className="alert-content">
               <span className="alert-icon">⚡</span>
-              <span className="alert-text"><strong>Real Money Mode:</strong> Balance is 0 KES. Deposit min 49 Bob via PayHero to place real bets!</span>
+              <span className="alert-text"><strong>Wallet balance is 0 KES.</strong> Deposit at least 49 KES via PayHero to continue.</span>
             </div>
             <button type="button" className="btn-alert-deposit" id="btn-quick-deposit-alert">⚡ Deposit 49 Bob+</button>
           </div>
@@ -389,7 +462,7 @@ export function AviatorConsole() {
           {!isAuthenticated && !authLoading && <div className="auth-required-overlay">
             <div className="auth-required-card">
               <strong>Login required to play</strong>
-              <span>Sign in or create an account to place Demo or Real bets.</span>
+              <span>Sign in or create an account to place a bet.</span>
               <button type="button" className="auth-submit-btn" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>Login / Register</button>
             </div>
           </div>}
