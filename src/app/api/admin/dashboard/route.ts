@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const mode = request.nextUrl.searchParams.get('mode') === 'DEMO' ? 'DEMO' : 'REAL';
     const now = Date.now();
     const oneDayAgo = BigInt(now - 24 * 60 * 60 * 1000);
     const today = new Date();
@@ -20,11 +21,12 @@ export async function GET(request: NextRequest) {
       prisma.user.count(),
       prisma.user.count({ where: { lastLogin: { gte: oneDayAgo } } }),
       prisma.round.count({ where: { settledAt: { not: null } } }),
-      prisma.bet.aggregate({ _count: true, _sum: { amount: true, payout: true } }),
+      prisma.bet.aggregate({ where: { mode }, _count: true, _sum: { amount: true, payout: true } }),
       prisma.deposit.aggregate({ where: { status: 'SUCCESS' }, _count: true, _sum: { amount: true } }),
       prisma.withdrawal.aggregate({ where: { status: 'SETTLED' }, _count: true, _sum: { amount: true, netAmount: true } }),
       prisma.withdrawal.count({ where: { status: { notIn: ['SETTLED', 'PAYOUT_FAILED'] } } }),
       prisma.bet.findMany({
+        where: { mode },
         take: 30,
         orderBy: { createdAt: 'desc' },
         select: { id: true, mode: true, terminalId: true, amount: true, roundNonce: true, multiplier: true, payout: true, status: true, createdAt: true, phone: true }
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
           count(*)::bigint AS bets,
           coalesce(sum("amount"), 0)::double precision AS staked,
           coalesce(sum("payout"), 0)::double precision AS paid
-        FROM "Bet" WHERE "createdAt" >= ${chartStart} GROUP BY day ORDER BY day
+        FROM "Bet" WHERE "createdAt" >= ${chartStart} AND "mode" = ${mode} GROUP BY day ORDER BY day
       `,
       prisma.$queryRaw<Array<{ day: bigint; deposits: bigint; amount: number }>>`
         SELECT floor("createdAt"::numeric / 86400000)::bigint AS day,
@@ -75,6 +77,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      mode,
       generatedAt: Date.now(),
       summary: {
         users,
@@ -83,13 +86,13 @@ export async function GET(request: NextRequest) {
         bets: bets._count,
         stakedKes: Number(bets._sum.amount || 0),
         paidOutKes: Number(bets._sum.payout || 0),
-        deposits: deposits._count,
-        depositedKes: Number(deposits._sum.amount || 0),
-        withdrawals: withdrawals._count,
-        withdrawnKes: Number(withdrawals._sum.netAmount || 0),
-        pendingWithdrawals
+        deposits: mode === 'REAL' ? deposits._count : 0,
+        depositedKes: mode === 'REAL' ? Number(deposits._sum.amount || 0) : 0,
+        withdrawals: mode === 'REAL' ? withdrawals._count : 0,
+        withdrawnKes: mode === 'REAL' ? Number(withdrawals._sum.netAmount || 0) : 0,
+        pendingWithdrawals: mode === 'REAL' ? pendingWithdrawals : 0
       },
-      daily: Array.from(dayMap.values()),
+      daily: Array.from(dayMap.values()).map((day) => mode === 'REAL' ? day : { ...day, depositedKes: 0 }),
       recentBets: recentBets.map((bet) => ({
         ...bet,
         phone: `${bet.phone.slice(0, 3)}••••${bet.phone.slice(-2)}`,
@@ -98,7 +101,7 @@ export async function GET(request: NextRequest) {
         payout: Number(bet.payout),
         createdAt: Number(bet.createdAt)
       })),
-      withdrawalQueue: withdrawalQueue.map((withdrawal) => ({
+      withdrawalQueue: (mode === 'REAL' ? withdrawalQueue : []).map((withdrawal) => ({
         ...withdrawal,
         phone: `${withdrawal.phone.slice(0, 3)}••••${withdrawal.phone.slice(-2)}`,
         targetPhone: withdrawal.targetPhone ? `${withdrawal.targetPhone.slice(0, 3)}••••${withdrawal.targetPhone.slice(-2)}` : null,

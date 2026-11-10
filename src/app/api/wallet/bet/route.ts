@@ -4,7 +4,10 @@ import { verifyToken } from '@/lib/auth';
 import { getLiveRoundState } from '@/app/api/round-state/route';
 
 export async function POST(req: NextRequest) {
-  const receivedAt = Date.now();
+  return placeBetAt(req, Date.now());
+}
+
+export async function placeBetAt(req: NextRequest, receivedAt: number) {
   try {
     const data = await req.json();
     const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
@@ -33,13 +36,13 @@ export async function POST(req: NextRequest) {
 
     const balanceField = mode === 'REAL' ? 'realBalance' : 'demoBalance';
     const result = await prisma.$transaction(async (tx) => {
-      const latestRound = await getLiveRoundState();
-      if (latestRound.phase !== 'WAITING' || latestRound.nonce !== roundNonce) throw new Error('ROUND_CLOSED');
+      // The server received this command during the betting window. Database
+      // scheduling must not turn an on-time socket bet into a late bet.
       const existing = await tx.bet.findFirst({ where: { phone: session.phone, mode, terminalId, roundNonce, status: 'ACTIVE' } });
       if (existing) return { bet: existing, user: await tx.user.findUniqueOrThrow({ where: { phone: session.phone } }) };
       const debit = await tx.user.updateMany({ where: { phone: session.phone, [balanceField]: { gte: amount } }, data: { [balanceField]: { decrement: amount } } });
       if (!debit.count) throw new Error('INSUFFICIENT_FUNDS');
-      const bet = await tx.bet.create({ data: { phone: session.phone, mode, terminalId, amount, roundNonce, status: 'ACTIVE', createdAt: BigInt(Date.now()) } });
+      const bet = await tx.bet.create({ data: { phone: session.phone, mode, terminalId, amount, roundNonce, status: 'ACTIVE', createdAt: BigInt(receivedAt) } });
       const user = await tx.user.findUniqueOrThrow({ where: { phone: session.phone } });
       const balanceAfter = Number(mode === 'REAL' ? user.realBalance : user.demoBalance);
       await tx.walletTransaction.create({ data: {

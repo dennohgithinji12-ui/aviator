@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AdminPredictor } from '@/components/admin/AdminPredictor';
 import { AdminModuleSettings } from '@/components/admin/AdminModuleSettings';
@@ -56,9 +56,11 @@ export default function AdminPage() {
   const [adminName, setAdminName] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'predictor' | 'settings'>('overview');
+  const [viewMode, setViewMode] = useState<'REAL' | 'DEMO'>('REAL');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [connections, setConnections] = useState<number | null>(null);
+  const dashboardRequest = useRef(0);
 
   useEffect(() => {
     if (!token || !data) return;
@@ -74,21 +76,24 @@ export default function AdminPage() {
   }, [token, data]);
 
   const load = useCallback(async (sessionToken: string) => {
+    const requestId = ++dashboardRequest.current;
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/admin/dashboard', { headers: { Authorization: `Bearer ${sessionToken}` }, cache: 'no-store' });
+      const response = await fetch(`/api/admin/dashboard?mode=${viewMode}`, { headers: { Authorization: `Bearer ${sessionToken}` }, cache: 'no-store' });
       const result = await response.json();
+      if (requestId !== dashboardRequest.current) return;
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load admin data');
       setData(result);
       sessionStorage.setItem('aviator_admin_session', sessionToken);
     } catch (err) {
+      if (requestId !== dashboardRequest.current) return;
       setData(null);
       setError(err instanceof Error ? err.message : 'Unable to load admin data');
     } finally {
-      setLoading(false);
+      if (requestId === dashboardRequest.current) setLoading(false);
     }
-  }, []);
+  }, [viewMode]);
 
 
   const login = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -156,22 +161,27 @@ export default function AdminPage() {
       ) : <>
         <nav className="admin-tabs" aria-label="Admin sections"><button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>Overview</button><button className={activeTab === 'predictor' ? 'active' : ''} onClick={() => setActiveTab('predictor')}>Predictor</button><button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Settings</button><Link href="/admin/payments">Payments</Link><span>Updated {new Date(data.generatedAt).toLocaleTimeString()}</span></nav>
         {activeTab === 'overview' ? <>
+        <div className="admin-bet-modes" role="group" aria-label="Dashboard bet data">
+          <button type="button" className={viewMode === 'REAL' ? 'active' : ''} aria-pressed={viewMode === 'REAL'} onClick={() => setViewMode('REAL')}>Real bets</button>
+          <button type="button" className={viewMode === 'DEMO' ? 'active' : ''} aria-pressed={viewMode === 'DEMO'} onClick={() => setViewMode('DEMO')}>Demo bets</button>
+          <span>{viewMode === 'REAL' ? 'Wallet activity' : 'Practice activity'}</span>
+        </div>
         <section className="admin-metrics">
           {[
             ['Live connections', connections === null ? '—' : connections.toLocaleString()], ['Registered users', data.summary.users.toLocaleString()], ['Active users · 24h', data.summary.activeUsers24h.toLocaleString()], ['Games played', data.summary.completedRounds.toLocaleString()],
             ['Bets placed', data.summary.bets.toLocaleString()], ['Total stakes', money(data.summary.stakedKes)], ['Total payouts', money(data.summary.paidOutKes)],
-            ['Successful deposits', `${data.summary.deposits.toLocaleString()} · ${money(data.summary.depositedKes)}`], ['Paid withdrawals', `${data.summary.withdrawals.toLocaleString()} · ${money(data.summary.withdrawnKes)}`], ['Pending withdrawals', data.summary.pendingWithdrawals.toLocaleString()]
+            ...(viewMode === 'REAL' ? ([['Successful deposits', `${data.summary.deposits.toLocaleString()} · ${money(data.summary.depositedKes)}`], ['Paid withdrawals', `${data.summary.withdrawals.toLocaleString()} · ${money(data.summary.withdrawnKes)}`], ['Pending withdrawals', data.summary.pendingWithdrawals.toLocaleString()]] as [string, string][]) : [])
           ].map(([label, value]) => <article className="admin-metric" key={label}><span>{label}</span><strong>{value}</strong></article>)}
         </section>
         <MoneyFlowChart daily={data.daily} /><ActivityBars daily={data.daily} />
-        <section className="admin-table-card"><div className="admin-table-title"><div><h2>Recent bets</h2><p>Phone numbers are masked. Refresh to fetch the latest records.</p></div></div>
+        <section className="admin-table-card"><div className="admin-table-title"><div><h2>Bets placed</h2><p>Phone numbers are masked. Showing {viewMode === 'REAL' ? 'wallet' : 'practice'} bets.</p></div><div className="admin-bet-modes compact" role="group" aria-label="Bets placed list"><button type="button" className={viewMode === 'REAL' ? 'active' : ''} aria-pressed={viewMode === 'REAL'} onClick={() => setViewMode('REAL')}>Real bets</button><button type="button" className={viewMode === 'DEMO' ? 'active' : ''} aria-pressed={viewMode === 'DEMO'} onClick={() => setViewMode('DEMO')}>Demo bets</button></div></div>
           <div className="admin-table-scroll"><table><thead><tr><th>Player</th><th>Mode</th><th>Round</th><th>Stake</th><th>Result</th><th>Payout</th><th>Status</th></tr></thead><tbody>
             {data.recentBets.map((bet) => <tr key={bet.id}><td>{bet.phone}</td><td>{bet.mode}</td><td>#{bet.roundNonce}</td><td>{money(bet.amount)}</td><td>{bet.multiplier ? `${bet.multiplier.toFixed(2)}x` : '—'}</td><td>{money(bet.payout)}</td><td><span className={`admin-status status-${bet.status.toLowerCase()}`}>{bet.status}</span></td></tr>)}
             {!data.recentBets.length && <tr><td colSpan={7} className="admin-empty">No bets recorded yet.</td></tr>}
           </tbody></table></div>
         </section>
         </> : activeTab === 'predictor' ? <AdminPredictor token={token} /> : <><AdminOddsSettings token={token} /><AdminModuleSettings token={token} /></>}
-        {activeTab === 'overview' && <section className="admin-table-card"><div className="admin-table-title"><div><h2>Withdrawal queue</h2><p>Review held requests. Approved withdrawals are sent through the protected PayHero payout scheduler.</p></div></div>
+        {activeTab === 'overview' && viewMode === 'REAL' && <section className="admin-table-card"><div className="admin-table-title"><div><h2>Withdrawal queue</h2><p>Review held requests. Approved withdrawals are sent through the protected PayHero payout scheduler.</p></div></div>
           <div className="admin-table-scroll"><table><thead><tr><th>Player</th><th>Destination</th><th>Gross</th><th>Tax</th><th>Net</th><th>Reference / status</th><th>Action</th></tr></thead><tbody>
             {data.withdrawalQueue.map((withdrawal) => {
               const held = withdrawal.status.startsWith('MANUAL_HOLD_');

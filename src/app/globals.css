@@ -2514,6 +2514,12 @@ h1, h2, h3, h4 {
 .admin-tabs > a { display: inline-flex; align-items: center; border: 1px solid #343a49; border-radius: 8px; padding: 9px 14px; color: #aeb4c1; background: #11141c; font-weight: 800; text-decoration: none; }
 .admin-tabs > a:hover { border-color: #e8b840; color: #fff; }
 .admin-tabs > span { margin-left: auto; color: #9da3b1; font-size: 12px; }
+.admin-bet-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 1320px; margin: 0 auto 16px; }
+.admin-bet-modes button { border: 1px solid #3d4651; border-radius: 8px; padding: 10px 15px; color: #c4d0d8; background: #18232d; font-weight: 800; cursor: pointer; }
+.admin-bet-modes button.active { border-color: #34d399; color: #052318; background: #34d399; }
+.admin-bet-modes span { margin-left: 4px; color: #9da3b1; font-size: 12px; }
+.admin-bet-modes.compact { margin: 0; }
+.admin-bet-modes.compact button { padding: 8px 11px; }
 .admin-chart-card,.admin-testing-panel { max-width: 1320px; margin: 0 auto 18px; padding: 20px; border: 1px solid #262b37; border-radius: 12px; background: #11141c; }
 .admin-chart-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 12px; }
 .admin-chart-heading h2,.admin-testing-heading h2 { margin: 0 0 5px; font-size: 18px; }

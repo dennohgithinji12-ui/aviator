@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { GET as getRoundState } from '@/app/api/round-state/route';
 import { getLiveRoundStateNow } from '@/app/api/round-state/route';
 import { GET as getLiveBets } from '@/app/api/live-bets/route';
-import { POST as placeBet } from '@/app/api/wallet/bet/route';
+import { placeBetAt } from '@/app/api/wallet/bet/route';
 import { POST as cancelBet } from '@/app/api/wallet/cancel/route';
 import { POST as cashoutBet } from '@/app/api/wallet/cashout/route';
 
@@ -79,6 +79,7 @@ export function register(socket: Socket) {
   socket.on('close', close);
   socket.on('error', close);
   socket.on('message', (data) => {
+    const receivedAt = Date.now();
     if (data.length > 4096) return;
     try {
       const message = JSON.parse(data.toString());
@@ -93,7 +94,7 @@ export function register(socket: Socket) {
         })();
       }
       if (message.type === 'command' && typeof message.id === 'string' && message.id.length <= 64 && typeof message.token === 'string' && message.token.length < 2048 && message.body && typeof message.body === 'object') {
-        const handler = message.action === 'bet' ? placeBet : message.action === 'cancel' ? cancelBet : message.action === 'cashout' ? cashoutBet : null;
+        const handler = message.action === 'bet' ? (request: NextRequest) => placeBetAt(request, receivedAt) : message.action === 'cancel' ? cancelBet : message.action === 'cashout' ? cashoutBet : null;
         if (!handler) return;
         void (async () => {
           try {
