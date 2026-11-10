@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { AdminPredictor } from '@/components/admin/AdminPredictor';
 import { AdminModuleSettings } from '@/components/admin/AdminModuleSettings';
 import { AdminOddsSettings } from '@/components/admin/AdminOddsSettings';
-import { AdminPayHeroSettings } from '@/components/admin/AdminPayHeroSettings';
 import { PasswordInput } from '@/components/auth/PasswordInput';
 
 type DashboardData = {
@@ -155,7 +154,7 @@ export default function AdminPage() {
           {error && <div className="admin-error" role="alert">{error}</div>}
         </form>
       ) : <>
-        <nav className="admin-tabs" aria-label="Admin sections"><button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>Overview</button><button className={activeTab === 'predictor' ? 'active' : ''} onClick={() => setActiveTab('predictor')}>Predictor</button><button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Settings</button><span>Updated {new Date(data.generatedAt).toLocaleTimeString()}</span></nav>
+        <nav className="admin-tabs" aria-label="Admin sections"><button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>Overview</button><button className={activeTab === 'predictor' ? 'active' : ''} onClick={() => setActiveTab('predictor')}>Predictor</button><button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Settings</button><Link href="/admin/payments">Payments</Link><span>Updated {new Date(data.generatedAt).toLocaleTimeString()}</span></nav>
         {activeTab === 'overview' ? <>
         <section className="admin-metrics">
           {[
@@ -171,7 +170,7 @@ export default function AdminPage() {
             {!data.recentBets.length && <tr><td colSpan={7} className="admin-empty">No bets recorded yet.</td></tr>}
           </tbody></table></div>
         </section>
-        </> : activeTab === 'predictor' ? <AdminPredictor token={token} /> : <><AdminOddsSettings token={token} /><AdminModuleSettings token={token} /><AdminPayHeroSettings token={token} /></>}
+        </> : activeTab === 'predictor' ? <AdminPredictor token={token} /> : <><AdminOddsSettings token={token} /><AdminModuleSettings token={token} /></>}
         {activeTab === 'overview' && <section className="admin-table-card"><div className="admin-table-title"><div><h2>Withdrawal queue</h2><p>Review held requests. Approved withdrawals are sent through the protected PayHero payout scheduler.</p></div></div>
           <div className="admin-table-scroll"><table><thead><tr><th>Player</th><th>Destination</th><th>Gross</th><th>Tax</th><th>Net</th><th>Reference / status</th><th>Action</th></tr></thead><tbody>
             {data.withdrawalQueue.map((withdrawal) => {

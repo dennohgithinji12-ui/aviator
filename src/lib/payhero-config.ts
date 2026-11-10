@@ -10,6 +10,16 @@ function key() {
   return createHash('sha256').update(process.env.GAME_MASTER_SECRET).digest();
 }
 
+function environmentCredentials() {
+  const basicToken = process.env.PAYHERO_BASIC_AUTH_TOKEN?.replace(/^Basic\s+/i, '').trim();
+  if (basicToken) {
+    const decoded = Buffer.from(basicToken, 'base64').toString('utf8');
+    const separator = decoded.indexOf(':');
+    if (separator > 0 && separator < decoded.length - 1) return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
+  }
+  return { username: process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY || '', password: process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET || '' };
+}
+
 export async function getPayHeroConfig(): Promise<PayHeroConfig> {
   const saved = await prisma.appSetting.findUnique({ where: { key: KEY }, select: { value: true } });
   if (typeof saved?.value === 'string') {
@@ -18,7 +28,7 @@ export async function getPayHeroConfig(): Promise<PayHeroConfig> {
     decipher.setAuthTag(tag);
     return JSON.parse(Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')) as PayHeroConfig;
   }
-  return { username: process.env.PAYHERO_API_USERNAME || process.env.PAYHERO_API_KEY || '', password: process.env.PAYHERO_API_PASSWORD || process.env.PAYHERO_API_SECRET || '', channelId: process.env.PAYHERO_CHANNEL_ID || '', callbackSecret: process.env.PAYHERO_CALLBACK_SECRET || '', payoutAccountId: process.env.PAYHERO_PAYOUT_ACCOUNT_ID || '', networkCode: process.env.PAYHERO_NETWORK_CODE || '', payoutsEnabled: process.env.PAYHERO_PAYOUTS_ENABLED === 'true' };
+  return { ...environmentCredentials(), channelId: process.env.PAYHERO_CHANNEL_ID || '', callbackSecret: process.env.PAYHERO_CALLBACK_SECRET || '', payoutAccountId: process.env.PAYHERO_PAYOUT_ACCOUNT_ID || '', networkCode: process.env.PAYHERO_NETWORK_CODE || '', payoutsEnabled: process.env.PAYHERO_PAYOUTS_ENABLED === 'true' };
 }
 
 export async function savePayHeroConfig(config: PayHeroConfig) {
@@ -28,4 +38,12 @@ export async function savePayHeroConfig(config: PayHeroConfig) {
   const value = [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString('base64url')).join('.');
   const updatedAt = BigInt(Date.now());
   await prisma.appSetting.upsert({ where: { key: KEY }, update: { value, updatedAt }, create: { key: KEY, value, description: 'Encrypted PayHero payment settings', updatedAt } });
+}
+
+export async function clearPayHeroConfig() {
+  await prisma.appSetting.deleteMany({ where: { key: KEY } });
+}
+
+export async function hasSavedPayHeroConfig() {
+  return Boolean(await prisma.appSetting.findUnique({ where: { key: KEY }, select: { key: true } }));
 }

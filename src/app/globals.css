@@ -2511,6 +2511,8 @@ h1, h2, h3, h4 {
 .admin-tabs { display: flex; align-items: center; gap: 8px; max-width: 1320px; margin: 0 auto 18px; padding-bottom: 12px; border-bottom: 1px solid #262b37; }
 .admin-tabs button { border: 1px solid #343a49; border-radius: 8px; padding: 9px 14px; color: #aeb4c1; background: #11141c; font-weight: 800; cursor: pointer; }
 .admin-tabs button.active { border-color: #e8b840; color: #17130a; background: #e8b840; }
+.admin-tabs > a { display: inline-flex; align-items: center; border: 1px solid #343a49; border-radius: 8px; padding: 9px 14px; color: #aeb4c1; background: #11141c; font-weight: 800; text-decoration: none; }
+.admin-tabs > a:hover { border-color: #e8b840; color: #fff; }
 .admin-tabs > span { margin-left: auto; color: #9da3b1; font-size: 12px; }
 .admin-chart-card,.admin-testing-panel { max-width: 1320px; margin: 0 auto 18px; padding: 20px; border: 1px solid #262b37; border-radius: 12px; background: #11141c; }
 .admin-chart-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 12px; }
@@ -6166,11 +6168,11 @@ h1, h2, h3, h4 {
 
 /* Put the selected wallet on its own mobile header row so no digits are clipped. */
 @media (max-width: 640px) {
-  :root { --header-height: 88px; }
+  :root { --header-height: 126px; }
   .app-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 38px auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 38px auto 34px;
     gap: 4px 8px;
     height: auto;
     min-height: var(--header-height);
@@ -6178,7 +6180,7 @@ h1, h2, h3, h4 {
   }
   .header-left { grid-column: 1; grid-row: 1; }
   .header-right { display: contents; }
-  .header-right > .menu-dropdown-wrapper { grid-column: 2; grid-row: 1; }
+  .header-right > .menu-dropdown-wrapper { grid-column: 2; grid-row: 1; justify-self: end; }
   .header-balance-card {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -6201,6 +6203,20 @@ h1, h2, h3, h4 {
     font-size: 13px;
   }
   .header-mode-toggle { flex: 0 0 auto; margin-left: 0; }
+  .header-right > .header-btn-login-register,
+  .header-right > .btn-deposit-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    grid-row: 3;
+    min-height: 34px;
+    width: 100%;
+    padding: 5px 10px;
+    box-sizing: border-box;
+    text-decoration: none;
+  }
+  .header-right > .header-btn-login-register { grid-column: 1; }
+  .header-right > .btn-deposit-header { grid-column: 2; }
 }
 .sports-notice { position: fixed; z-index: 1100; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: calc(100vw - 28px); padding: 11px 16px; border: 1px solid rgba(34,197,94,.35); border-radius: 10px; color: #d1fae5; background: #12251f; font-size: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
 .admin-module-settings { margin: 14px 0; padding: 20px; border: 1px solid var(--border-main); border-radius: 14px; background: var(--bg-panel); }

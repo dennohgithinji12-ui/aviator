@@ -142,9 +142,15 @@ export function Header() {
         </div>
 
         {/* Login/Register Button */}
-        <button className="header-btn-login-register" id="header-btn-login-register" title="Sign in or create an account" onClick={() => isAuthenticated ? openInfo('Account', `${user?.username || 'Pilot'} · ${user?.phone || ''}`) : setShowAuth(true)}>
-          <span>{isAuthenticated ? 'Account' : 'Login/Register'}</span>
-        </button>
+        {isAuthenticated ? (
+          <Link className="header-btn-login-register" id="header-btn-login-register" href="/account" title="Open your account">
+            <span>Account</span>
+          </Link>
+        ) : (
+          <button className="header-btn-login-register" id="header-btn-login-register" title="Sign in or create an account" onClick={() => setShowAuth(true)}>
+            <span>Login/Register</span>
+          </button>
+        )}
 
         {/* Deposit Button */}
         <button className="btn-deposit-header" id="btn-open-deposit" title="Open wallet" onClick={() => openWallet()}>
