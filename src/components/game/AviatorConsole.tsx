@@ -19,6 +19,7 @@ interface TerminalState {
   staked: boolean;
   cashedOut: boolean;
   queued: boolean;
+  placing: boolean;
   cashedOutMultiplier: number;
   payout: number;
   cashoutPending: boolean;
@@ -100,6 +101,7 @@ export function AviatorConsole() {
     staked: false,
     cashedOut: false,
     queued: false,
+    placing: false,
     cashedOutMultiplier: 0,
     payout: 0,
     cashoutPending: false,
@@ -118,6 +120,7 @@ export function AviatorConsole() {
     staked: false,
     cashedOut: false,
     queued: false,
+    placing: false,
     cashedOutMultiplier: 0,
     payout: 0,
     cashoutPending: false,
@@ -186,7 +189,7 @@ export function AviatorConsole() {
             // A WON record belongs to the settled bet, while the queued flag
             // represents a newer player action for the next round. Never let
             // a status refresh overwrite that pending action.
-            if (state.queued && (state.queueForNonce || 0) > serverNonce) return state;
+            if (state.placing || state.queued) return state;
             return {
               ...state,
               amount: bet.amount,
@@ -249,8 +252,14 @@ export function AviatorConsole() {
     }
     const currentTerminal = terminalId === 1 ? terminal1 : terminal2;
     if (currentTerminal.staked && !currentTerminal.cashedOut) return;
+    if (amount > balance) {
+      const pause = (state: TerminalState): TerminalState => ({ ...state, queued: false, placing: false, queuedMode: null, queueForNonce: null, autoStakeEnabled: false });
+      if (terminalId === 1) setTerminal1(pause); else setTerminal2(pause);
+      setActionMessage(`Insufficient funds for Bet ${terminalId}.`);
+      return;
+    }
     const targetNonce = phase === 'WAITING' && activeNonce > 0 ? activeNonce : Math.max(1, activeNonce + 1);
-    if (!currentTerminal.queued) {
+    if (!currentTerminal.queued && phase !== 'WAITING') {
       const queue = (state: TerminalState): TerminalState => ({ ...state, amount, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0, queued: true, queuedMode: modeOverride, queueForNonce: targetNonce });
       if (terminalId === 1) setTerminal1(queue); else setTerminal2(queue);
     }
@@ -260,11 +269,13 @@ export function AviatorConsole() {
     }
     setActionMessage('');
     betRequestInFlight.current[terminalId] = true;
+    if (terminalId === 1) setTerminal1((state) => ({ ...state, placing: true }));
+    else setTerminal2((state) => ({ ...state, placing: true }));
     try {
       const { ok, result } = await walletAction('bet', token, { amount, mode: modeOverride, terminalId, roundNonce: activeNonce });
       if (!ok || !result.success) {
         if (result.code === 'INSUFFICIENT_FUNDS') {
-          const pause = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null, autoStakeEnabled: false });
+          const pause = (state: TerminalState): TerminalState => ({ ...state, queued: false, placing: false, queuedMode: null, queueForNonce: null, autoStakeEnabled: false });
           if (terminalId === 1) setTerminal1(pause); else setTerminal2(pause);
           setActionMessage(`Insufficient funds for Bet ${terminalId}. Auto Bet paused.`);
           return;
@@ -353,6 +364,8 @@ export function AviatorConsole() {
       setActionMessage(error instanceof Error ? error.message : 'Bet could not be placed');
     } finally {
       betRequestInFlight.current[terminalId] = false;
+      if (terminalId === 1) setTerminal1((state) => ({ ...state, placing: false }));
+      else setTerminal2((state) => ({ ...state, placing: false }));
     }
   };
 
@@ -394,6 +407,7 @@ export function AviatorConsole() {
 
   const handleCancel = async (terminalId: 1 | 2) => {
     const terminal = terminalId === 1 ? terminal1 : terminal2;
+    if (terminal.placing) return;
     if (terminal.queued && !terminal.staked) {
       if (betRequestInFlight.current[terminalId]) cancelAfterPlace.current[terminalId] = true;
       const update = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null });
@@ -560,8 +574,8 @@ export function AviatorConsole() {
             balance={balance}
             gameState={gameState}
             currentMultiplier={currentMultiplier}
-            onTerminal1Change={(state) => setTerminal1({ ...terminal1, ...state })}
-            onTerminal2Change={(state) => setTerminal2({ ...terminal2, ...state })}
+            onTerminal1Change={(state) => setTerminal1((current) => ({ ...current, ...state }))}
+            onTerminal2Change={(state) => setTerminal2((current) => ({ ...current, ...state }))}
             onTerminal1Bet={handleTerminal1Bet}
             onTerminal2Bet={handleTerminal2Bet}
             onTerminal1Cashout={handleTerminal1Cashout}

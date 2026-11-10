@@ -6142,6 +6142,27 @@ h1, h2, h3, h4 {
   .account-profile-page .wallet-col-icon { width: 30px; height: 30px; }
   .account-profile-page .wallet-col-val { font-size: 12px; }
 }
+
+/* Give each betting card enough room for its stake and Auto Cash controls. */
+@media (max-width: 640px) {
+  .dual-betting-terminals { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .betting-terminal { height: auto; min-height: 0; padding: 10px; }
+  .terminal-grid-content,
+  .dual-betting-terminals:has(.betting-terminal:nth-child(2)) .terminal-grid-content {
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 34%);
+    height: auto;
+    align-items: stretch;
+  }
+  .terminal-left-controls { height: auto; min-width: 0; justify-content: flex-start; }
+  .terminal-right-action { width: 100%; height: auto; min-height: 84px; }
+  .btn-terminal-action { height: 100%; min-height: 84px; }
+  .auto-controls-panel { display: grid; grid-template-columns: 1fr; gap: 7px; height: auto; padding: 8px; }
+  .auto-cashout-box { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+  .auto-controls-panel .toggle-name { font-size: 11px; }
+  .auto-cashout-box .mult-input-group { width: 72px; min-width: 72px; height: 30px; }
+  .input-auto-cashout { font-size: 13px; }
+  .btn-toggle-second-terminal { grid-column: 1; min-height: 48px; }
+}
 .sports-notice { position: fixed; z-index: 1100; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: calc(100vw - 28px); padding: 11px 16px; border: 1px solid rgba(34,197,94,.35); border-radius: 10px; color: #d1fae5; background: #12251f; font-size: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
 .admin-module-settings { margin: 14px 0; padding: 20px; border: 1px solid var(--border-main); border-radius: 14px; background: var(--bg-panel); }
 .admin-module-list { display: grid; }

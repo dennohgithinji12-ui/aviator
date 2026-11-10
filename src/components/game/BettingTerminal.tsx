@@ -12,6 +12,7 @@ interface BettingTerminalProps {
   staked: boolean;
   cashedOut: boolean;
   queued: boolean;
+  placing: boolean;
   cashedOutMultiplier: number;
   payout: number;
   cashoutPending: boolean;
@@ -40,6 +41,7 @@ export function BettingTerminal({
   staked,
   cashedOut,
   queued,
+  placing,
   cashedOutMultiplier,
   payout,
   cashoutPending,
@@ -89,7 +91,7 @@ export function BettingTerminal({
     onCancel(terminalId);
   };
 
-  const isDisabled = queued;
+  const isDisabled = queued || placing;
   const canCashout = staked && !cashedOut && gameState === 'FLYING';
   const canCancel = staked && !cashedOut && gameState === 'WAITING';
 
@@ -220,7 +222,12 @@ export function BettingTerminal({
         </div>
 
         <div className="terminal-right-action">
-          {queued && !staked ? (
+          {placing ? (
+            <button className="btn-terminal-action state-waiting" disabled>
+              <div className="action-btn-main">Placing Bet</div>
+              <div className="action-btn-sub">PLEASE WAIT</div>
+            </button>
+          ) : queued && !staked ? (
             <button className="btn-terminal-action state-cancel" onClick={handleCancel}>
               <div className="action-btn-main">Cancel</div>
               <div className="action-btn-sub">QUEUED NEXT ROUND</div>

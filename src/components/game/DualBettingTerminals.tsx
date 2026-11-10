@@ -11,6 +11,7 @@ interface TerminalState {
   staked: boolean;
   cashedOut: boolean;
   queued: boolean;
+  placing: boolean;
   cashedOutMultiplier: number;
   payout: number;
   cashoutPending: boolean;
@@ -64,6 +65,7 @@ export function DualBettingTerminals({
         staked={terminal1.staked}
         cashedOut={terminal1.cashedOut}
         queued={terminal1.queued}
+          placing={terminal1.placing}
         cashedOutMultiplier={terminal1.cashedOutMultiplier}
         payout={terminal1.payout}
         cashoutPending={terminal1.cashoutPending}
@@ -108,6 +110,7 @@ export function DualBettingTerminals({
           staked={terminal2.staked}
           cashedOut={terminal2.cashedOut}
           queued={terminal2.queued}
+          placing={terminal2.placing}
           cashedOutMultiplier={terminal2.cashedOutMultiplier}
           payout={terminal2.payout}
           cashoutPending={terminal2.cashoutPending}
