@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const defaults = { home: true, sports: true, casino: true, aviator: true, me: true };
+const defaults = { home: true, sports: true, casino: true, aviator: true, me: true, communityChat: false, roomTwo: false };
 
 function normalize(value: unknown) {
   const saved = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};

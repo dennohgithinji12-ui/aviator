@@ -5,10 +5,13 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL_POOLED || process.env.DATABASE_URL,
+    max: 2,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000
+  })
 });
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = prisma;

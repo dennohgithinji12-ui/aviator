@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react';
 
-type ModuleKey = 'home' | 'sports' | 'casino' | 'aviator' | 'me';
+type ModuleKey = 'home' | 'sports' | 'casino' | 'aviator' | 'me' | 'communityChat' | 'roomTwo';
 type Modules = Record<ModuleKey, boolean>;
-const defaults: Modules = { home: true, sports: true, casino: true, aviator: true, me: true };
+const defaults: Modules = { home: true, sports: true, casino: true, aviator: true, me: true, communityChat: false, roomTwo: false };
 const labels: { key: ModuleKey; title: string; description: string }[] = [
   { key: 'home', title: 'Home', description: 'Lobby and featured sections' },
   { key: 'sports', title: 'Sports', description: 'Sportsbook fixtures and launch page' },
   { key: 'casino', title: 'Casino', description: 'Casino games lobby' },
   { key: 'aviator', title: 'Aviator', description: 'Aviator game page' },
-  { key: 'me', title: 'Me', description: 'Player profile and wallet page' }
+  { key: 'me', title: 'Me', description: 'Player profile and wallet page' },
+  { key: 'communityChat', title: 'Community chat', description: 'Show the chat button in the top navigation' },
+  { key: 'roomTwo', title: 'Room 2', description: 'Enable the Room 2 item in the side menu' }
 ];
 
 export function AdminModuleSettings({ token }: { token: string }) {
@@ -58,7 +60,7 @@ export function AdminModuleSettings({ token }: { token: string }) {
   };
 
   return <section className="admin-module-settings">
-    <div className="admin-table-title"><div><h2>Navigation modules</h2><p>Choose which tabs players see in the fixed navigation bar.</p></div></div>
+    <div className="admin-table-title"><div><h2>Navigation and game features</h2><p>Choose which navigation items and optional features players can use.</p></div></div>
     <div className="admin-module-list">{labels.map(({ key, title, description }) => <div className="admin-module-row" key={key}>
       <div><strong>{title}</strong><small>{description}</small></div>
       <label className="admin-module-switch"><span>{modules[key] ? 'Shown' : 'Hidden'}</span><input type="checkbox" checked={modules[key]} disabled={loading || saving !== null} onChange={() => void toggle(key)} aria-label={`${title} tab ${modules[key] ? 'shown' : 'hidden'}`} /><i /></label>

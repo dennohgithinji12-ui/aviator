@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const defaults = { home: true, sports: true, casino: true, aviator: true, me: true };
+const defaults = { home: true, sports: true, casino: true, aviator: true, me: true, communityChat: false, roomTwo: false };
 
 export async function GET() {
   try {

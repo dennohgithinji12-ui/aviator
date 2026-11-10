@@ -13,7 +13,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-for (const name of ['DATABASE_URL', 'DIRECT_URL']) {
+for (const name of ['DATABASE_URL', 'DATABASE_URL_POOLED', 'DIRECT_URL']) {
   if (!process.env[name]) continue;
   try {
     const url = new URL(process.env[name]);
@@ -22,6 +22,10 @@ for (const name of ['DATABASE_URL', 'DIRECT_URL']) {
     console.error(`${name} must be a PostgreSQL connection URL (postgres:// or postgresql://).`);
     process.exit(1);
   }
+}
+
+if (!process.env.DATABASE_URL_POOLED && new URL(process.env.DATABASE_URL).hostname === 'db.prisma.io') {
+  console.warn('DATABASE_URL_POOLED is missing. Add the pooled Prisma Postgres URL for runtime traffic to avoid exhausting direct database connections.');
 }
 
 if (process.env.ADMIN_PASSWORD.length < 14 || process.env.ADMIN_PASSWORD.length > 128) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -16,13 +16,46 @@ export function Header() {
   const [pendingWalletOpen, setPendingWalletOpen] = useState(false);
   const [pendingWalletTab, setPendingWalletTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [infoPanel, setInfoPanel] = useState<{ title: string; body: string } | null>(null);
   const [menuModal, setMenuModal] = useState<'freebets' | 'history' | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [animationEnabled, setAnimationEnabled] = useState(true);
   const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('REAL');
+  const [menuFeatures, setMenuFeatures] = useState({ communityChat: false, roomTwo: false });
   const pathname = usePathname();
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      fetch('/api/modules', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((result) => {
+        if (active && result?.modules) setMenuFeatures({ communityChat: result.modules.communityChat === true, roomTwo: result.modules.roomTwo === true });
+      }).catch(() => undefined);
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    window.addEventListener('aviator:modules-updated', refresh);
+    return () => { active = false; window.removeEventListener('focus', refresh); window.removeEventListener('aviator:modules-updated', refresh); };
+  }, []);
+
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('shiftstack_game_mode');
@@ -166,14 +199,14 @@ export function Header() {
         </button>
 
         {/* Chat Button */}
-        <button className="header-btn-icon" id="btn-header-chat" title="Community Chat & Pilot Signals" aria-label="Game Chat" onClick={() => openInfo('Pilot signals', 'Community chat is not connected yet. There are no live messages to display.')}>
+        {menuFeatures.communityChat && <button className="header-btn-icon" id="btn-header-chat" title="Community Chat & Pilot Signals" aria-label="Game Chat" onClick={() => openInfo('Pilot signals', 'Community chat is not connected yet. There are no live messages to display.')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
-        </button>
+        </button>}
 
         {/* Hamburger Menu */}
-        <div className="menu-dropdown-wrapper">
+        <div className="menu-dropdown-wrapper" ref={menuRef}>
           <button className={`btn-hamburger ${menuOpen ? 'active' : ''}`} id="btn-hamburger" aria-label="Open Settings Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
             <span></span>
             <span></span>
@@ -181,7 +214,9 @@ export function Header() {
           </button>
 
           {/* Dropdown Menu */}
-          <div className={`spribe-dropdown-menu ${menuOpen ? 'open' : ''}`} id="spribe-dropdown-menu">
+          <div className={`spribe-dropdown-menu ${menuOpen ? 'open' : ''}`} id="spribe-dropdown-menu" onClickCapture={(event) => {
+            if ((event.target as HTMLElement).closest('button, a, input, label')) setMenuOpen(false);
+          }}>
             {/* Profile Card */}
             <div className="shiftstack-menu-user-card kessbet-menu-user-card">
               <div className="user-avatar-circle" id="menu-avatar-circle">
@@ -191,13 +226,13 @@ export function Header() {
                 <span className="user-handle" id="menu-username-display">{user?.username || 'Guest Pilot'}</span>
                 <span className="user-phone-sub" id="menu-phone-display">{user?.phone || 'Tap to Log In'}</span>
               </div>
-              <button type="button" className="btn-change-avatar" id="btn-change-avatar" onClick={() => isAuthenticated ? openInfo('Profile', 'Profile photo settings are not available yet.') : setShowAuth(true)}>
+              {isAuthenticated ? <Link className="btn-change-avatar" id="menu-account" href="/account" onClick={() => setMenuOpen(false)}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <span>Change Avatar</span>
-              </button>
+                <span>Account</span>
+              </Link> : <button type="button" className="btn-change-avatar" id="menu-account" onClick={() => setShowAuth(true)}><span>Sign in</span></button>}
             </div>
 
             {/* Audio & Animation Toggles */}
@@ -243,18 +278,18 @@ export function Header() {
               <span className="menu-link-icon">🕒</span>
               <span>My Bet History</span>
             </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-limits" onClick={() => openInfo('Game limits', 'Each terminal accepts KES 100 to KES 100,000 per bet. You can place one bet per terminal per round, so both terminals may be used in the same round. Bets close when the countdown ends. Each account can have one active rollover strategy at a time.')}>
+            <Link className="menu-link-btn" id="menu-btn-limits" href="/guide#game-limits" onClick={() => setMenuOpen(false)}>
               <span className="menu-link-icon">💵</span>
               <span>Game Limits</span>
-            </button>
-            <button type="button" className="menu-link-btn" id="menu-btn-how" onClick={() => openInfo('How to play', '1. Choose your wallet mode from the top bar.\n2. Enter a stake on either terminal and place it before the five-second countdown ends.\n3. While the plane is flying, press Cash Out to settle at the current multiplier.\n4. In Auto mode, enable Auto Bet to queue future rounds and set an Auto Cash target.\n\nA round can crash at any multiplier. A cashout after the crash is not accepted.')}>
+            </Link>
+            <Link className="menu-link-btn" id="menu-btn-how" href="/guide#how-to-play" onClick={() => setMenuOpen(false)}>
               <span className="menu-link-icon">❓</span>
               <span>How To Play</span>
-            </button>
-          <button type="button" className="menu-link-btn" id="menu-btn-rules" onClick={() => openInfo('Game rules', 'The server schedule determines each round’s crash multiplier. Bets are recorded against a round and wallet mode. Cashout is processed by the server using the live multiplier; winnings are rounded down to cents. Practice and wallet balances are separate. Wallet play requires an authenticated account and sufficient balance.')}>
+            </Link>
+          <Link className="menu-link-btn" id="menu-btn-rules" href="/guide#game-rules" onClick={() => setMenuOpen(false)}>
               <span className="menu-link-icon">📄</span>
               <span>Game Rules</span>
-            </button>
+            </Link>
             <Link className="menu-link-btn" id="menu-btn-pf" href="/verify" onClick={() => setMenuOpen(false)}>
               <span className="menu-link-icon">🛡️</span>
               <span>Provably Fair Settings</span>
@@ -262,10 +297,8 @@ export function Header() {
             <Link className="menu-link-btn" href="/liquidity" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">◈</span><span>Liquidity Vault</span></Link>
             <Link className="menu-link-btn" href="/rollover" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">↗</span><span>Rollover Strategy</span></Link>
             <Link className="menu-link-btn" href="/verify" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">🛡️</span><span>Seed Verifier</span></Link>
-            <button type="button" className="menu-link-btn" id="menu-btn-gameroom" onClick={() => openInfo('Game room', 'You are viewing the shared Aviator room.')}>
-              <span className="menu-link-icon">🗂️</span>
-              <span>Game Room: Room #2</span>
-            </button>
+            {menuFeatures.roomTwo ? <Link className="menu-link-btn" id="menu-btn-gameroom" href="/room/2" onClick={() => setMenuOpen(false)}><span className="menu-link-icon">🗂️</span><span>Game Room: Room #2</span></Link>
+              : <button type="button" className="menu-link-btn" id="menu-btn-gameroom" disabled aria-disabled="true" title="Room 2 is disabled by the administrator"><span className="menu-link-icon">🗂️</span><span>Game Room: Room #2 · Unavailable</span></button>}
 
             <div className="menu-divider"></div>
 

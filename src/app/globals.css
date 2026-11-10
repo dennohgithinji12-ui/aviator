@@ -6166,13 +6166,13 @@ h1, h2, h3, h4 {
   .btn-toggle-second-terminal { grid-column: 1; min-height: 48px; }
 }
 
-/* Put the selected wallet on its own mobile header row so no digits are clipped. */
+/* Keep wallet mode, complete balance, and Deposit together on mobile. */
 @media (max-width: 640px) {
-  :root { --header-height: 126px; }
+  :root { --header-height: 88px; }
   .app-header {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: 38px auto 34px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 38px auto;
     gap: 4px 8px;
     height: auto;
     min-height: var(--header-height);
@@ -6182,11 +6182,11 @@ h1, h2, h3, h4 {
   .header-right { display: contents; }
   .header-right > .menu-dropdown-wrapper { grid-column: 2; grid-row: 1; justify-self: end; }
   .header-balance-card {
-    grid-column: 1 / -1;
+    grid-column: 1;
     grid-row: 2;
     display: flex;
     justify-content: space-between;
-    gap: 8px;
+    gap: 3px;
     width: 100%;
     max-width: none;
     min-width: 0;
@@ -6203,20 +6203,56 @@ h1, h2, h3, h4 {
     font-size: 13px;
   }
   .header-mode-toggle { flex: 0 0 auto; margin-left: 0; }
-  .header-right > .header-btn-login-register,
+  .header-mode-toggle button { padding: 3px 4px; font-size: 8px; }
+  .header-right > .header-btn-login-register { display: none !important; }
   .header-right > .btn-deposit-header {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    grid-row: 3;
-    min-height: 34px;
-    width: 100%;
-    padding: 5px 10px;
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 32px;
+    min-width: 72px;
+    padding: 5px 8px;
     box-sizing: border-box;
-    text-decoration: none;
   }
-  .header-right > .header-btn-login-register { grid-column: 1; }
-  .header-right > .btn-deposit-header { grid-column: 2; }
+}
+.btn-change-avatar { text-decoration: none; }
+.menu-link-btn:disabled { opacity: .5; cursor: not-allowed; }
+.room-two-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px; color: #eef4f7; background: #14212b; border-bottom: 1px solid rgba(255,255,255,.09); }
+.room-two-heading h1 { margin: 4px 0; font-size: 22px; }
+.room-two-heading p { margin: 0; color: #9fb0bd; font-size: 12px; }
+.room-two-heading a { flex: 0 0 auto; color: #7fe8b0; text-decoration: none; font-weight: 800; }
+
+.game-guide { width: min(1050px, 100%); margin: 0 auto; padding: 22px 16px 100px; color: #eef4f7; }
+.game-guide-hero { padding: clamp(22px, 5vw, 46px); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: radial-gradient(circle at 85% 0, rgba(18,207,125,.15), transparent 45%), #13202b; }
+.game-guide-hero h1 { margin: 10px 0; font-size: clamp(26px, 5vw, 44px); line-height: 1.08; }
+.game-guide-hero p,.game-guide-heading p,.game-guide-grid p { color: #9fb0bd; line-height: 1.55; }
+.game-guide-links,.game-guide-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.game-guide-links a,.game-guide-actions a { padding: 10px 14px; border: 1px solid rgba(44,222,145,.35); border-radius: 9px; color: #94f2bd; background: rgba(25,188,111,.09); font-weight: 800; text-decoration: none; }
+.game-guide-links a:hover,.game-guide-actions a:hover { background: rgba(25,188,111,.2); }
+.game-guide-section { margin-top: 18px; padding: clamp(18px, 4vw, 30px); border: 1px solid rgba(255,255,255,.09); border-radius: 16px; background: #111b25; scroll-margin-top: calc(var(--header-height, 52px) + 12px); }
+.game-guide-heading { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 18px; }
+.game-guide-heading > span { display: grid; flex: 0 0 38px; height: 38px; place-items: center; border-radius: 10px; color: #04150d; background: #29d88c; font-weight: 900; }
+.game-guide-heading h2 { margin: 0; font-size: clamp(20px, 4vw, 26px); }
+.game-guide-heading p { margin: 4px 0 0; }
+.game-guide-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.game-guide-grid article { padding: 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: #182632; }
+.game-guide-grid strong,.game-guide-grid b { display: block; }
+.game-guide-grid strong { color: #99aebb; font-size: 12px; }
+.game-guide-grid b { margin-top: 7px; color: #fff; font-size: 18px; }
+.game-guide-grid p { margin: 8px 0 0; font-size: 13px; }
+.game-guide-steps { display: grid; gap: 10px; margin: 0; padding-left: 26px; line-height: 1.6; color: #bdccd5; }
+.game-guide-steps li { padding: 8px 4px; }
+.game-guide-steps strong { color: #fff; }
+.game-guide-rules { display: grid; gap: 12px; color: #bdccd5; line-height: 1.65; }
+.game-guide-rules p { margin: 0; }
+@media (max-width: 640px) {
+  .game-guide { padding: 10px 9px 86px; }
+  .game-guide-grid { grid-template-columns: 1fr; }
+  .game-guide-links a { flex: 1 1 130px; text-align: center; }
+  .game-guide-heading { gap: 10px; }
+  .header-balance-card .bal-amount { font-size: 11px; }
 }
 .sports-notice { position: fixed; z-index: 1100; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: calc(100vw - 28px); padding: 11px 16px; border: 1px solid rgba(34,197,94,.35); border-radius: 10px; color: #d1fae5; background: #12251f; font-size: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
 .admin-module-settings { margin: 14px 0; padding: 20px; border: 1px solid var(--border-main); border-radius: 14px; background: var(--bg-panel); }
