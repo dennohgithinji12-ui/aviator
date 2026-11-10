@@ -3,6 +3,7 @@
  * Ensures flight windows, round nonces, countdowns, flight durations,
  * and crash multipliers are 100% consistent across all users worldwide.
  */
+import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
 
 // Pure-JS Deterministic SHA-256 for browser runtime
 function sha256Raw(ascii: string): number[] {
@@ -146,6 +147,7 @@ export class GlobalRoundSyncEngine {
   fallbackRoundStartTime: number;
   visibilityHandler: (() => void) | null;
   stopped: boolean;
+  unsubscribeRealtime: (() => void) | null;
 
   constructor(options: { epochBase?: number } = {}) {
     this.EPOCH_BASE = options.epochBase || 1727180000000;
@@ -162,6 +164,9 @@ export class GlobalRoundSyncEngine {
     this.fallbackRoundStartTime = Date.now();
     this.visibilityHandler = null;
     this.stopped = false;
+    this.unsubscribeRealtime = subscribeRealtime((event) => {
+      if (event.type === 'round') this.acceptServerState(event.state as RoundState, performance.now());
+    });
 
     if (typeof BroadcastChannel !== 'undefined') {
       try {
@@ -171,9 +176,9 @@ export class GlobalRoundSyncEngine {
 
     this.initServerSync();
     // Round phase/outcome is authoritative on the server. The multiplier and
-    // countdown are interpolated locally on every animation frame, so sync the
-    // clock and phase once per second rather than fetching each displayed odd.
-    this.syncTimer = setInterval(() => { void this.initServerSync(); }, 1000);
+    // countdown are interpolated locally between socket updates. HTTP remains
+    // a slower fallback when the connection is unavailable.
+    this.syncTimer = setInterval(() => { if (!realtimeConnected()) void this.initServerSync(); }, 5000);
 
     if (typeof document !== 'undefined') {
       this.visibilityHandler = () => {
@@ -187,6 +192,8 @@ export class GlobalRoundSyncEngine {
 
   stop(): void {
     this.stopped = true;
+    this.unsubscribeRealtime?.();
+    this.unsubscribeRealtime = null;
     if (this.syncTimer) clearInterval(this.syncTimer);
     this.syncTimer = null;
     this.broadcastChannel?.close();
@@ -208,14 +215,7 @@ export class GlobalRoundSyncEngine {
       const res = await fetch('/api/round-state', { cache: 'no-store', signal: controller.signal });
       if (res.ok) {
         const state: RoundState = await res.json();
-        if (this.stopped) return;
-        // The legacy schedule can reset its nonce at an hour boundary, so
-        // response ordering must use the round's timestamp rather than nonce.
-        if (this.lastState && (state.roundStartTime < this.lastState.roundStartTime || (state.roundStartTime === this.lastState.roundStartTime && state.serverTime < this.lastState.serverTime))) return;
-        this.lastState = state;
-        this.lastSyncReceivedAt = performance.now();
-        this.serverClockAnchor = state.serverTime + (this.lastSyncReceivedAt - requestStartedAt) / 2;
-        this.clockOffset = this.serverClockAnchor - Date.now();
+        this.acceptServerState(state, requestStartedAt);
       }
     } catch (e) {
       if (!this.stopped && !(e instanceof DOMException && e.name === 'AbortError')) console.warn('[Global Sync] Server sync failed:', e);
@@ -223,6 +223,17 @@ export class GlobalRoundSyncEngine {
       clearTimeout(timeout);
       this.syncInFlight = false;
     }
+  }
+
+  acceptServerState(state: RoundState, requestStartedAt: number): void {
+    if (this.stopped) return;
+    // The legacy schedule can reset its nonce at an hour boundary, so
+    // response ordering must use the round's timestamp rather than nonce.
+    if (this.lastState && (state.roundStartTime < this.lastState.roundStartTime || (state.roundStartTime === this.lastState.roundStartTime && state.serverTime < this.lastState.serverTime))) return;
+    this.lastState = state;
+    this.lastSyncReceivedAt = performance.now();
+    this.serverClockAnchor = state.serverTime + (this.lastSyncReceivedAt - requestStartedAt) / 2;
+    this.clockOffset = this.serverClockAnchor - Date.now();
   }
 
   getGlobalRoundState(): RoundState {

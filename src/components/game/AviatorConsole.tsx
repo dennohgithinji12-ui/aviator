@@ -8,6 +8,7 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { RoundHistoryRibbon } from './RoundHistoryRibbon';
 import { GlobalRoundSyncEngine } from '@/lib/engine/global-sync';
+import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
 
 interface TerminalState {
   amount: number;
@@ -189,8 +190,14 @@ export function AviatorConsole() {
       }
     };
     void refreshMyRoundBets();
-    const timer = window.setInterval(() => void refreshMyRoundBets(), 2500);
-    return () => { active = false; window.clearInterval(timer); };
+    let lastSocketRefresh = 0;
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type !== 'bets-changed' || Date.now() - lastSocketRefresh < 2500) return;
+      lastSocketRefresh = Date.now();
+      void refreshMyRoundBets();
+    });
+    const timer = window.setInterval(() => { if (!realtimeConnected()) void refreshMyRoundBets(); }, 10000);
+    return () => { active = false; window.clearInterval(timer); unsubscribe(); };
   }, [isAuthenticated, token, serverNonce]);
 
   useEffect(() => {

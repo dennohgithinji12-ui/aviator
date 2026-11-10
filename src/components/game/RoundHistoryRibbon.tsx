@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
 
 interface RoundHistoryItem { nonce: number; multiplier: number; commitment: string; serverSeed: string | null; clientSeed: string; timestamp: number }
 
@@ -16,8 +17,9 @@ export function RoundHistoryRibbon() {
       } catch { /* Retain the last saved history while offline. */ }
     };
     void load();
-    const timer = setInterval(load, 5000);
-    return () => { active = false; clearInterval(timer); };
+    const unsubscribe = subscribeRealtime((event) => { if (event.type === 'history-changed') void load(); });
+    const timer = setInterval(() => { if (!realtimeConnected()) void load(); }, 15000);
+    return () => { active = false; clearInterval(timer); unsubscribe(); };
   }, []);
 
   return <div className="history-scroll-container" aria-label="Recent completed round multipliers">

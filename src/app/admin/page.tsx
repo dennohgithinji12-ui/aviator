@@ -59,6 +59,20 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'predictor' | 'settings'>('overview');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [connections, setConnections] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!token || !data) return;
+    const loadConnections = async () => {
+      try {
+        const response = await fetch('/api/admin/realtime', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+        if (response.ok) setConnections((await response.json()).connections);
+      } catch { /* Keep the last known count. */ }
+    };
+    void loadConnections();
+    const timer = window.setInterval(() => void loadConnections(), 5000);
+    return () => window.clearInterval(timer);
+  }, [token, data]);
 
   const load = useCallback(async (sessionToken: string) => {
     setLoading(true);
@@ -145,7 +159,7 @@ export default function AdminPage() {
         {activeTab === 'overview' ? <>
         <section className="admin-metrics">
           {[
-            ['Registered users', data.summary.users.toLocaleString()], ['Active users · 24h', data.summary.activeUsers24h.toLocaleString()], ['Games played', data.summary.completedRounds.toLocaleString()],
+            ['Live connections', connections === null ? '—' : connections.toLocaleString()], ['Registered users', data.summary.users.toLocaleString()], ['Active users · 24h', data.summary.activeUsers24h.toLocaleString()], ['Games played', data.summary.completedRounds.toLocaleString()],
             ['Bets placed', data.summary.bets.toLocaleString()], ['Total stakes', money(data.summary.stakedKes)], ['Total payouts', money(data.summary.paidOutKes)],
             ['Successful deposits', `${data.summary.deposits.toLocaleString()} · ${money(data.summary.depositedKes)}`], ['Paid withdrawals', `${data.summary.withdrawals.toLocaleString()} · ${money(data.summary.withdrawnKes)}`], ['Pending withdrawals', data.summary.pendingWithdrawals.toLocaleString()]
           ].map(([label, value]) => <article className="admin-metric" key={label}><span>{label}</span><strong>{value}</strong></article>)}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
 
 interface Staker {
   user: string;
@@ -95,6 +96,19 @@ export function LiveStakers({
 
   const lastRoundNonce = useRef<number | null>(null);
 
+  useEffect(() => subscribeRealtime((event) => {
+    if (event.type !== 'bets') return;
+    const result = event.data as { roundNonce: number; bets: Array<{ player: string; stake: number; multiplier: number; payout: number; status: string; terminalId: number }>; simulatedBets: Parameters<typeof mapServerFeedBets>[0] };
+    if (result.roundNonce !== roundNonce) return;
+    const rows: Staker[] = result.bets.map((bet) => {
+      const cashedOut = bet.status === 'WON';
+      return { user: bet.player, stake: bet.stake, targetMultiplier: 0, cashedOut, cashedMultiplier: cashedOut ? bet.multiplier : 0, payout: cashedOut ? bet.payout : 0, isUser: false, terminalId: bet.terminalId, color: cashedOut ? '#2ecc71' : '#57606f', status: cashedOut ? 'WON' : 'ACTIVE' };
+    });
+    setActiveStakers(rows);
+    setSimulatedBets(mapServerFeedBets(result.simulatedBets || []));
+    setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
+  }), [roundNonce]);
+
   const getBadgeClass = (multiplier: number): string => {
     if (multiplier >= 10.0) return 'badge-legendary';
     if (multiplier >= 2.0) return 'badge-high';
@@ -131,6 +145,7 @@ export function LiveStakers({
   // Refresh recorded cashout state while the round is live.
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (realtimeConnected()) return;
       try {
         const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
         const result = await response.json();
@@ -147,7 +162,7 @@ export function LiveStakers({
         setSimulatedBets(mapServerFeedBets(result.simulatedBets || []));
         setTopWins(rows.filter((bet) => bet.cashedOut).map((bet) => ({ user: bet.user, stake: bet.stake, multiplier: bet.cashedMultiplier, payout: bet.payout, time: 'This round' })).sort((a, b) => b.payout - a.payout).slice(0, 20));
       } catch { /* Keep the most recent successful snapshot on temporary network errors. */ }
-    }, 1500);
+    }, 5000);
     return () => clearInterval(interval);
   }, [roundNonce]);
 

@@ -142,6 +142,10 @@ PayHero credentials can be entered by a super administrator under **Admin dashbo
 
 The app does not configure scheduled background jobs. `/api/cron/settle-rounds` remains available as a manually invoked, `CRON_SECRET`-protected reconciliation endpoint. Normal game requests persist round state and settle the active round when its crash is observed.
 
+### Realtime game feed
+
+The game uses a Vercel WebSocket at `/api/realtime` for round, live bet, cashout, and history updates. No additional Vercel service or environment variable is required. The server shares round and bet snapshots across sockets connected to one function instance, while active connection counts are aggregated through the existing PostgreSQL `AppSetting` table. Connections automatically reconnect when Vercel closes a function invocation. Secure bet placement and cashout requests remain on their authenticated HTTP endpoints. If the WebSocket is unavailable, the browser uses slower HTTP polling. For local WebSocket testing, use `vercel dev`; `next dev` does not provide Vercel's WebSocket upgrade runtime.
+
 The seed inserts default application settings and a disabled, zero-value liquidity pool. It does not create sample users, demo real-money balances, fake deposits, or fake bets. Defaults use upserts and do not overwrite settings that already exist. The initial admin password is updated from `ADMIN_PASSWORD` each time the seed is run.
 
 For a database that already has tables created by `db push`, do not run the initial migration as if the database were empty. First compare the database with `schema.prisma`, then baseline only when they match using `prisma migrate resolve --applied 0001_init`. This workspace's local `aviator` database has been synced, checked for drift, and baselined.
