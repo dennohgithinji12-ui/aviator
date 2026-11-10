@@ -6163,6 +6163,45 @@ h1, h2, h3, h4 {
   .input-auto-cashout { font-size: 13px; }
   .btn-toggle-second-terminal { grid-column: 1; min-height: 48px; }
 }
+
+/* Put the selected wallet on its own mobile header row so no digits are clipped. */
+@media (max-width: 640px) {
+  :root { --header-height: 88px; }
+  .app-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 38px auto;
+    gap: 4px 8px;
+    height: auto;
+    min-height: var(--header-height);
+    padding: 5px 10px;
+  }
+  .header-left { grid-column: 1; grid-row: 1; }
+  .header-right { display: contents; }
+  .header-right > .menu-dropdown-wrapper { grid-column: 2; grid-row: 1; }
+  .header-balance-card {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 5px 8px;
+    border-radius: 8px;
+  }
+  .header-balance-card .bal-amount {
+    max-width: none;
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+  .header-mode-toggle { flex: 0 0 auto; margin-left: 0; }
+}
 .sports-notice { position: fixed; z-index: 1100; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: calc(100vw - 28px); padding: 11px 16px; border: 1px solid rgba(34,197,94,.35); border-radius: 10px; color: #d1fae5; background: #12251f; font-size: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
 .admin-module-settings { margin: 14px 0; padding: 20px; border: 1px solid var(--border-main); border-radius: 14px; background: var(--bg-panel); }
 .admin-module-list { display: grid; }
