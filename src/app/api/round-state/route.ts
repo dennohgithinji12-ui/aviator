@@ -155,6 +155,20 @@ export async function getLiveRoundState(time: number = Date.now()): Promise<Roun
   throw new Error('Unable to resolve the shared game round schedule');
 }
 
+// Resolve the round first, then sample the clock again. Database work during
+// a cold lookup must not make the timestamp sent to browsers stale.
+export async function getLiveRoundStateNow(): Promise<RoundState> {
+  await getLiveRoundState();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const now = Date.now();
+    if (cachedServerRound && now >= cachedServerRound.roundStartTime && now < cachedServerRound.roundEndTime) {
+      return computeServerPhaseForRound(cachedServerRound, now);
+    }
+    await getLiveRoundState(now);
+  }
+  return getLiveRoundState(Date.now());
+}
+
 export async function getUpcomingRoundOutcomes(count: number = 3) {
   const current = await getLiveRoundState();
   const policyChanges = await getOddsPolicyChanges();
@@ -175,7 +189,7 @@ export async function getUpcomingRoundOutcomes(count: number = 3) {
 export async function GET() {
   let state: RoundState;
   try {
-    state = await getLiveRoundState();
+    state = await getLiveRoundStateNow();
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Round service unavailable' }, { status: 503 });
   }
@@ -205,14 +219,15 @@ export async function GET() {
   }
   // Publish the server's crash boundary so the client animation can clamp to
   // the exact authoritative outcome instead of extrapolating past it.
+  const outgoing = await getLiveRoundStateNow();
   return NextResponse.json({
-    ...state,
+    ...outgoing,
     persistenceAvailable,
     // The browser interpolates active odds on each frame and clamps them to
     // crashMultiplier, which is the server's fixed outcome for this round.
-    currentMultiplier: state.phase === 'CRASHED' ? state.crashMultiplier : 1,
-    crashMultiplier: state.crashMultiplier,
-    flightDuration: state.flightDuration,
-    roundEndTime: state.phase === 'CRASHED' ? state.roundEndTime : 0
+    currentMultiplier: outgoing.phase === 'CRASHED' ? outgoing.crashMultiplier : 1,
+    crashMultiplier: outgoing.crashMultiplier,
+    flightDuration: outgoing.flightDuration,
+    roundEndTime: outgoing.phase === 'CRASHED' ? outgoing.roundEndTime : 0
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

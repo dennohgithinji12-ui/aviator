@@ -22,6 +22,7 @@ export interface Particle {
 }
 
 export type GameState = 'WAITING' | 'FLYING' | 'CRASHED';
+const CRASH_REVEAL_MS = 180;
 
 export class FlightCanvasEngine {
   canvas: HTMLCanvasElement;
@@ -238,7 +239,7 @@ export class FlightCanvasEngine {
     if (this.state === 'CRASHED') {
       if (!this.crashTime) this.crashTime = performance.now();
       const flyawayDuration = 0.48;
-      const crashElapsed = Math.max(0, (performance.now() - this.crashTime) / 1000);
+      const crashElapsed = Math.max(0, (performance.now() - this.crashTime - CRASH_REVEAL_MS) / 1000);
       const progress = Math.min(1, crashElapsed / flyawayDuration);
       const easedProgress = 1 - Math.pow(1 - progress, 3);
       const startX = isFinite(this.crashPlanePos?.x) ? this.crashPlanePos.x : originX;
@@ -373,8 +374,10 @@ export class FlightCanvasEngine {
         }
       } else if (gState.phase === 'CRASHED') {
         if (this.state !== 'CRASHED') {
-          // Capture the live aircraft location before switching to the fly-away
-          // coordinates used by the crash animation.
+          // Advance the plane and visible odds to the exact crash point before
+          // switching to the fly-away coordinates.
+          this.elapsedFlightTime = gState.flightDuration;
+          this.currentMultiplier = gState.crashMultiplier;
           this.lastCrashPos = this.getPlaneCoordinates();
           this.crashPlanePos = { ...this.lastCrashPos };
           this.state = 'CRASHED';
@@ -820,6 +823,20 @@ export class FlightCanvasEngine {
     } else if (this.state === 'CRASHED') {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+
+      if (performance.now() - this.crashTime < CRASH_REVEAL_MS) {
+        ctx.font = `800 ${isMobile ? 18 : 22}px Outfit, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 0;
+        ctx.fillText('CRASHED', w / 2, h / 2 - (isMobile ? 48 : 60));
+        ctx.font = `900 ${isMobile ? 74 : 96}px Outfit, sans-serif`;
+        ctx.fillStyle = '#ff1744';
+        ctx.shadowColor = 'rgba(255, 23, 68, 0.6)';
+        ctx.shadowBlur = 20;
+        ctx.fillText(`${this.targetCrashMultiplier.toFixed(2)}x`, w / 2, h / 2);
+        ctx.restore();
+        return;
+      }
 
       ctx.font = `900 ${isMobile ? 26 : 34}px Outfit, sans-serif`;
       ctx.fillStyle = '#ffffff';

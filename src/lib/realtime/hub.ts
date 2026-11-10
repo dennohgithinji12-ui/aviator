@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { GET as getRoundState } from '@/app/api/round-state/route';
+import { getLiveRoundStateNow } from '@/app/api/round-state/route';
 import { GET as getLiveBets } from '@/app/api/live-bets/route';
 import { POST as placeBet } from '@/app/api/wallet/bet/route';
 import { POST as cancelBet } from '@/app/api/wallet/cancel/route';
@@ -14,10 +15,10 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let busy = false;
 let refreshRequested = false;
 let lastRound = '';
+let lastRoundBroadcastAt = 0;
 let lastBets = '';
 let lastRealBets = '';
 let lastPresence = 0;
-let latestRound: unknown = null;
 let latestBets: unknown = null;
 
 function send(socket: Socket, event: unknown) { try { socket.send(JSON.stringify(event)); } catch { sockets.delete(socket); } }
@@ -29,14 +30,18 @@ async function tick() {
   try {
     const roundResponse = await getRoundState();
     if (!roundResponse.ok) return;
-    const state = await roundResponse.json();
-    latestRound = state;
+    const state = await getLiveRoundStateNow();
     const roundKey = `${state.nonce}:${state.phase}`;
-    if (roundKey !== lastRound) {
+    const phaseChanged = roundKey !== lastRound;
+    const roundChanged = lastRound !== '' && !lastRound.startsWith(`${state.nonce}:`);
+    if (phaseChanged || Date.now() - lastRoundBroadcastAt >= 3000) {
       lastRound = roundKey;
+      lastRoundBroadcastAt = Date.now();
       broadcast({ type: 'round', state });
-      if (state.phase === 'CRASHED') broadcast({ type: 'history-changed' });
-      lastBets = '';
+      if (phaseChanged) {
+        if (state.phase === 'CRASHED' || roundChanged) broadcast({ type: 'history-changed' });
+        lastBets = '';
+      }
     }
     const response = await getLiveBets(new NextRequest(`https://localhost/api/live-bets?roundNonce=${state.nonce}`));
     if (response.ok) {
@@ -78,8 +83,14 @@ export function register(socket: Socket) {
     try {
       const message = JSON.parse(data.toString());
       if (message.type === 'sync') {
-        if (latestRound) send(socket, { type: 'round', state: latestRound });
-        if (latestBets) send(socket, { type: 'bets', data: latestBets });
+        void (async () => {
+          const startedAt = Date.now();
+          try {
+            const state = await getLiveRoundStateNow();
+            send(socket, { type: 'round', state, sync: true, processingMs: Date.now() - startedAt });
+            if (latestBets && (latestBets as { roundNonce?: number }).roundNonce === state.nonce) send(socket, { type: 'bets', data: latestBets });
+          } catch { /* The regular hub tick will retry. */ }
+        })();
       }
       if (message.type === 'command' && typeof message.id === 'string' && message.id.length <= 64 && typeof message.token === 'string' && message.token.length < 2048 && message.body && typeof message.body === 'object') {
         const handler = message.action === 'bet' ? placeBet : message.action === 'cancel' ? cancelBet : message.action === 'cashout' ? cashoutBet : null;

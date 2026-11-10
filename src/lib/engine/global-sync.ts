@@ -165,7 +165,7 @@ export class GlobalRoundSyncEngine {
     this.visibilityHandler = null;
     this.stopped = false;
     this.unsubscribeRealtime = subscribeRealtime((event) => {
-      if (event.type === 'round') this.acceptServerState(event.state as RoundState, performance.now());
+      if (event.type === 'round') this.acceptServerState(event.state as RoundState, performance.now() - 2 * (event.oneWayMs || 0));
     });
 
     if (typeof BroadcastChannel !== 'undefined') {

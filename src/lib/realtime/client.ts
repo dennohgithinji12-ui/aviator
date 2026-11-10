@@ -1,19 +1,28 @@
-type Event = { type: 'round'; state: unknown } | { type: 'bets'; data: unknown } | { type: 'bets-changed' } | { type: 'history-changed' } | { type: 'presence'; count: number } | { type: 'reply'; id: string; status: number; data: Record<string, unknown> };
+type Event = { type: 'round'; state: unknown; sync?: boolean; processingMs?: number; oneWayMs?: number } | { type: 'bets'; data: unknown } | { type: 'bets-changed' } | { type: 'history-changed' } | { type: 'presence'; count: number } | { type: 'reply'; id: string; status: number; data: Record<string, unknown> };
 const listeners = new Set<(event: Event) => void>();
 const pending = new Map<string, { resolve: (value: { status: number; data: Record<string, unknown> }) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let socket: WebSocket | null = null;
 let retry: ReturnType<typeof setTimeout> | null = null;
 let delay = 1000;
 let online = false;
+let syncSentAt = 0;
+let estimatedOneWayMs = 0;
 
 function connect() {
   if (typeof window === 'undefined' || !listeners.size || socket || retry) return;
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   socket = new WebSocket(`${protocol}//${location.host}/api/realtime`);
-  socket.onopen = () => { online = true; delay = 1000; socket?.send(JSON.stringify({ type: 'sync' })); };
+  socket.onopen = () => { online = true; delay = 1000; syncSentAt = performance.now(); socket?.send(JSON.stringify({ type: 'sync' })); };
   socket.onmessage = (message) => {
     try {
       const event = JSON.parse(message.data) as Event;
+      if (event.type === 'round') {
+        if (event.sync && syncSentAt > 0) {
+          estimatedOneWayMs = Math.max(0, Math.min(1000, (performance.now() - syncSentAt - (event.processingMs || 0)) / 2));
+          syncSentAt = 0;
+        }
+        event.oneWayMs = estimatedOneWayMs;
+      }
       if (event.type === 'reply') {
         const request = pending.get(event.id);
         if (request) { clearTimeout(request.timer); pending.delete(event.id); request.resolve({ status: event.status, data: event.data }); }
