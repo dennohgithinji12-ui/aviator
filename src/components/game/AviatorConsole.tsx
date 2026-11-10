@@ -263,6 +263,12 @@ export function AviatorConsole() {
     try {
       const { ok, result } = await walletAction('bet', token, { amount, mode: modeOverride, terminalId, roundNonce: activeNonce });
       if (!ok || !result.success) {
+        if (result.code === 'INSUFFICIENT_FUNDS') {
+          const pause = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null, autoStakeEnabled: false });
+          if (terminalId === 1) setTerminal1(pause); else setTerminal2(pause);
+          setActionMessage(`Insufficient funds for Bet ${terminalId}. Auto Bet paused.`);
+          return;
+        }
         if (result.code === 'ROUND_CLOSED') {
           try {
             const historyResponse = await fetch(`/api/wallet/bets?roundNonce=${activeNonce}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
@@ -350,13 +356,13 @@ export function AviatorConsole() {
     }
   };
 
-  const handleCashout = async (terminalId: 1 | 2) => {
+  const handleCashout = async (terminalId: 1 | 2, automatic = false) => {
     if (cashoutRequestInFlight.current[terminalId]) return;
     const liveRound = roundSyncRef.current?.getGlobalRoundState();
     const phase = liveRound?.phase || gameState;
     const liveMultiplier = liveRound?.currentMultiplier || currentMultiplier;
     const terminal = terminalId === 1 ? terminal1 : terminal2;
-    const autoTarget = terminal.autoCashoutEnabled ? terminal.autoCashoutMultiplier : null;
+    const autoTarget = automatic && terminal.autoCashoutEnabled ? terminal.autoCashoutMultiplier : null;
     const autoAlreadyReached = autoTarget !== null && liveMultiplier >= autoTarget;
     if (!terminal.staked || terminal.cashedOut || (phase !== 'FLYING' && !(phase === 'CRASHED' && autoAlreadyReached))) return;
     cashoutRequestInFlight.current[terminalId] = true;
@@ -367,7 +373,7 @@ export function AviatorConsole() {
       let settledPayout: number;
       if (isAuthenticated && token) {
         if (!betIds.current[terminalId]) throw new Error('This bet is not linked to a recorded account bet. Refresh before trying again.');
-        const { ok, result } = await walletAction('cashout', token, { betId: betIds.current[terminalId], mode: settlementMode, ...(terminal.mode === 'auto' && terminal.autoCashoutEnabled ? { autoCashoutMultiplier: terminal.autoCashoutMultiplier } : {}) });
+        const { ok, result } = await walletAction('cashout', token, { betId: betIds.current[terminalId], mode: settlementMode, ...(autoTarget !== null ? { autoCashoutMultiplier: autoTarget } : {}) });
         if (!ok || !result.success) throw new Error(result.message || result.error || 'Cashout failed');
         settledMultiplier = Number(result.multiplier);
         settledPayout = Number(result.payout);
@@ -448,11 +454,11 @@ export function AviatorConsole() {
     if (gameState !== 'FLYING' && gameState !== 'CRASHED') return;
     if (terminal1.staked && !terminal1.cashedOut && terminal1.autoCashoutEnabled && currentMultiplier >= terminal1.autoCashoutMultiplier && !automaticAction.current[1]) {
       automaticAction.current[1] = true;
-      void handleCashout(1);
+      void handleCashout(1, true);
     }
     if (terminal2.staked && !terminal2.cashedOut && terminal2.autoCashoutEnabled && currentMultiplier >= terminal2.autoCashoutMultiplier && !automaticAction.current[2]) {
       automaticAction.current[2] = true;
-      void handleCashout(2);
+      void handleCashout(2, true);
     }
   }, [gameState, currentMultiplier, terminal1, terminal2]);
 

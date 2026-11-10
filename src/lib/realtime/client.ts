@@ -7,12 +7,23 @@ let delay = 1000;
 let online = false;
 let syncSentAt = 0;
 let estimatedOneWayMs = 0;
+let clockSyncTimer: ReturnType<typeof setInterval> | null = null;
+
+function requestClockSync() {
+  if (socket?.readyState !== WebSocket.OPEN || syncSentAt) return;
+  syncSentAt = performance.now();
+  socket.send(JSON.stringify({ type: 'sync' }));
+}
 
 function connect() {
   if (typeof window === 'undefined' || !listeners.size || socket || retry) return;
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   socket = new WebSocket(`${protocol}//${location.host}/api/realtime`);
-  socket.onopen = () => { online = true; delay = 1000; syncSentAt = performance.now(); socket?.send(JSON.stringify({ type: 'sync' })); };
+  socket.onopen = () => {
+    online = true; delay = 1000;
+    requestClockSync();
+    clockSyncTimer = setInterval(requestClockSync, 5000);
+  };
   socket.onmessage = (message) => {
     try {
       const event = JSON.parse(message.data) as Event;
@@ -31,6 +42,9 @@ function connect() {
   };
   socket.onclose = () => {
     socket = null; online = false;
+    if (clockSyncTimer) clearInterval(clockSyncTimer);
+    clockSyncTimer = null;
+    syncSentAt = 0;
     for (const [id, request] of pending) { clearTimeout(request.timer); request.reject(new Error('Realtime connection closed')); pending.delete(id); }
     if (listeners.size) { retry = setTimeout(() => { retry = null; connect(); }, delay); delay = Math.min(delay * 2, 15000); }
   };
