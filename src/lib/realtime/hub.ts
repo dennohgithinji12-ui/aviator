@@ -3,12 +3,16 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { GET as getRoundState } from '@/app/api/round-state/route';
 import { GET as getLiveBets } from '@/app/api/live-bets/route';
+import { POST as placeBet } from '@/app/api/wallet/bet/route';
+import { POST as cancelBet } from '@/app/api/wallet/cancel/route';
+import { POST as cashoutBet } from '@/app/api/wallet/cashout/route';
 
 type Socket = { send(data: string): void; on(event: 'close' | 'error', listener: () => void): void; on(event: 'message', listener: (data: Buffer) => void): void };
 const id = randomUUID();
 const sockets = new Set<Socket>();
 let timer: ReturnType<typeof setInterval> | null = null;
 let busy = false;
+let refreshRequested = false;
 let lastRound = '';
 let lastBets = '';
 let lastRealBets = '';
@@ -55,7 +59,10 @@ async function tick() {
       broadcast({ type: 'presence', count: rows.reduce((sum, row) => sum + (typeof row.value === 'number' ? row.value : 0), 0) });
     }
   } catch (error) { console.error('[realtime]', error instanceof Error ? error.message : error); }
-  finally { busy = false; }
+  finally {
+    busy = false;
+    if (refreshRequested) { refreshRequested = false; queueMicrotask(() => void tick()); }
+  }
 }
 
 export function register(socket: Socket) {
@@ -67,11 +74,24 @@ export function register(socket: Socket) {
   socket.on('close', close);
   socket.on('error', close);
   socket.on('message', (data) => {
-    if (data.length > 256) return;
+    if (data.length > 4096) return;
     try {
-      if (JSON.parse(data.toString()).type === 'sync') {
+      const message = JSON.parse(data.toString());
+      if (message.type === 'sync') {
         if (latestRound) send(socket, { type: 'round', state: latestRound });
         if (latestBets) send(socket, { type: 'bets', data: latestBets });
+      }
+      if (message.type === 'command' && typeof message.id === 'string' && message.id.length <= 64 && typeof message.token === 'string' && message.token.length < 2048 && message.body && typeof message.body === 'object') {
+        const handler = message.action === 'bet' ? placeBet : message.action === 'cancel' ? cancelBet : message.action === 'cashout' ? cashoutBet : null;
+        if (!handler) return;
+        void (async () => {
+          try {
+            const request = new NextRequest(`https://localhost/api/wallet/${message.action}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${message.token}` }, body: JSON.stringify(message.body) });
+            const response = await handler(request);
+            send(socket, { type: 'reply', id: message.id, status: response.status, data: await response.json() });
+            if (response.ok) { lastBets = ''; lastRealBets = ''; if (busy) refreshRequested = true; else void tick(); }
+          } catch { send(socket, { type: 'reply', id: message.id, status: 500, data: { success: false, message: 'Unable to process realtime action' } }); }
+        })();
       }
     } catch { /* Ignore invalid messages. */ }
   });

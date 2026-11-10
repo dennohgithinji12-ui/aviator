@@ -89,7 +89,7 @@ export function BettingTerminal({
     onCancel(terminalId);
   };
 
-  const isDisabled = (gameState !== 'WAITING' && gameState !== 'FLYING') || balance < localAmount || queued;
+  const isDisabled = queued;
   const canCashout = staked && !cashedOut && gameState === 'FLYING';
   const canCancel = staked && !cashedOut && gameState === 'WAITING';
 
@@ -251,11 +251,6 @@ export function BettingTerminal({
             >
               <div className="action-btn-main">Cancel</div>
               <div className="action-btn-sub">{localAmount.toFixed(2)} KES</div>
-            </button>
-          ) : cashoutPending ? (
-            <button className="btn-terminal-action state-cashout cashout-pending" disabled aria-live="polite">
-              <div className="action-btn-main">Cashing Out…</div>
-              <div className="action-btn-sub">{(amount * cashoutRequestedMultiplier).toFixed(2)} KES · {cashoutRequestedMultiplier.toFixed(2)}x</div>
             </button>
           ) : canCashout ? (
             <button

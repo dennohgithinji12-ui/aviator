@@ -8,7 +8,7 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { RoundHistoryRibbon } from './RoundHistoryRibbon';
 import { GlobalRoundSyncEngine } from '@/lib/engine/global-sync';
-import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
+import { realtimeConnected, sendRealtimeCommand, subscribeRealtime } from '@/lib/realtime/client';
 
 interface TerminalState {
   amount: number;
@@ -25,6 +25,17 @@ interface TerminalState {
   cashoutRequestedMultiplier: number;
   betMode: 'REAL' | 'DEMO' | null;
   queuedMode: 'REAL' | 'DEMO' | null;
+  queueForNonce: number | null;
+}
+
+async function walletAction(action: 'bet' | 'cancel' | 'cashout', token: string, body: Record<string, unknown>) {
+  const realtime = sendRealtimeCommand(action, token, body);
+  if (realtime) {
+    try { const reply = await realtime; return { ok: reply.status >= 200 && reply.status < 300, result: reply.data as Record<string, any> }; }
+    catch { /* Retry through the idempotent account routes if the socket closes. */ }
+  }
+  const response = await fetch(`/api/wallet/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  return { ok: response.ok, result: await response.json() };
 }
 
 export function AviatorConsole() {
@@ -44,13 +55,17 @@ export function AviatorConsole() {
   const [roundHistoryOpen, setRoundHistoryOpen] = useState(false);
   const [cashoutNotices, setCashoutNotices] = useState<{ id: number; terminalId: 1 | 2; multiplier: number; payout: number }[]>([]);
   const betIds = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
+  const betNonces = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
   const localBetMutationAt = useRef(0);
   const roundSyncRef = useRef<GlobalRoundSyncEngine | null>(null);
   const automaticAction = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
   const betRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
   const cashoutRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
-  const autoBetRoundAttempt = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
+  const cancelRequestInFlight = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
+  const lastBetAttemptAt = useRef<Record<1 | 2, number>>({ 1: 0, 2: 0 });
   const autoBetSkipRound = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
+  const cancelAfterPlace = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
+  const previousRoundNonce = useRef(0);
 
   // Update balance when user changes
   useEffect(() => {
@@ -90,7 +105,8 @@ export function AviatorConsole() {
     cashoutPending: false,
     cashoutRequestedMultiplier: 1,
     betMode: null,
-    queuedMode: null
+    queuedMode: null,
+    queueForNonce: null
   });
 
   const [terminal2, setTerminal2] = useState<TerminalState>({
@@ -107,7 +123,8 @@ export function AviatorConsole() {
     cashoutPending: false,
     cashoutRequestedMultiplier: 1,
     betMode: null,
-    queuedMode: null
+    queuedMode: null,
+    queueForNonce: null
   });
 
   // Read the same interpolated engine state that drives the canvas. This keeps
@@ -153,20 +170,23 @@ export function AviatorConsole() {
         for (const bet of currentBets) if (!byTerminal.has(bet.terminalId)) byTerminal.set(bet.terminalId, bet);
 
         const restore = (terminalId: 1 | 2, setTerminal: typeof setTerminal1) => {
+          if (betNonces.current[terminalId] && betNonces.current[terminalId] !== serverNonce) return;
           const bet = byTerminal.get(terminalId);
           if (!bet) {
             betIds.current[terminalId] = null;
+            betNonces.current[terminalId] = null;
             setTerminal((state) => state.staked || state.cashedOut
               ? { ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }
               : state);
             return;
           }
           betIds.current[terminalId] = bet.id;
+          betNonces.current[terminalId] = serverNonce;
           setTerminal((state) => {
             // A WON record belongs to the settled bet, while the queued flag
             // represents a newer player action for the next round. Never let
             // a status refresh overwrite that pending action.
-            if (state.queued) return state;
+            if (state.queued && (state.queueForNonce || 0) > serverNonce) return state;
             return {
               ...state,
               amount: bet.amount,
@@ -174,6 +194,7 @@ export function AviatorConsole() {
               betMode: bet.mode,
               queued: false,
               queuedMode: null,
+              queueForNonce: null,
               cashedOut: bet.status === 'WON',
               cashoutPending: false,
               cashedOutMultiplier: bet.status === 'WON' ? bet.multiplier : 0,
@@ -217,41 +238,112 @@ export function AviatorConsole() {
 
   const handleBet = async (terminalId: 1 | 2, amount: number, modeOverride: 'REAL' | 'DEMO' = gameMode) => {
     if (betRequestInFlight.current[terminalId]) return;
+    const liveRound = roundSyncRef.current?.getGlobalRoundState();
+    const phase = liveRound?.phase || gameState;
+    const activeNonce = liveRound?.nonce || serverNonce;
     window.dispatchEvent(new CustomEvent('aviator:audio-unlock'));
     if (!isAuthenticated || !token) {
       setAuthMode('login');
       setShowAuthModal(true);
       return;
     }
-    const availableBalance = modeOverride === 'REAL' ? Number(user?.realBalance || 0) : Number(user?.demoBalance || 0);
-    if (availableBalance < amount) { setActionMessage('Insufficient balance for this bet.'); return; }
     const currentTerminal = terminalId === 1 ? terminal1 : terminal2;
-    if (gameState === 'FLYING') {
-      if ((!currentTerminal.staked || currentTerminal.cashedOut) && !currentTerminal.queued) {
-        const update = (state: TerminalState) => ({ ...state, amount, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0, queued: true, queuedMode: modeOverride });
-        if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
-        window.dispatchEvent(new CustomEvent('aviator:bet-success'));
-        setActionMessage(`Bet ${terminalId} queued for the next round.`);
-      }
+    if (currentTerminal.staked && !currentTerminal.cashedOut) return;
+    const targetNonce = phase === 'WAITING' && activeNonce > 0 ? activeNonce : Math.max(1, activeNonce + 1);
+    if (!currentTerminal.queued) {
+      const queue = (state: TerminalState): TerminalState => ({ ...state, amount, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0, queued: true, queuedMode: modeOverride, queueForNonce: targetNonce });
+      if (terminalId === 1) setTerminal1(queue); else setTerminal2(queue);
+    }
+    if (phase !== 'WAITING' || activeNonce <= 0 || (currentTerminal.queued && (currentTerminal.queueForNonce || 0) > activeNonce)) {
+      setActionMessage(`Bet ${terminalId} queued for the next round.`);
       return;
     }
-    if (gameState !== 'WAITING' || currentTerminal.staked) return;
     setActionMessage('');
     betRequestInFlight.current[terminalId] = true;
     try {
-      const response = await fetch('/api/wallet/bet', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ amount, mode: modeOverride, terminalId, roundNonce: serverNonce }) });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Bet could not be placed');
+      const { ok, result } = await walletAction('bet', token, { amount, mode: modeOverride, terminalId, roundNonce: activeNonce });
+      if (!ok || !result.success) {
+        if (result.code === 'ROUND_CLOSED') {
+          try {
+            const historyResponse = await fetch(`/api/wallet/bets?roundNonce=${activeNonce}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+            if (historyResponse.ok) {
+              const history = await historyResponse.json();
+              const placed = history.bets?.find((bet: { terminalId: number; mode: string }) => bet.terminalId === terminalId && bet.mode === modeOverride);
+              if (placed) {
+                betIds.current[terminalId] = placed.status === 'ACTIVE' || placed.status === 'WON' ? placed.id : null;
+                betNonces.current[terminalId] = betIds.current[terminalId] ? activeNonce : null;
+                const currentNonce = roundSyncRef.current?.getGlobalRoundState().nonce;
+                if (cancelAfterPlace.current[terminalId]) {
+                  cancelAfterPlace.current[terminalId] = false;
+                  const cancelled = await walletAction('cancel', token, { betId: placed.id });
+                  if (cancelled.ok && cancelled.result.success) {
+                    betIds.current[terminalId] = null;
+                    betNonces.current[terminalId] = null;
+                    autoBetSkipRound.current[terminalId] = activeNonce;
+                    updateBalance(cancelled.result.realBalance, cancelled.result.demoBalance);
+                    setBalance(gameMode === 'REAL' ? cancelled.result.realBalance : cancelled.result.demoBalance);
+                    const clear = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null, staked: false, betMode: null });
+                    if (terminalId === 1) setTerminal1(clear); else setTerminal2(clear);
+                    setActionMessage('Bet cancelled.');
+                    return;
+                  }
+                }
+                const restored = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null, staked: currentNonce === activeNonce && (placed.status === 'ACTIVE' || placed.status === 'WON'), betMode: modeOverride, cashedOut: placed.status === 'WON', cashedOutMultiplier: placed.status === 'WON' ? Number(placed.multiplier) : 0, payout: placed.status === 'WON' ? Number(placed.payout) : 0 });
+                if (terminalId === 1) setTerminal1(restored); else setTerminal2(restored);
+                setActionMessage(currentNonce === activeNonce ? 'Bet placed.' : 'Your bet was recorded for the previous round.');
+                return;
+              }
+            }
+          } catch { /* Queue the next round if history is unavailable. */ }
+          if (cancelAfterPlace.current[terminalId]) {
+            cancelAfterPlace.current[terminalId] = false;
+            setActionMessage('Queued bet cancelled.');
+            return;
+          }
+          const defer = (state: TerminalState): TerminalState => ({ ...state, queued: true, queueForNonce: activeNonce + 1 });
+          if (terminalId === 1) setTerminal1(defer); else setTerminal2(defer);
+          setActionMessage(`Bet ${terminalId} queued for the next round.`);
+          return;
+        }
+        throw new Error(result.message || result.error || 'Bet could not be placed');
+      }
       betIds.current[terminalId] = result.betId;
+      betNonces.current[terminalId] = activeNonce;
       const nextBalance = gameMode === 'REAL' ? result.realBalance : result.demoBalance;
       setBalance(nextBalance);
       updateBalance(result.realBalance, result.demoBalance);
-      const update = (state: TerminalState) => ({ ...state, staked: true, queued: false, queuedMode: null, betMode: modeOverride, cashedOut: false, cashoutPending: false, cashoutRequestedMultiplier: 1, cashedOutMultiplier: 0, payout: 0, amount });
+      if ((roundSyncRef.current?.getGlobalRoundState().nonce || activeNonce) !== activeNonce) {
+        betIds.current[terminalId] = null;
+        betNonces.current[terminalId] = null;
+        cancelAfterPlace.current[terminalId] = false;
+        const clear = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null, staked: false, betMode: null });
+        if (terminalId === 1) setTerminal1(clear); else setTerminal2(clear);
+        setActionMessage('Bet was recorded for the previous round.');
+        return;
+      }
+      const update = (state: TerminalState): TerminalState => ({ ...state, staked: true, queued: false, queuedMode: null, queueForNonce: null, betMode: modeOverride, cashedOut: false, cashoutPending: false, cashoutRequestedMultiplier: 1, cashedOutMultiplier: 0, payout: 0, amount });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
       localBetMutationAt.current = Date.now();
       window.dispatchEvent(new CustomEvent('aviator:bet-success'));
       setActionMessage('');
+      if (cancelAfterPlace.current[terminalId]) {
+        cancelAfterPlace.current[terminalId] = false;
+        const cancelled = await walletAction('cancel', token, { betId: result.betId });
+        if (cancelled.ok && cancelled.result.success) {
+          betIds.current[terminalId] = null;
+          betNonces.current[terminalId] = null;
+          autoBetSkipRound.current[terminalId] = activeNonce;
+          updateBalance(cancelled.result.realBalance, cancelled.result.demoBalance);
+          setBalance(gameMode === 'REAL' ? cancelled.result.realBalance : cancelled.result.demoBalance);
+          const clear = (state: TerminalState): TerminalState => ({ ...state, staked: false, betMode: null });
+          if (terminalId === 1) setTerminal1(clear); else setTerminal2(clear);
+          setActionMessage('Bet cancelled.');
+        } else setActionMessage('Bet was placed, but takeoff began before it could be cancelled.');
+      }
     } catch (error) {
+      cancelAfterPlace.current[terminalId] = false;
+      const unqueue = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null });
+      if (terminalId === 1) setTerminal1(unqueue); else setTerminal2(unqueue);
       setActionMessage(error instanceof Error ? error.message : 'Bet could not be placed');
     } finally {
       betRequestInFlight.current[terminalId] = false;
@@ -260,24 +352,23 @@ export function AviatorConsole() {
 
   const handleCashout = async (terminalId: 1 | 2) => {
     if (cashoutRequestInFlight.current[terminalId]) return;
+    const liveRound = roundSyncRef.current?.getGlobalRoundState();
+    const phase = liveRound?.phase || gameState;
+    const liveMultiplier = liveRound?.currentMultiplier || currentMultiplier;
     const terminal = terminalId === 1 ? terminal1 : terminal2;
     const autoTarget = terminal.autoCashoutEnabled ? terminal.autoCashoutMultiplier : null;
-    const autoAlreadyReached = autoTarget !== null && currentMultiplier >= autoTarget;
-    if (!terminal.staked || terminal.cashedOut || (gameState !== 'FLYING' && !(gameState === 'CRASHED' && autoAlreadyReached))) return;
+    const autoAlreadyReached = autoTarget !== null && liveMultiplier >= autoTarget;
+    if (!terminal.staked || terminal.cashedOut || (phase !== 'FLYING' && !(phase === 'CRASHED' && autoAlreadyReached))) return;
     cashoutRequestInFlight.current[terminalId] = true;
     setActionMessage('');
     const settlementMode = terminal.betMode || gameMode;
-    const requestedAtMultiplier = autoTarget !== null && terminal.mode === 'auto' ? autoTarget : Math.floor(currentMultiplier * 100) / 100;
-    const markPending = (state: TerminalState) => ({ ...state, cashoutPending: true, cashoutRequestedMultiplier: requestedAtMultiplier });
-    if (terminalId === 1) setTerminal1(markPending); else setTerminal2(markPending);
     try {
       let settledMultiplier: number;
       let settledPayout: number;
       if (isAuthenticated && token) {
         if (!betIds.current[terminalId]) throw new Error('This bet is not linked to a recorded account bet. Refresh before trying again.');
-        const response = await fetch('/api/wallet/cashout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000), body: JSON.stringify({ betId: betIds.current[terminalId], mode: settlementMode, ...(terminal.mode === 'auto' && terminal.autoCashoutEnabled ? { autoCashoutMultiplier: terminal.autoCashoutMultiplier } : {}) }) });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Cashout failed');
+        const { ok, result } = await walletAction('cashout', token, { betId: betIds.current[terminalId], mode: settlementMode, ...(terminal.mode === 'auto' && terminal.autoCashoutEnabled ? { autoCashoutMultiplier: terminal.autoCashoutMultiplier } : {}) });
+        if (!ok || !result.success) throw new Error(result.message || result.error || 'Cashout failed');
         settledMultiplier = Number(result.multiplier);
         settledPayout = Number(result.payout);
         setBalance(gameMode === 'REAL' ? result.realBalance : result.demoBalance);
@@ -289,11 +380,7 @@ export function AviatorConsole() {
       setCashoutNotices((current) => [...current, { id: Date.now() + terminalId, terminalId, multiplier: settledMultiplier, payout: settledPayout }]);
       window.dispatchEvent(new CustomEvent('aviator:cashout-success'));
     } catch (error) {
-      const clearPending = (state: TerminalState) => ({ ...state, cashoutPending: false });
-      if (terminalId === 1) setTerminal1(clearPending); else setTerminal2(clearPending);
-      setActionMessage(error instanceof DOMException && error.name === 'TimeoutError'
-        ? 'Cashout confirmation is taking longer than expected. Press Cash Out again to check the settlement.'
-        : error instanceof Error ? error.message : 'Cashout failed');
+      setActionMessage(error instanceof Error ? error.message : 'Cashout failed');
     } finally {
       cashoutRequestInFlight.current[terminalId] = false;
     }
@@ -302,28 +389,36 @@ export function AviatorConsole() {
   const handleCancel = async (terminalId: 1 | 2) => {
     const terminal = terminalId === 1 ? terminal1 : terminal2;
     if (terminal.queued && !terminal.staked) {
-      const update = (state: TerminalState) => ({ ...state, queued: false, queuedMode: null });
+      if (betRequestInFlight.current[terminalId]) cancelAfterPlace.current[terminalId] = true;
+      const update = (state: TerminalState): TerminalState => ({ ...state, queued: false, queuedMode: null, queueForNonce: null });
       if (terminalId === 1) setTerminal1(update); else setTerminal2(update);
       if (terminal.mode === 'auto' && terminal.autoStakeEnabled) autoBetSkipRound.current[terminalId] = serverNonce + 1;
       setActionMessage('Queued bet cancelled.');
       return;
     }
-    if (!terminal.staked || terminal.cashedOut || gameState !== 'WAITING') return;
+    if (!terminal.staked || terminal.cashedOut) return;
+    const liveRound = roundSyncRef.current?.getGlobalRoundState();
+    const phase = liveRound?.phase || gameState;
+    if (phase === 'FLYING') { void handleCashout(terminalId); return; }
+    if (phase !== 'WAITING') return;
+    if (cancelRequestInFlight.current[terminalId]) return;
+    cancelRequestInFlight.current[terminalId] = true;
     try {
       if (isAuthenticated && token && betIds.current[terminalId]) {
-        const response = await fetch('/api/wallet/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ betId: betIds.current[terminalId] }) });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || 'Bet could not be cancelled');
+        const { ok, result } = await walletAction('cancel', token, { betId: betIds.current[terminalId] });
+        if (!ok || !result.success) throw new Error(result.message || 'Bet could not be cancelled');
         setBalance(gameMode === 'REAL' ? result.realBalance : result.demoBalance);
         updateBalance(result.realBalance, result.demoBalance);
         localBetMutationAt.current = Date.now();
         betIds.current[terminalId] = null;
+        betNonces.current[terminalId] = null;
+        autoBetSkipRound.current[terminalId] = liveRound?.nonce || serverNonce;
       } else throw new Error('Please log in again to cancel this bet.');
       if (terminalId === 1) setTerminal1((state) => ({ ...state, staked: false }));
       else setTerminal2((state) => ({ ...state, staked: false }));
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : 'Bet could not be cancelled');
-    }
+    } finally { cancelRequestInFlight.current[terminalId] = false; }
   };
 
   const handleTerminal1Bet = (amount: number) => handleBet(1, amount);
@@ -334,18 +429,20 @@ export function AviatorConsole() {
   const handleTerminal2Cancel = () => handleCancel(2);
 
   useEffect(() => {
-    if (gameState === 'WAITING') {
-      automaticAction.current = { 1: false, 2: false };
-      if (serverNonce > 0 && autoBetSkipRound.current[1] !== serverNonce && (terminal1.queued || (terminal1.mode === 'auto' && terminal1.autoStakeEnabled)) && !terminal1.staked && autoBetRoundAttempt.current[1] !== serverNonce) {
-        autoBetRoundAttempt.current[1] = serverNonce;
-        void handleBet(1, terminal1.amount, terminal1.queued ? terminal1.queuedMode || gameMode : gameMode);
+    if (gameState !== 'WAITING') return;
+    automaticAction.current = { 1: false, 2: false };
+    const attempt = () => {
+      if (serverNonce <= 0 || !isAuthenticated || !token) return;
+      for (const [id, terminal] of [[1, terminal1], [2, terminal2]] as const) {
+        if (!(terminal.queued || (terminal.mode === 'auto' && terminal.autoStakeEnabled)) || terminal.staked || betRequestInFlight.current[id] || autoBetSkipRound.current[id] === serverNonce || (terminal.queueForNonce || 0) > serverNonce || Date.now() - lastBetAttemptAt.current[id] < 1000) continue;
+        lastBetAttemptAt.current[id] = Date.now();
+        void handleBet(id, terminal.amount, terminal.queued ? terminal.queuedMode || gameMode : gameMode);
       }
-      if (serverNonce > 0 && autoBetSkipRound.current[2] !== serverNonce && (terminal2.queued || (terminal2.mode === 'auto' && terminal2.autoStakeEnabled)) && !terminal2.staked && autoBetRoundAttempt.current[2] !== serverNonce) {
-        autoBetRoundAttempt.current[2] = serverNonce;
-        void handleBet(2, terminal2.amount, terminal2.queued ? terminal2.queuedMode || gameMode : gameMode);
-      }
-    }
-  }, [gameState, serverNonce, gameMode, terminal1.mode, terminal1.autoStakeEnabled, terminal1.staked, terminal1.queued, terminal1.queuedMode, terminal1.amount, terminal2.mode, terminal2.autoStakeEnabled, terminal2.staked, terminal2.queued, terminal2.queuedMode, terminal2.amount]);
+    };
+    attempt();
+    const timer = window.setInterval(attempt, 250);
+    return () => window.clearInterval(timer);
+  }, [gameState, serverNonce, gameMode, terminal1, terminal2, isAuthenticated, token]);
 
   useEffect(() => {
     if (gameState !== 'FLYING' && gameState !== 'CRASHED') return;
@@ -359,16 +456,17 @@ export function AviatorConsole() {
     }
   }, [gameState, currentMultiplier, terminal1, terminal2]);
 
-  // Reset terminals on crash
+  // Clear the previous round only when the server advances to a new nonce.
+  // A crash timeout could otherwise erase a bet placed in the next countdown.
   useEffect(() => {
-    if (gameState === 'CRASHED') {
-      setTimeout(() => {
-        setTerminal1((state) => ({ ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }));
-        setTerminal2((state) => ({ ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 }));
-        betIds.current = { 1: null, 2: null };
-      }, 3000);
-    }
-  }, [gameState]);
+    if (serverNonce <= 0) return;
+    const previous = previousRoundNonce.current;
+    previousRoundNonce.current = serverNonce;
+    if (!previous || previous === serverNonce) return;
+    const clear = (state: TerminalState): TerminalState => ({ ...state, staked: false, betMode: null, cashedOut: false, cashoutPending: false, cashedOutMultiplier: 0, payout: 0 });
+    if (betNonces.current[1] !== serverNonce) { betIds.current[1] = null; betNonces.current[1] = null; setTerminal1(clear); }
+    if (betNonces.current[2] !== serverNonce) { betIds.current[2] = null; betNonces.current[2] = null; setTerminal2(clear); }
+  }, [serverNonce]);
 
   useEffect(() => {
     if (!cashoutNotices.length) return;

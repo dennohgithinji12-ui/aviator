@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getLiveRoundState } from '@/app/api/round-state/route';
 
 export async function POST(req: NextRequest) {
+  const receivedAt = Date.now();
   try {
     const data = await req.json();
     const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
@@ -30,9 +31,9 @@ export async function POST(req: NextRequest) {
         const user = await tx.user.findUniqueOrThrow({ where: { phone: session.phone } });
         return { user, payout: Number(bet.payout), multiplier: Number(bet.multiplier) };
       }
-      if (bet.status !== 'ACTIVE') throw new Error('BET_NOT_ACTIVE');
-
-      const latestRound = await getLiveRoundState();
+      const latestRound = await getLiveRoundState(receivedAt);
+      const wasSettledAsLost = bet.status === 'LOST' && (latestRound.phase === 'FLYING' || (hasAutoTarget && latestRound.phase === 'CRASHED' && latestRound.crashMultiplier >= requestedAutoMultiplier!));
+      if (bet.status !== 'ACTIVE' && !wasSettledAsLost) throw new Error('BET_NOT_ACTIVE');
       if (latestRound.nonce !== bet.roundNonce) throw new Error('CASHOUT_CLOSED');
       const latestAutoTargetReached = hasAutoTarget && (latestRound.phase === 'FLYING'
         ? latestRound.currentMultiplier >= requestedAutoMultiplier!
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
         ? requestedAutoMultiplier!
         : Math.floor(latestRound.currentMultiplier * 100) / 100;
       const payout = Math.floor(Number(bet.amount) * multiplier * 100) / 100;
-      const changed = await tx.bet.updateMany({ where: { id: bet.id, status: 'ACTIVE' }, data: { cashedOut: 1, multiplier, payout, profit: payout - Number(bet.amount), status: 'WON' } });
+      const changed = await tx.bet.updateMany({ where: { id: bet.id, status: wasSettledAsLost ? 'LOST' : 'ACTIVE' }, data: { cashedOut: 1, multiplier, payout, profit: payout - Number(bet.amount), status: 'WON' } });
       if (!changed.count) {
         const settledBet = await tx.bet.findUnique({ where: { id: bet.id } });
         if (settledBet?.status === 'WON' && Number(settledBet.cashedOut) === 1) {
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
         }
         throw new Error('BET_NOT_ACTIVE');
       }
+      if (wasSettledAsLost) await tx.round.updateMany({ where: { nonce: bet.roundNonce, lostBetCount: { gt: 0 } }, data: { lostBetCount: { decrement: 1 } } });
       const balanceField = mode === 'REAL' ? 'realBalance' : 'demoBalance';
       const user = await tx.user.update({ where: { phone: session.phone }, data: { [balanceField]: { increment: payout } } });
       const balanceAfter = Number(mode === 'REAL' ? user.realBalance : user.demoBalance);
