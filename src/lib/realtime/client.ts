@@ -1,4 +1,4 @@
-type Event = { type: 'round'; state: unknown; sync?: boolean; processingMs?: number; oneWayMs?: number } | { type: 'bets'; data: unknown } | { type: 'bets-changed' } | { type: 'history-changed' } | { type: 'presence'; count: number } | { type: 'reply'; id: string; status: number; data: Record<string, unknown> };
+type Event = { type: 'round'; state: unknown; sync?: boolean; processingMs?: number; oneWayMs?: number } | { type: 'round-unavailable'; message: string } | { type: 'bets'; data: unknown } | { type: 'bets-changed' } | { type: 'history-changed' } | { type: 'presence'; count: number } | { type: 'reply'; id: string; status: number; data: Record<string, unknown> };
 const listeners = new Set<(event: Event) => void>();
 const pending = new Map<string, { resolve: (value: { status: number; data: Record<string, unknown> }) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let socket: WebSocket | null = null;

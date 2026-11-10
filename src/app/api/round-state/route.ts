@@ -216,6 +216,9 @@ export async function GET() {
     catch {
       persistenceAvailable = false;
     }
+    finally {
+      if (lastPersistenceAttemptKey === snapshotKey) lastPersistenceAttemptKey = null;
+    }
   }
   // Publish the server's crash boundary so the client animation can clamp to
   // the exact authoritative outcome instead of extrapolating past it.

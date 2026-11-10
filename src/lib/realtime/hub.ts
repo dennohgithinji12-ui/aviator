@@ -28,8 +28,6 @@ async function tick() {
   if (busy || !sockets.size) return;
   busy = true;
   try {
-    const roundResponse = await getRoundState();
-    if (!roundResponse.ok) return;
     const state = await getLiveRoundStateNow();
     const roundKey = `${state.nonce}:${state.phase}`;
     const phaseChanged = roundKey !== lastRound;
@@ -43,6 +41,7 @@ async function tick() {
         lastBets = '';
       }
     }
+    if (state.phase === 'CRASHED') void getRoundState().catch((error) => console.error('[round persistence]', error));
     const response = await getLiveBets(new NextRequest(`https://localhost/api/live-bets?roundNonce=${state.nonce}`));
     if (response.ok) {
       const bets = await response.json();
@@ -63,7 +62,10 @@ async function tick() {
       const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: 'REALTIME_PRESENCE_' }, updatedAt: { gte: BigInt(lastPresence - 15000) } }, select: { value: true } });
       broadcast({ type: 'presence', count: rows.reduce((sum, row) => sum + (typeof row.value === 'number' ? row.value : 0), 0) });
     }
-  } catch (error) { console.error('[realtime]', error instanceof Error ? error.message : error); }
+  } catch (error) {
+    console.error('[realtime]', error instanceof Error ? error.message : error);
+    broadcast({ type: 'round-unavailable', message: 'Live rounds are temporarily unavailable. Please try again shortly.' });
+  }
   finally {
     busy = false;
     if (refreshRequested) { refreshRequested = false; queueMicrotask(() => void tick()); }
@@ -90,7 +92,7 @@ export function register(socket: Socket) {
             const state = await getLiveRoundStateNow();
             send(socket, { type: 'round', state, sync: true, processingMs: Date.now() - startedAt });
             if (latestBets && (latestBets as { roundNonce?: number }).roundNonce === state.nonce) send(socket, { type: 'bets', data: latestBets });
-          } catch { /* The regular hub tick will retry. */ }
+          } catch { send(socket, { type: 'round-unavailable', message: 'Live rounds are temporarily unavailable. Please try again shortly.' }); }
         })();
       }
       if (message.type === 'command' && typeof message.id === 'string' && message.id.length <= 64 && typeof message.token === 'string' && message.token.length < 2048 && message.body && typeof message.body === 'object') {

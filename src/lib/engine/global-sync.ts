@@ -178,7 +178,9 @@ export class GlobalRoundSyncEngine {
     // Round phase/outcome is authoritative on the server. The multiplier and
     // countdown are interpolated locally between socket updates. HTTP remains
     // a slower fallback when the connection is unavailable.
-    this.syncTimer = setInterval(() => { if (!realtimeConnected()) void this.initServerSync(); }, 5000);
+    this.syncTimer = setInterval(() => {
+      if (!realtimeConnected() || !this.lastState || performance.now() - this.lastSyncReceivedAt > 10_000) void this.initServerSync();
+    }, 5000);
 
     if (typeof document !== 'undefined') {
       this.visibilityHandler = () => {
@@ -210,7 +212,7 @@ export class GlobalRoundSyncEngine {
     this.syncInFlight = true;
     const requestStartedAt = performance.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1500);
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const res = await fetch('/api/round-state', { cache: 'no-store', signal: controller.signal });
       if (res.ok) {

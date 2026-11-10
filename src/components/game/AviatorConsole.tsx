@@ -53,6 +53,7 @@ export function AviatorConsole() {
   const [serverTime, setServerTime] = useState(0);
   const [countdownSeconds, setCountdownSeconds] = useState(5);
   const [actionMessage, setActionMessage] = useState('');
+  const [roundServiceError, setRoundServiceError] = useState('');
   const [roundHistoryOpen, setRoundHistoryOpen] = useState(false);
   const [cashoutNotices, setCashoutNotices] = useState<{ id: number; terminalId: 1 | 2; multiplier: number; payout: number }[]>([]);
   const betIds = useRef<Record<1 | 2, number | null>>({ 1: null, 2: null });
@@ -132,6 +133,17 @@ export function AviatorConsole() {
 
   // Read the same interpolated engine state that drives the canvas. This keeps
   // betting controls, community feed timing, and the flight visually aligned.
+  useEffect(() => {
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === 'round-unavailable') setRoundServiceError(event.message);
+      if (event.type === 'round') setRoundServiceError('');
+    });
+    const timeout = window.setTimeout(() => {
+      if (!roundSyncRef.current?.lastState) setRoundServiceError('Live rounds are temporarily unavailable. Betting is paused until the connection recovers.');
+    }, 6000);
+    return () => { unsubscribe(); window.clearTimeout(timeout); };
+  }, []);
+
   useEffect(() => {
     const syncUiState = () => {
       const sync = roundSyncRef.current;
@@ -244,6 +256,10 @@ export function AviatorConsole() {
     const liveRound = roundSyncRef.current?.getGlobalRoundState();
     const phase = liveRound?.phase || gameState;
     const activeNonce = liveRound?.nonce || serverNonce;
+    if (roundServiceError || !roundSyncRef.current?.lastState || activeNonce <= 0 || performance.now() - roundSyncRef.current.lastSyncReceivedAt > 10_000) {
+      setActionMessage('Live rounds are unavailable. Please wait for the connection to recover.');
+      return;
+    }
     window.dispatchEvent(new CustomEvent('aviator:audio-unlock'));
     if (!isAuthenticated || !token) {
       setAuthMode('login');
@@ -496,6 +512,7 @@ export function AviatorConsole() {
 
   return (
     <section className="view-section active" id="view-terminal">
+      {roundServiceError && <div role="alert" className="round-service-error">{roundServiceError}</div>}
       {/* Top Go Back & Fullscreen Header */}
       <div className="aviator-top-nav-bar">
         <button type="button" className="btn-aviator-back" id="btn-aviator-back" title="Go Back" onClick={() => { if (window.history.length > 1) window.history.back(); else window.location.href = '/'; }}>
