@@ -25,6 +25,7 @@ interface HistoryEntry {
   multiplier: number;
   payout: number;
   status: string;
+  mode: string;
   timestamp: number;
 }
 
@@ -155,11 +156,13 @@ export function LiveStakers({
     let active = true;
     setHistoryLoading(true);
     setHistoryError('');
-    fetch(`/api/bet-feed-history?mode=${gameMode}`, { cache: 'no-store' })
+    // Pass the current roundNonce so the API targets the round that just ended
+    // on this client's screen, not whatever the DB most recently settled.
+    fetch(`/api/bet-feed-history?mode=${gameMode}&nonce=${roundNonce}`, { cache: 'no-store' })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.error || 'Bet history is unavailable');
-        if (active) { setPreviousBets(result.previous || []); setPreviousNonce(result.previousRound?.nonce ?? null); setTopWins(result.top || []); }
+        if (active) { setPreviousBets((result.previous || []).filter((b: HistoryEntry) => b.mode === gameMode)); setPreviousNonce(result.previousRound?.nonce ?? null); setTopWins(result.top || []); }
       })
       .catch((error) => { if (active) setHistoryError(error instanceof Error ? error.message : 'Bet history is unavailable'); })
       .finally(() => { if (active) setHistoryLoading(false); });
@@ -268,37 +271,62 @@ export function LiveStakers({
 
         {currentTab === 'previous' && (
           <>
-            <div className="stakers-table-header" style={{ gridTemplateColumns: '1fr 0.8fr 1fr 1fr' }}>
-              <span>PLAYER</span>
-              <span>ROUND</span>
-              <span style={{ textAlign: 'right' }}>BET</span>
-              <span style={{ textAlign: 'right' }}>RESULT</span>
+            <div className="stakers-table-header" style={{ gridTemplateColumns: '1.1fr 1fr 0.8fr 1.1fr' }}>
+              <span>USER</span>
+              <span style={{ textAlign: 'right' }}>BET (KES)</span>
+              <span style={{ textAlign: 'center' }}>X</span>
+              <span style={{ textAlign: 'right' }}>CASHOUT</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {historyLoading ? <div className="empty-state">Loading the last round…</div> : historyError ? <div className="empty-state" role="status">{historyError}</div> : previousBets.length === 0 ? (
-                <div className="empty-state">{previousNonce === null ? 'No completed round is recorded yet.' : `No ${gameMode === 'REAL' ? 'real' : 'practice'} player bets were recorded in round #${previousNonce}.`}</div>
+              {historyLoading ? (
+                <div className="staker-skeleton-list" role="status" aria-label="Loading last round">
+                  {Array.from({ length: 9 }, (_, index) => <div className="staker-skeleton-row" key={index} aria-hidden="true">
+                    <div className="staker-skeleton-user"><i className="staker-skeleton-dot" /><i className="staker-skeleton-bar" style={{ width: `${42 + (index * 13) % 30}px` }} /></div>
+                    <i className="staker-skeleton-bar staker-skeleton-amount" style={{ width: `${44 + (index * 9) % 32}px` }} />
+                    <i className="staker-skeleton-bar staker-skeleton-odds" />
+                    <i className="staker-skeleton-bar staker-skeleton-cashout" />
+                  </div>)}
+                </div>
+              ) : historyError ? (
+                <div className="empty-state" role="status">{historyError}</div>
+              ) : previousBets.length === 0 ? (
+                <div className="staker-skeleton-list" role="status" aria-label="No bets recorded">
+                  {Array.from({ length: 9 }, (_, index) => <div className="staker-skeleton-row" key={index} aria-hidden="true">
+                    <div className="staker-skeleton-user"><i className="staker-skeleton-dot" /><i className="staker-skeleton-bar" style={{ width: `${42 + (index * 13) % 30}px` }} /></div>
+                    <i className="staker-skeleton-bar staker-skeleton-amount" style={{ width: `${44 + (index * 9) % 32}px` }} />
+                    <i className="staker-skeleton-bar staker-skeleton-odds" />
+                    <i className="staker-skeleton-bar staker-skeleton-cashout" />
+                  </div>)}
+                </div>
               ) : (
                 previousBets.map((h) => (
                   <div
                     key={h.id}
                     className={`staker-row ${h.status === 'WON' ? 'row-cashed' : h.status === 'LOST' ? 'row-lost' : ''}`}
-                    style={{ gridTemplateColumns: '1fr 0.8fr 1fr 1fr' }}
+                    style={{ gridTemplateColumns: '1.1fr 1fr 0.8fr 1.1fr' }}
                   >
                     <div className="staker-user-cell">
-                      <span className="staker-name" style={{ fontSize: '10px' }}>{h.player}</span>
+                      <span className="avatar-dot" style={{ background: h.status === 'WON' ? '#2ecc71' : '#57606f' }} />
+                      <span className="staker-name">{h.player}</span>
                     </div>
-                    <div style={{ fontSize: '11px', fontWeight: 700 }}>#{previousNonce}</div>
                     <div className="staker-stake-cell">{h.stake.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                    <div style={{ textAlign: 'center' }}>
+                      {h.status === 'WON' ? (
+                        <span className={`history-pill ${getBadgeClass(h.multiplier)}`} style={{ padding: '1px 6px', fontSize: '10px', fontWeight: 800 }}>
+                          {h.multiplier.toFixed(2)}x
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>-</span>
+                      )}
+                    </div>
                     <div className="staker-payout-cell">
                       {h.status === 'WON' ? (
-                        <span className="font-emerald font-bold">
-                          +{h.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({h.multiplier.toFixed(2)}x)
+                        <span className="cashout-amount font-emerald" style={{ fontSize: '11px', fontWeight: 800 }}>
+                          {h.payout.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </span>
-                      ) : h.status === 'LOST' ? (
-                        <span className="font-crimson font-bold">
-                          -{h.stake.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </span>
-                      ) : <span>{h.status}</span>}
+                      ) : (
+                        <span className="waiting-badge">-</span>
+                      )}
                     </div>
                   </div>
                 ))
