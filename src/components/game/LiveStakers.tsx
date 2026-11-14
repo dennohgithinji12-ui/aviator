@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { realtimeConnected, subscribeRealtime } from '@/lib/realtime/client';
 
 interface Staker {
@@ -18,19 +18,19 @@ interface Staker {
 }
 
 interface HistoryEntry {
-  id: number;
+  id: string | number;
   player: string;
-  terminalId: number;
+  terminalId?: number;
   stake: number;
   multiplier: number;
   payout: number;
   status: string;
-  mode: string;
+  mode?: string;
   timestamp: number;
 }
 
 interface TopWin {
-  id: number;
+  id: string | number;
   player: string;
   stake: number;
   multiplier: number;
@@ -81,6 +81,7 @@ export function LiveStakers({
   const [simulatedBets, setSimulatedBets] = useState<Staker[]>([]);
   const [historyError, setHistoryError] = useState('');
   const [historyLoading, setHistoryLoading] = useState(false);
+  const lastCrashedNonceRef = useRef<number | null>(null);
 
   useEffect(() => subscribeRealtime((event) => {
     if (event.type !== 'bets') return;
@@ -149,25 +150,37 @@ export function LiveStakers({
     return () => clearInterval(interval);
   }, [roundNonce, gameMode]);
 
-  // The two history tabs show confirmed database bets, not session guesses
-  // or generated sample activity from the current feed.
+  // Load history from API so Previous and Top tabs have ready-to-view data
   useEffect(() => {
-    if (currentTab === 'all') return;
     let active = true;
     setHistoryLoading(true);
     setHistoryError('');
-    // Pass the current roundNonce so the API targets the round that just ended
-    // on this client's screen, not whatever the DB most recently settled.
     fetch(`/api/bet-feed-history?mode=${gameMode}&nonce=${roundNonce}`, { cache: 'no-store' })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.error || 'Bet history is unavailable');
-        if (active) { setPreviousBets((result.previous || []).filter((b: HistoryEntry) => b.mode === gameMode)); setPreviousNonce(result.previousRound?.nonce ?? null); setTopWins(result.top || []); }
+        if (active) {
+          if (Array.isArray(result.previous) && result.previous.length > 0) {
+            setPreviousBets(result.previous);
+          }
+          if (result.previousRound?.nonce) {
+            setPreviousNonce(result.previousRound.nonce);
+          }
+          if (Array.isArray(result.top) && result.top.length > 0) {
+            setTopWins(result.top);
+          }
+        }
       })
-      .catch((error) => { if (active) setHistoryError(error instanceof Error ? error.message : 'Bet history is unavailable'); })
-      .finally(() => { if (active) setHistoryLoading(false); });
-    return () => { active = false; };
-  }, [currentTab, gameMode, roundNonce]);
+      .catch((error) => {
+        if (active) setHistoryError(error instanceof Error ? error.message : 'Bet history is unavailable');
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [gameMode, roundNonce]);
 
   const visibleGeneratedBets = gameState === 'WAITING'
     ? simulatedBets.filter((bet) => (bet.visibleAt ?? 0) <= serverTime)
@@ -178,6 +191,30 @@ export function LiveStakers({
   const totalCashedOut = displayedBets.filter(s => s.cashedOut).length;
   const betsByStake = displayedBets;
   const displayedTopWins = topWins;
+
+  // Whenever a round finishes on-screen, immediately snapshot its finished bets
+  // into the Previous tab so the user sees the round that just ended.
+  useEffect(() => {
+    if (gameState === 'CRASHED' && roundNonce && lastCrashedNonceRef.current !== roundNonce) {
+      lastCrashedNonceRef.current = roundNonce;
+      if (displayedBets.length > 0) {
+        setPreviousBets(
+          displayedBets.map((s, idx) => ({
+            id: `client-prev-${roundNonce}-${idx}`,
+            player: s.user,
+            terminalId: s.terminalId,
+            stake: s.stake,
+            multiplier: s.cashedMultiplier || s.targetMultiplier || 0,
+            payout: s.payout || 0,
+            status: s.cashedOut ? 'WON' : 'LOST',
+            mode: gameMode,
+            timestamp: Date.now()
+          }))
+        );
+        setPreviousNonce(roundNonce);
+      }
+    }
+  }, [gameState, roundNonce, displayedBets, gameMode]);
 
   return (
     <aside className="console-sidebar" id="console-sidebar">
@@ -278,7 +315,7 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>CASHOUT</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {historyLoading ? (
+              {historyLoading && previousBets.length === 0 ? (
                 <div className="staker-skeleton-list" role="status" aria-label="Loading last round">
                   {Array.from({ length: 9 }, (_, index) => <div className="staker-skeleton-row" key={index} aria-hidden="true">
                     <div className="staker-skeleton-user"><i className="staker-skeleton-dot" /><i className="staker-skeleton-bar" style={{ width: `${42 + (index * 13) % 30}px` }} /></div>
@@ -287,17 +324,10 @@ export function LiveStakers({
                     <i className="staker-skeleton-bar staker-skeleton-cashout" />
                   </div>)}
                 </div>
-              ) : historyError ? (
+              ) : historyError && previousBets.length === 0 ? (
                 <div className="empty-state" role="status">{historyError}</div>
               ) : previousBets.length === 0 ? (
-                <div className="staker-skeleton-list" role="status" aria-label="No bets recorded">
-                  {Array.from({ length: 9 }, (_, index) => <div className="staker-skeleton-row" key={index} aria-hidden="true">
-                    <div className="staker-skeleton-user"><i className="staker-skeleton-dot" /><i className="staker-skeleton-bar" style={{ width: `${42 + (index * 13) % 30}px` }} /></div>
-                    <i className="staker-skeleton-bar staker-skeleton-amount" style={{ width: `${44 + (index * 9) % 32}px` }} />
-                    <i className="staker-skeleton-bar staker-skeleton-odds" />
-                    <i className="staker-skeleton-bar staker-skeleton-cashout" />
-                  </div>)}
-                </div>
+                <div className="empty-state">No bets recorded for the previous round yet.</div>
               ) : (
                 previousBets.map((h) => (
                   <div
@@ -345,7 +375,7 @@ export function LiveStakers({
               <span style={{ textAlign: 'right' }}>WIN (KES)</span>
             </div>
             <div className="stakers-list-body custom-scroll">
-              {historyLoading ? <div className="empty-state">Loading top cashouts…</div> : historyError ? <div className="empty-state" role="status">{historyError}</div> : displayedTopWins.length === 0 ? <div className="empty-state">No confirmed {gameMode === 'REAL' ? 'real' : 'practice'} cashouts in the last 30 days.</div> : displayedTopWins.map((w, idx) => (
+              {historyLoading && displayedTopWins.length === 0 ? <div className="empty-state">Loading top cashouts…</div> : historyError && displayedTopWins.length === 0 ? <div className="empty-state" role="status">{historyError}</div> : displayedTopWins.length === 0 ? <div className="empty-state">No confirmed {gameMode === 'REAL' ? 'real' : 'practice'} cashouts in the last 30 days.</div> : displayedTopWins.map((w, idx) => (
                 <div
                   key={w.id}
                   className="staker-row row-cashed"
