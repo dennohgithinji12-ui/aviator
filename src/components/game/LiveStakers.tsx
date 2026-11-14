@@ -131,6 +131,7 @@ export function LiveStakers({
   useEffect(() => {
     const interval = setInterval(async () => {
       if (realtimeConnected()) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         const response = await fetch(`/api/live-bets?roundNonce=${roundNonce}`, { cache: 'no-store' });
         const result = await response.json();
@@ -146,7 +147,7 @@ export function LiveStakers({
         setActiveStakers(rows);
         setSimulatedBets(gameMode === 'DEMO' ? mapServerFeedBets(result.simulatedBets || []) : []);
       } catch { /* Keep the most recent successful snapshot on temporary network errors. */ }
-    }, 5000);
+    }, 8000);
     return () => clearInterval(interval);
   }, [roundNonce, gameMode]);
 

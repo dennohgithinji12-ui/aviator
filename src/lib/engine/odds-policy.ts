@@ -20,9 +20,23 @@ function parseChanges(value: unknown): OddsPolicyChange[] {
     .sort((a, b) => a.fromNonce - b.fromNonce);
 }
 
+// In-memory cache to eliminate repetitive DB queries on every round calculation
+let cachedPolicy: { changes: OddsPolicyChange[]; expiresAt: number } | null = null;
+
 export async function getOddsPolicyChanges(): Promise<OddsPolicyChange[]> {
-  const setting = await prisma.appSetting.findUnique({ where: { key: POLICY_KEY }, select: { value: true } });
-  return parseChanges(setting?.value);
+  const now = Date.now();
+  if (cachedPolicy && now < cachedPolicy.expiresAt) {
+    return cachedPolicy.changes;
+  }
+
+  try {
+    const setting = await prisma.appSetting.findUnique({ where: { key: POLICY_KEY }, select: { value: true } });
+    const changes = parseChanges(setting?.value);
+    cachedPolicy = { changes, expiresAt: now + 30_000 };
+    return changes;
+  } catch {
+    return cachedPolicy ? cachedPolicy.changes : [];
+  }
 }
 
 export function isFavorableOddsEnabled(changes: OddsPolicyChange[], nonce: number): boolean {
@@ -47,6 +61,8 @@ export async function scheduleOddsPolicyChange(fromNonce: number, favorable: boo
       create: { key: POLICY_KEY, value, description: 'Round odds distribution changes, applied from the listed round nonce', updatedAt: now }
     });
   });
+  // Clear cache immediately so the new policy is applied
+  cachedPolicy = null;
 }
 
 /**
@@ -69,4 +85,3 @@ export function getCrashMultiplierForPolicy(hexHash: string, favorable: boolean)
   const boostedEntropy = parseInt(hexHash.substring(26, 39), 16);
   return Math.min(MAX_CRASH_MULTIPLIER, Math.max(2.01, Math.floor((100 * 2.01 * e) / (e - boostedEntropy)) / 100));
 }
-

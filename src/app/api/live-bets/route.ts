@@ -17,8 +17,6 @@ interface SimulatedBet {
 }
 
 function createSimulatedBets(roundNonce: number, roundStartTime: number, phase: string, currentMultiplier: number, crashMultiplier: number): SimulatedBet[] {
-  // Preserve the legacy feed profile while making its round data consistent
-  // across server instances and visitors.
   const digest = crypto.createHash('sha256').update(`demo-feed:${roundNonce}`).digest();
   let seed = digest.readUInt32BE(0);
   const random = () => {
@@ -62,7 +60,6 @@ function createSimulatedBets(roundNonce: number, roundStartTime: number, phase: 
       player: names[Math.floor(random() * names.length)],
       stake: stakeBands[stakeIndex],
       multiplier: targetMultiplier,
-      // Legacy placed rows at steady intervals through the open 4.2s window.
       visibleAt: roundStartTime + Math.floor(4200 * (index + 1) / (count + 1)),
       status,
       cashedMultiplier: status === 'WON' ? targetMultiplier : 0,
@@ -73,6 +70,29 @@ function createSimulatedBets(roundNonce: number, roundStartTime: number, phase: 
   return bets.sort((a, b) => b.stake - a.stake || a.id.localeCompare(b.id));
 }
 
+// In-memory cache for live database bets to avoid running 4 heavy aggregation queries
+// repeatedly across every connected user's polling cycle.
+interface LiveBetsCacheEntry {
+  expiresAt: number;
+  data: {
+    count: number;
+    stakeKes: number;
+    cashedOut: number;
+    bets: Array<{
+      id: number;
+      player: string;
+      mode: string;
+      terminalId: number;
+      stake: number;
+      multiplier: number;
+      payout: number;
+      status: string;
+      createdAt: number;
+    }>;
+  };
+}
+const liveBetsCache = new Map<number, LiveBetsCacheEntry>();
+
 export async function GET(request: NextRequest) {
   const roundNonce = Number(request.nextUrl.searchParams.get('roundNonce'));
   if (!Number.isInteger(roundNonce) || roundNonce < 0) return NextResponse.json({ success: false, error: 'A valid roundNonce is required' }, { status: 400 });
@@ -80,23 +100,18 @@ export async function GET(request: NextRequest) {
     const round = await getLiveRoundState();
     if (round.nonce !== roundNonce) return NextResponse.json({ success: false, error: 'Round has changed' }, { status: 409 });
     const simulatedBets = createSimulatedBets(roundNonce, round.roundStartTime, round.phase, round.currentMultiplier, round.crashMultiplier);
-    const where = { roundNonce };
-    const [bets, count, stakeTotal, cashedOut] = await Promise.all([
-      prisma.bet.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, select: { id: true, phone: true, mode: true, terminalId: true, amount: true, multiplier: true, payout: true, status: true, createdAt: true } }),
-      prisma.bet.count({ where }),
-      prisma.bet.aggregate({ where, _sum: { amount: true } }),
-      prisma.bet.count({ where: { ...where, status: 'WON' } })
-    ]);
-    return NextResponse.json({
-      success: true,
-      roundNonce,
-      serverTime: round.serverTime,
-      phase: round.phase,
-      currentMultiplier: round.currentMultiplier,
-      crashMultiplier: round.phase === 'CRASHED' ? round.crashMultiplier : null,
-      simulatedBets,
-      totals: { count, stakeKes: Number(stakeTotal._sum.amount || 0), cashedOut },
-      bets: bets.map((bet) => ({
+
+    const now = Date.now();
+    let dbEntry = liveBetsCache.get(roundNonce);
+    if (!dbEntry || now >= dbEntry.expiresAt) {
+      const where = { roundNonce };
+      const [bets, count, stakeTotal, cashedOut] = await Promise.all([
+        prisma.bet.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, select: { id: true, phone: true, mode: true, terminalId: true, amount: true, multiplier: true, payout: true, status: true, createdAt: true } }),
+        prisma.bet.count({ where }),
+        prisma.bet.aggregate({ where, _sum: { amount: true } }),
+        prisma.bet.count({ where: { ...where, status: 'WON' } })
+      ]);
+      const mappedBets = bets.map((bet) => ({
         id: bet.id,
         player: `${bet.phone.slice(0, 3)}••••${bet.phone.slice(-2)}`,
         mode: bet.mode,
@@ -106,8 +121,33 @@ export async function GET(request: NextRequest) {
         payout: Number(bet.payout),
         status: bet.status,
         createdAt: Number(bet.createdAt)
-      }))
-    }, { headers: { 'Cache-Control': 'no-store' } });
+      }));
+      dbEntry = {
+        expiresAt: now + 3000,
+        data: {
+          count,
+          stakeKes: Number(stakeTotal._sum.amount || 0),
+          cashedOut,
+          bets: mappedBets
+        }
+      };
+      liveBetsCache.set(roundNonce, dbEntry);
+      if (liveBetsCache.size > 20) {
+        liveBetsCache.delete(liveBetsCache.keys().next().value as number);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      roundNonce,
+      serverTime: round.serverTime,
+      phase: round.phase,
+      currentMultiplier: round.currentMultiplier,
+      crashMultiplier: round.phase === 'CRASHED' ? round.crashMultiplier : null,
+      simulatedBets,
+      totals: { count: dbEntry.data.count, stakeKes: dbEntry.data.stakeKes, cashedOut: dbEntry.data.cashedOut },
+      bets: dbEntry.data.bets
+    }, { headers: { 'Cache-Control': 'public, max-age=2, stale-while-revalidate=4' } });
   } catch {
     return NextResponse.json({ success: false, error: 'Live bets are temporarily unavailable' }, { status: 500 });
   }

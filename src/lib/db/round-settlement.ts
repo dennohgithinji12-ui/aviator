@@ -18,6 +18,21 @@ export function persistRoundSnapshot(snapshot: RoundSnapshot): Promise<void> {
   const key = `${snapshot.nonce}:${snapshot.phase}`;
   const operation = persistQueue.catch(() => undefined).then(async () => {
     if (recentlyPersisted.has(key)) return;
+
+    // Fast-path: Check if any player bets were placed in this round.
+    // If no bets were placed, skip the heavy multi-query transaction and pool distribution.
+    const betCount = await prisma.bet.count({
+      where: { roundNonce: snapshot.nonce }
+    });
+
+    if (betCount === 0) {
+      recentlyPersisted.add(key);
+      if (recentlyPersisted.size > 200) {
+        recentlyPersisted.delete(recentlyPersisted.values().next().value as string);
+      }
+      return;
+    }
+
     await prisma.$transaction(async (tx) => {
       const now = BigInt(Date.now());
       await tx.round.createMany({
@@ -59,9 +74,7 @@ export function persistRoundSnapshot(snapshot: RoundSnapshot): Promise<void> {
         });
         await tx.round.updateMany({ where: { nonce: snapshot.nonce, settledAt: null }, data: { phase: 'CRASHED', settledAt: now, lostBetCount: lost.count, updatedAt: now } });
 
-        // Match the legacy pool distribution for the simulated wallet only.
-        // Live-money positions accrue nothing until a funded revenue policy is
-        // configured; no balances are invented for the live wallet.
+        // Match the pool distribution for simulated wallet positions.
         const [volume, positionsTotal] = await Promise.all([
           tx.bet.aggregate({ where: { roundNonce: snapshot.nonce, mode: 'DEMO' }, _sum: { amount: true } }),
           tx.liquidityPosition.aggregate({ where: { mode: 'DEMO', status: 'ACTIVE', principal: { gt: 0 } }, _sum: { principal: true } })
@@ -81,7 +94,9 @@ export function persistRoundSnapshot(snapshot: RoundSnapshot): Promise<void> {
     });
 
     recentlyPersisted.add(key);
-    if (recentlyPersisted.size > 150) recentlyPersisted.delete(recentlyPersisted.values().next().value as string);
+    if (recentlyPersisted.size > 200) {
+      recentlyPersisted.delete(recentlyPersisted.values().next().value as string);
+    }
   });
   persistQueue = operation;
   return operation;
