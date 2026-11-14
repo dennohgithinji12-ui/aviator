@@ -22,7 +22,7 @@ export function Header() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [animationEnabled, setAnimationEnabled] = useState(true);
-  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('REAL');
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
   const [menuFeatures, setMenuFeatures] = useState({ communityChat: false, roomTwo: false });
   const pathname = usePathname();
 
@@ -59,7 +59,7 @@ export function Header() {
 
   useEffect(() => {
     const savedMode = localStorage.getItem('shiftstack_game_mode');
-    if (savedMode === 'REAL' || savedMode === 'DEMO') setGameMode(savedMode);
+    setGameMode(isAuthenticated && savedMode === 'REAL' ? 'REAL' : 'DEMO');
     const savedSound = localStorage.getItem('shiftstack_sound_enabled');
     const savedMusic = localStorage.getItem('shiftstack_music_enabled');
     const savedAnimation = localStorage.getItem('shiftstack_animation_enabled');

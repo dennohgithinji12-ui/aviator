@@ -40,7 +40,7 @@ async function walletAction(action: 'bet' | 'cancel' | 'cashout', token: string,
 }
 
 export function AviatorConsole() {
-  const { user, token, isAuthenticated, isLoading: authLoading, login, signup, updateBalance } = useAuth();
+  const { user, token, isAuthenticated, login, signup, updateBalance } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [gameState, setGameState] = useState<'WAITING' | 'FLYING' | 'CRASHED'>('WAITING');
@@ -48,7 +48,7 @@ export function AviatorConsole() {
   const [balance, setBalance] = useState(user?.realBalance || 0);
   // Keep both independent betting panels visible, matching the legacy layout.
   const [terminal2Visible, setTerminal2Visible] = useState(true);
-  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('REAL');
+  const [gameMode, setGameMode] = useState<'REAL' | 'DEMO'>('DEMO');
   const [serverNonce, setServerNonce] = useState(0);
   const [serverTime, setServerTime] = useState(0);
   const [countdownSeconds, setCountdownSeconds] = useState(5);
@@ -79,7 +79,7 @@ export function AviatorConsole() {
       window.dispatchEvent(new CustomEvent('aviator:game-mode', { detail: selectedMode }));
     } else {
       setBalance(0);
-      setGameMode('REAL');
+      setGameMode('DEMO');
     }
   }, [isAuthenticated, user]);
 
@@ -256,16 +256,16 @@ export function AviatorConsole() {
     const liveRound = roundSyncRef.current?.getGlobalRoundState();
     const phase = liveRound?.phase || gameState;
     const activeNonce = liveRound?.nonce || serverNonce;
-    if (roundServiceError || !roundSyncRef.current?.lastState || activeNonce <= 0 || performance.now() - roundSyncRef.current.lastSyncReceivedAt > 10_000) {
-      setActionMessage('Live rounds are unavailable. Please wait for the connection to recover.');
-      return;
-    }
-    window.dispatchEvent(new CustomEvent('aviator:audio-unlock'));
     if (!isAuthenticated || !token) {
       setAuthMode('login');
       setShowAuthModal(true);
       return;
     }
+    if (roundServiceError || !roundSyncRef.current?.lastState || activeNonce <= 0 || performance.now() - roundSyncRef.current.lastSyncReceivedAt > 10_000) {
+      setActionMessage('Live rounds are unavailable. Please wait for the connection to recover.');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('aviator:audio-unlock'));
     const currentTerminal = terminalId === 1 ? terminal1 : terminal2;
     if (currentTerminal.staked && !currentTerminal.cashedOut) return;
     if (amount > balance) {
@@ -601,31 +601,15 @@ export function AviatorConsole() {
             onTerminal2Cancel={handleTerminal2Cancel}
             onToggleTerminal2={() => setTerminal2Visible(!terminal2Visible)}
           />
-          {!isAuthenticated && !authLoading && <div className="auth-required-overlay">
-            <div className="auth-required-card">
-              <strong>Login required to play</strong>
-              <span>Sign in or create an account to place a bet.</span>
-              <button type="button" className="auth-submit-btn" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>Login / Register</button>
-            </div>
-          </div>}
           </div>
         </div>
 
         {/* LEFT COLUMN / BOTTOM MOBILE: Community Live Bets Sidebar */}
         <LiveStakers
-          terminal1Staked={terminal1.staked}
-          terminal1Amount={terminal1.amount}
-          terminal1CashedOut={terminal1.cashedOut}
-          terminal1AutoCashoutMultiplier={terminal1.autoCashoutMultiplier}
-          terminal2Staked={terminal2.staked}
-          terminal2Amount={terminal2.amount}
-          terminal2CashedOut={terminal2.cashedOut}
-          terminal2AutoCashoutMultiplier={terminal2.autoCashoutMultiplier}
           gameState={gameState}
-          currentMultiplier={currentMultiplier}
-          countdownSeconds={countdownSeconds}
           roundNonce={roundNonce}
           serverTime={serverTime}
+          gameMode={gameMode}
         />
       </div>
       {actionMessage && <div role="status" className="bet-action-message">{actionMessage}</div>}

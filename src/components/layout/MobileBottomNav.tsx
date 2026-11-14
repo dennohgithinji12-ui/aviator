@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ModuleKey = 'home' | 'sports' | 'casino' | 'aviator' | 'me';
 type ModuleSettings = Record<ModuleKey, boolean>;
@@ -17,6 +18,7 @@ const items: { key: ModuleKey; href: string; label: string; icon: ReactNode }[] 
 ];
 
 export function MobileBottomNav() {
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
   const [modules, setModules] = useState(defaultModules);
   useEffect(() => {
@@ -36,7 +38,7 @@ export function MobileBottomNav() {
   return <nav className="app-mobile-nav" aria-label="Main navigation">
     {items.filter((item) => modules[item.key]).map((item) => {
       const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-      return <Link key={item.href} href={item.href} className={`app-mobile-nav-item nav-${item.key}${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
+      return <Link key={item.href} href={item.href} onClick={(event) => { if (item.key === 'me' && !isAuthenticated) { event.preventDefault(); window.dispatchEvent(new CustomEvent('aviator:open-auth')); } }} className={`app-mobile-nav-item nav-${item.key}${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
         {item.key === 'aviator' && <span className="bnav-badge-pill">● LIVE</span>}
         <span aria-hidden="true">{item.icon}</span><small>{item.label}</small>
       </Link>;
